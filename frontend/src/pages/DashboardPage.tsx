@@ -10,9 +10,17 @@ import {
   Globe, 
   TrendingUp,
   Users,
-  XCircle
+  XCircle,
+  Monitor,
+  Plus,
+  Eye,
+  Zap,
+  ArrowUpDown
 } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { cn, formatDuration, calculateUptime } from '../lib/utils'
+import { formatDistanceToNow } from 'date-fns'
+import { ptBR } from 'date-fns/locale'
 
 interface Monitor {
   id: string
@@ -41,6 +49,8 @@ export function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [monitors, setMonitors] = useState<Monitor[]>([])
   const [loading, setLoading] = useState(true)
+  const [sortBy, setSortBy] = useState<'recent' | 'alphabetical' | 'status'>('recent')
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
   useEffect(() => {
     fetchDashboardData()
@@ -80,13 +90,13 @@ export function DashboardPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'online':
-        return <CheckCircle className="h-4 w-4 text-green-600" />
+        return <CheckCircle className="h-4 w-4 text-green-400" />
       case 'offline':
-        return <AlertTriangle className="h-4 w-4 text-red-600" />
+        return <XCircle className="h-4 w-4 text-red-400" />
       case 'warning':
-        return <Clock className="h-4 w-4 text-yellow-600" />
+        return <AlertTriangle className="h-4 w-4 text-yellow-400" />
       default:
-        return <Activity className="h-4 w-4 text-gray-600" />
+        return <Activity className="h-4 w-4 text-gray-400" />
     }
   }
 
@@ -103,6 +113,32 @@ export function DashboardPage() {
     }
   }
 
+  const getSortedMonitors = () => {
+    const monitorsCopy = [...monitors]
+    let sorted: Monitor[]
+    
+    switch (sortBy) {
+      case 'alphabetical':
+        sorted = monitorsCopy.sort((a, b) => a.name.localeCompare(b.name))
+        break
+      case 'status':
+        const statusOrder: { [key: string]: number } = { 'offline': 0, 'warning': 1, 'online': 2, 'unknown': 3 }
+        sorted = monitorsCopy.sort((a, b) => (statusOrder[a.status] || 3) - (statusOrder[b.status] || 3))
+        break
+      case 'recent':
+      default:
+        sorted = monitorsCopy.sort((a, b) => {
+          if (!a.last_check && !b.last_check) return 0
+          if (!a.last_check) return 1
+          if (!b.last_check) return -1
+          return new Date(b.last_check).getTime() - new Date(a.last_check).getTime()
+        })
+        break
+    }
+    
+    return sortOrder === 'desc' ? sorted : sorted.reverse()
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -114,141 +150,127 @@ export function DashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-600">Visão geral do monitoramento de sites</p>
+          <div className="flex items-center gap-3 mb-2">
+            <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
+              <span className="text-white font-bold text-sm">SM</span>
+            </div>
+            <h1 className="text-2xl font-bold text-white">Site Monitor</h1>
+          </div>
+          <p className="text-gray-400">Monitoramento de sites para HQ Last 30 Days</p>
         </div>
-        <Button onClick={fetchDashboardData} variant="outline">
-          <Activity className="h-4 w-4 mr-2" />
-          Atualizar
-        </Button>
       </div>
 
       {/* Stats Cards */}
       {stats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card>
+          <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Monitores</CardTitle>
-              <Globe className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-gray-400">Total de Sites</CardTitle>
+              <Monitor className="h-4 w-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.total_monitors}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.total_groups} grupos ativos
+              <div className="text-2xl font-bold text-white">{stats.total_monitors}</div>
+              <p className="text-xs text-gray-400">
+                {stats.total_groups > 0 ? `Distribuídos em ${stats.total_groups} grupo${stats.total_groups > 1 ? 's' : ''}` : 'Nenhum grupo configurado'}
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Status Online</CardTitle>
-              <CheckCircle className="h-4 w-4 text-green-600" />
+              <CardTitle className="text-sm font-medium text-gray-400">Sites Online</CardTitle>
+              <CheckCircle className="h-4 w-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-green-600">{stats.online_monitors}</div>
-              <p className="text-xs text-muted-foreground">
-                {stats.warning_monitors} com aviso
+              <div className="text-2xl font-bold text-white">{stats.online_monitors}</div>
+              <p className="text-xs text-green-400">
+                {stats.total_monitors > 0 ? `${((stats.online_monitors / stats.total_monitors) * 100).toFixed(1)}% do total` : 'Nenhum site configurado'}
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Status Offline</CardTitle>
-              <XCircle className="h-4 w-4 text-red-600" />
+              <CardTitle className="text-sm font-medium text-gray-400">Sites Offline</CardTitle>
+              <XCircle className="h-4 w-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{stats.offline_monitors}</div>
-              <p className="text-xs text-muted-foreground">
-                Monitores inativos
+              <div className="text-2xl font-bold text-white">{stats.offline_monitors}</div>
+              <p className="text-xs text-red-400">
+                {stats.offline_monitors > 0 ? `${stats.warning_monitors > 0 ? `+${stats.warning_monitors} com problemas` : 'Requer atenção imediata'}` : 'Todos os sites funcionando'}
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Uptime Médio</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium text-gray-400">Uptime Médio</CardTitle>
+              <TrendingUp className="h-4 w-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.avg_uptime?.toFixed(1) || '0.0'}%</div>
-              <p className="text-xs text-muted-foreground">
-                Últimas 24 horas
+              <div className="text-2xl font-bold text-white">{stats.avg_uptime?.toFixed(1) || '0.0'}%</div>
+              <p className="text-xs text-gray-400">
+                {stats.avg_response_time ? `Tempo médio: ${stats.avg_response_time.toFixed(0)}ms` : 'Sem dados de resposta'}
               </p>
             </CardContent>
           </Card>
         </div>
       )}
 
-      {/* Recent Monitors */}
-      <Card>
+      {/* Sites Monitorados Section */}
+      <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
         <CardHeader>
-          <CardTitle>Status dos Monitores</CardTitle>
-          <CardDescription>
-            Status atual de todos os monitores ativos
-          </CardDescription>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-white">Sites Monitorados</CardTitle>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+                className="p-1 rounded hover:bg-gray-700 transition-colors"
+                title={`Ordenação ${sortOrder === 'asc' ? 'crescente' : 'decrescente'}`}
+              >
+                <ArrowUpDown className={`h-4 w-4 text-gray-400 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+              </button>
+              <select 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value as 'recent' | 'alphabetical' | 'status')}
+                className="bg-gray-800 text-white text-sm border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-gray-500"
+              >
+                <option value="recent">Mais Recentes</option>
+                <option value="alphabetical">Ordem Alfabética</option>
+                <option value="status">Por Status</option>
+              </select>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
-          {monitors.length === 0 ? (
-            <div className="text-center py-8">
-              <Globe className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Nenhum monitor configurado
-              </h3>
-              <p className="text-gray-600 mb-4">
-                Comece adicionando seus primeiros domínios para monitorar
-              </p>
-              <Button>
-                Adicionar Monitor
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {monitors.map((monitor) => (
-                <div
-                  key={monitor.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center space-x-4">
+          <div className="space-y-3">
+            {monitors.length > 0 ? (
+              getSortedMonitors().slice(0, 4).map((monitor) => (
+                <div key={monitor.id} className="flex items-center justify-between p-3 rounded-lg" style={{backgroundColor: '#2c313a', border: '1px solid #2c313a'}}>
+                  <div className="flex items-center gap-3">
                     {getStatusIcon(monitor.status)}
                     <div>
-                      <h4 className="font-medium text-gray-900">{monitor.name}</h4>
-                      <p className="text-sm text-gray-600">{monitor.url}</p>
-                      <p className="text-xs text-gray-500">{monitor.group_name}</p>
+                      <p className="text-white text-sm font-medium">{monitor.name}</p>
+                      <p className="text-gray-400 text-xs">{monitor.status}</p>
                     </div>
                   </div>
-                  
-                  <div className="flex items-center space-x-4">
-                    {monitor.response_time && (
-                      <div className="text-right">
-                        <p className="text-sm font-medium">
-                          {formatDuration(monitor.response_time)}
-                        </p>
-                        <p className="text-xs text-gray-500">tempo de resposta</p>
-                      </div>
-                    )}
-                    
-                    <div className="flex items-center space-x-2">
-                      <Badge className={monitor.status === 'unknown' ? 'bg-gray-100 text-gray-800' : getStatusColor(monitor.status)}>
-                         {monitor.status === 'online' && 'Online'}
-                         {monitor.status === 'offline' && 'Offline'}
-                         {monitor.status === 'warning' && 'Aviso'}
-                         {monitor.status === 'unknown' && 'Desconhecido'}
-                       </Badge>
-                      <div className="text-right">
-                        <p className="text-sm font-medium">
-                          {monitor.uptime_24h?.toFixed(1) || '0.0'}%
-                        </p>
-                        <p className="text-xs text-gray-500">uptime 24h</p>
-                      </div>
-                    </div>
+                  <div className="flex items-center gap-2">
+                    <Badge className={getStatusColor(monitor.status)}>
+                      {monitor.uptime_24h?.toFixed(0) || '0'}%
+                    </Badge>
+                    <span className="text-gray-400 text-xs">{monitor.response_time || 0}ms</span>
                   </div>
                 </div>
-              ))}
-            </div>
-          )}
+              ))
+            ) : (
+              <div className="text-center py-8">
+                <Monitor className="h-8 w-8 text-gray-600 mx-auto mb-2" />
+                <p className="text-gray-400 text-sm">No monitors configured</p>
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

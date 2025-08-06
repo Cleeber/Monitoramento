@@ -192,8 +192,8 @@ export function ReportsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Relatórios</h1>
-          <p className="text-gray-600">Análise detalhada do desempenho dos monitores</p>
+          <h1 className="text-2xl font-bold" style={{ color: '#ffffff' }}>Relatórios</h1>
+          <p style={{ color: '#9ca3af' }}>Análise detalhada do desempenho dos monitores</p>
         </div>
         <div className="flex items-center space-x-4">
           <Button 
@@ -244,55 +244,55 @@ export function ReportsPage() {
       {/* Overall Stats */}
       {overallStats && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card>
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Uptime Médio</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Uptime Médio</CardTitle>
+              <TrendingUp className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
               <div className={`text-2xl font-bold ${getUptimeColor(overallStats.avgUptime)}`}>
                 {overallStats.avgUptime?.toFixed(2) || '0.00'}%
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs" style={{ color: '#9ca3af' }}>
                 {selectedRange?.label.toLowerCase()}
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Verificações</CardTitle>
-              <Activity className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Verificações</CardTitle>
+              <Activity className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{overallStats.totalChecks.toLocaleString()}</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{overallStats.totalChecks.toLocaleString()}</div>
+              <p className="text-xs" style={{ color: '#9ca3af' }}>
                 {overallStats.totalSuccessful.toLocaleString()} bem-sucedidas
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Incidentes</CardTitle>
-              <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Incidentes</CardTitle>
+              <AlertTriangle className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-red-600">{overallStats.totalIncidents}</div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-xs" style={{ color: '#9ca3af' }}>
                 {overallStats.monitorsCount} monitores
               </p>
             </CardContent>
           </Card>
 
-          <Card>
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tempo de Resposta</CardTitle>
-              <Clock className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Tempo de Resposta</CardTitle>
+              <Clock className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{Math.round(overallStats.avgResponseTime)}ms</div>
-              <p className="text-xs text-muted-foreground">
+              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{Math.round(overallStats.avgResponseTime)}ms</div>
+              <p className="text-xs" style={{ color: '#9ca3af' }}>
                 Média geral
               </p>
             </CardContent>
@@ -301,21 +301,21 @@ export function ReportsPage() {
       )}
 
       {/* Detailed Reports */}
-      <Card>
+      <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
         <CardHeader>
-          <CardTitle>Relatório Detalhado por Monitor</CardTitle>
-          <CardDescription>
+          <CardTitle style={{ color: '#ffffff' }}>Relatório Detalhado por Monitor</CardTitle>
+          <CardDescription style={{ color: '#9ca3af' }}>
             Estatísticas individuais de cada monitor no período selecionado
           </CardDescription>
         </CardHeader>
         <CardContent>
           {reports.length === 0 ? (
             <div className="text-center py-8">
-              <BarChart3 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+              <BarChart3 className="h-12 w-12 mx-auto mb-4" style={{ color: '#9ca3af' }} />
+              <h3 className="text-lg font-medium mb-2" style={{ color: '#ffffff' }}>
                 Nenhum dado encontrado
               </h3>
-              <p className="text-gray-600">
+              <p style={{ color: '#9ca3af' }}>
                 Não há dados suficientes para o período e filtros selecionados
               </p>
             </div>
@@ -324,46 +324,51 @@ export function ReportsPage() {
               {reports.map((report) => (
                 <div
                   key={report.monitor_id}
-                  className="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                  className="rounded-lg p-4 transition-colors"
+                  style={{ 
+                    backgroundColor: '#2c313a', 
+                    borderColor: '#2c313a',
+                    border: '1px solid'
+                  }}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1">
                       <div className="flex items-center space-x-2 mb-2">
-                        <h4 className="font-medium text-gray-900">{report.monitor_name}</h4>
+                        <h4 className="font-medium" style={{ color: '#ffffff' }}>{report.monitor_name}</h4>
                         <Badge className={getUptimeBadgeColor(report.uptime_percentage)}>
                           {report.uptime_percentage?.toFixed(2) || '0.00'}% uptime
                         </Badge>
                       </div>
                       
-                      <p className="text-sm text-gray-600 mb-2">{report.monitor_url}</p>
-                      <p className="text-xs text-gray-500 mb-3">{report.group_name}</p>
+                      <p className="text-sm mb-2" style={{ color: '#9ca3af' }}>{report.monitor_url}</p>
+                      <p className="text-xs mb-3" style={{ color: '#9ca3af' }}>{report.group_name}</p>
                       
                       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                         <div>
-                          <p className="text-gray-500">Verificações</p>
-                          <p className="font-medium">
+                          <p style={{ color: '#9ca3af' }}>Verificações</p>
+                          <p className="font-medium" style={{ color: '#ffffff' }}>
                             {report.successful_checks}/{report.total_checks}
                           </p>
                         </div>
                         
                         <div>
-                          <p className="text-gray-500">Tempo de Resposta</p>
-                          <p className="font-medium">
+                          <p style={{ color: '#9ca3af' }}>Tempo de Resposta</p>
+                          <p className="font-medium" style={{ color: '#ffffff' }}>
                             {Math.round(report.avg_response_time)}ms
-                            <span className="text-xs text-gray-400 ml-1">
+                            <span className="text-xs ml-1" style={{ color: '#9ca3af' }}>
                               ({report.min_response_time}-{report.max_response_time}ms)
                             </span>
                           </p>
                         </div>
                         
                         <div>
-                          <p className="text-gray-500">Incidentes</p>
+                          <p style={{ color: '#9ca3af' }}>Incidentes</p>
                           <p className="font-medium text-red-600">{report.incidents}</p>
                         </div>
                         
                         <div>
-                          <p className="text-gray-500">Último Incidente</p>
-                          <p className="font-medium">
+                          <p style={{ color: '#9ca3af' }}>Último Incidente</p>
+                          <p className="font-medium" style={{ color: '#ffffff' }}>
                             {report.last_incident 
                               ? new Date(report.last_incident).toLocaleDateString('pt-BR')
                               : 'Nenhum'

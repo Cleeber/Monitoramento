@@ -163,8 +163,8 @@ export function ClientsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-          <p className="text-gray-600">Gerencie os grupos e clientes do sistema</p>
+          <h1 className="text-2xl font-bold text-white">Clientes</h1>
+          <p className="text-gray-400">Gerencie os grupos e clientes do sistema</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -173,12 +173,12 @@ export function ClientsPage() {
               Novo Grupo
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[425px]" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-white">
                 {editingGroup ? 'Editar Grupo' : 'Novo Grupo'}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-gray-400">
                 {editingGroup 
                   ? 'Atualize as informações do grupo'
                   : 'Crie um novo grupo para organizar seus monitores'
@@ -187,7 +187,7 @@ export function ClientsPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome do Grupo</Label>
+                <Label htmlFor="name" className="text-white">Nome do Grupo</Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -198,7 +198,7 @@ export function ClientsPage() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="description">Descrição</Label>
+                <Label htmlFor="description" className="text-white">Descrição</Label>
                 <Input
                   id="description"
                   value={formData.description}
@@ -233,13 +233,13 @@ export function ClientsPage() {
 
       {/* Groups Grid */}
       {filteredGroups.length === 0 ? (
-        <Card>
+        <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
           <CardContent className="text-center py-8">
             <Building className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">
+            <h3 className="text-lg font-medium text-white mb-2">
               {searchTerm ? 'Nenhum grupo encontrado' : 'Nenhum grupo criado'}
             </h3>
-            <p className="text-gray-600 mb-4">
+            <p className="text-gray-400 mb-4">
               {searchTerm 
                 ? 'Tente ajustar o termo de busca'
                 : 'Crie grupos para organizar seus monitores por cliente ou projeto'
@@ -256,12 +256,12 @@ export function ClientsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredGroups.map((group) => (
-            <Card key={group.id} className="hover:shadow-md transition-shadow">
+            <Card key={group.id} className="hover:shadow-md transition-shadow border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center space-x-2">
                     <Building className="h-5 w-5 text-primary" />
-                    <CardTitle className="text-lg">{group.name}</CardTitle>
+                    <CardTitle className="text-lg text-white">{group.name}</CardTitle>
                   </div>
                   <div className="flex items-center space-x-1">
                     <Button
@@ -287,13 +287,13 @@ export function ClientsPage() {
               </CardHeader>
               <CardContent>
                 <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-2 text-gray-600">
+                  <div className="flex items-center space-x-2 text-gray-400">
                     <Globe className="h-4 w-4" />
                     <span>
                       {group.monitor_count} {group.monitor_count === 1 ? 'monitor' : 'monitores'}
                     </span>
                   </div>
-                  <div className="text-gray-500">
+                  <div className="text-gray-400">
                     {new Date(group.created_at).toLocaleDateString('pt-BR')}
                   </div>
                 </div>

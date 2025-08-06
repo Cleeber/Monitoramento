@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '../components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { Switch } from '../components/ui/switch'
+import { Badge } from '../components/ui/badge'
 import { 
   Plus, 
   Search, 
@@ -234,8 +235,8 @@ export function DomainsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Domínios</h1>
-          <p className="text-gray-600">Gerencie os domínios monitorados</p>
+          <h1 className="text-2xl font-bold text-white">Domínios</h1>
+          <p className="text-gray-400">Gerencie os domínios monitorados</p>
         </div>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
@@ -244,12 +245,12 @@ export function DomainsPage() {
               Adicionar Monitor
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]">
+          <DialogContent className="sm:max-w-[425px]" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <DialogHeader>
-              <DialogTitle>
+              <DialogTitle className="text-white">
                 {editingMonitor ? 'Editar Monitor' : 'Novo Monitor'}
               </DialogTitle>
-              <DialogDescription>
+              <DialogDescription className="text-gray-400">
                 {editingMonitor 
                   ? 'Atualize as informações do monitor'
                   : 'Adicione um novo domínio para monitorar'
@@ -258,7 +259,7 @@ export function DomainsPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="name">Nome</Label>
+                <Label htmlFor="name" className="text-white">Nome</Label>
                 <Input
                   id="name"
                   value={formData.name}
@@ -269,7 +270,7 @@ export function DomainsPage() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="url">URL/Endereço</Label>
+                <Label htmlFor="url" className="text-white">URL/Endereço</Label>
                 <Input
                   id="url"
                   value={formData.url}
@@ -280,7 +281,7 @@ export function DomainsPage() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="type">Tipo de Monitor</Label>
+                <Label htmlFor="type" className="text-white">Tipo de Monitor</Label>
                 <Select value={formData.type} onValueChange={(value: 'http' | 'ping' | 'tcp') => setFormData({ ...formData, type: value })}>
                   <SelectTrigger>
                     <SelectValue />
@@ -295,7 +296,7 @@ export function DomainsPage() {
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="interval">Intervalo (seg)</Label>
+                  <Label htmlFor="interval" className="text-white">Intervalo (seg)</Label>
                   <Input
                     id="interval"
                     type="number"
@@ -306,7 +307,7 @@ export function DomainsPage() {
                 </div>
                 
                 <div className="space-y-2">
-                  <Label htmlFor="timeout">Timeout (seg)</Label>
+                  <Label htmlFor="timeout" className="text-white">Timeout (seg)</Label>
                   <Input
                     id="timeout"
                     type="number"
@@ -318,7 +319,7 @@ export function DomainsPage() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="group">Grupo/Cliente</Label>
+                <Label htmlFor="group" className="text-white">Grupo/Cliente</Label>
                 <Select value={formData.group_id} onValueChange={(value) => setFormData({ ...formData, group_id: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione um grupo" />
@@ -339,7 +340,7 @@ export function DomainsPage() {
                   checked={formData.enabled}
                   onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
                 />
-                <Label htmlFor="enabled">Monitor ativo</Label>
+                <Label htmlFor="enabled" className="text-white">Monitor ativo</Label>
               </div>
               
               <div className="flex justify-end space-x-2">
@@ -382,10 +383,10 @@ export function DomainsPage() {
       </div>
 
       {/* Monitors List */}
-      <Card>
+      <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
         <CardHeader>
-          <CardTitle>Monitores ({filteredMonitors.length})</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-white">Monitores ({filteredMonitors.length})</CardTitle>
+          <CardDescription className="text-gray-400">
             Lista de todos os domínios sendo monitorados
           </CardDescription>
         </CardHeader>
@@ -393,10 +394,10 @@ export function DomainsPage() {
           {filteredMonitors.length === 0 ? (
             <div className="text-center py-8">
               <Globe className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
+              <h3 className="text-lg font-medium text-white mb-2">
                 {searchTerm || selectedGroup !== 'all' ? 'Nenhum monitor encontrado' : 'Nenhum monitor configurado'}
               </h3>
-              <p className="text-gray-600 mb-4">
+              <p className="text-gray-400 mb-4">
                 {searchTerm || selectedGroup !== 'all' 
                   ? 'Tente ajustar os filtros de busca'
                   : 'Comece adicionando seus primeiros domínios para monitorar'
@@ -414,21 +415,22 @@ export function DomainsPage() {
               {filteredMonitors.map((monitor) => (
                 <div
                   key={monitor.id}
-                  className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                  className="flex items-center justify-between p-4 border rounded-lg transition-colors"
+                  style={{borderColor: '#2c313a', backgroundColor: '#2c313a'}}
                 >
                   <div className="flex items-center space-x-4">
                     {getStatusIcon(monitor.status)}
                     <div>
                       <div className="flex items-center space-x-2">
-                        <h4 className="font-medium text-gray-900">{monitor.name}</h4>
+                        <h4 className="font-medium text-white">{monitor.name}</h4>
                         {!monitor.enabled && (
                           <Badge variant="outline" className="text-xs">
                             Pausado
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-gray-600">{monitor.url}</p>
-                      <div className="flex items-center space-x-4 text-xs text-gray-500">
+                      <p className="text-sm text-gray-300">{monitor.url}</p>
+                      <div className="flex items-center space-x-4 text-xs text-gray-400">
                         <span>{monitor.group_name}</span>
                         <span>•</span>
                         <span>{monitor.type.toUpperCase()}</span>
@@ -441,10 +443,10 @@ export function DomainsPage() {
                   <div className="flex items-center space-x-4">
                     {monitor.response_time && (
                       <div className="text-right">
-                        <p className="text-sm font-medium">
+                        <p className="text-sm font-medium text-white">
                           {monitor.response_time}ms
                         </p>
-                        <p className="text-xs text-gray-500">resposta</p>
+                        <p className="text-xs text-gray-400">resposta</p>
                       </div>
                     )}
                     

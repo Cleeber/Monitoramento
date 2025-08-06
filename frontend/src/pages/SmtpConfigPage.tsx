@@ -161,20 +161,20 @@ export function SmtpConfigPage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Configuração SMTP</h1>
-        <p className="text-gray-600">Configure o servidor de e-mail para notificações</p>
+        <h1 className="text-2xl font-bold" style={{ color: '#ffffff' }}>Configuração SMTP</h1>
+        <p style={{ color: '#9ca3af' }}>Configure o servidor de e-mail para notificações</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main Configuration */}
         <div className="lg:col-span-2">
-          <Card>
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Mail className="h-5 w-5" />
+              <CardTitle className="flex items-center space-x-2" style={{ color: '#ffffff' }}>
+                <Mail className="h-5 w-5" style={{ color: '#ffffff' }} />
                 <span>Configurações do Servidor</span>
               </CardTitle>
-              <CardDescription>
+              <CardDescription style={{ color: '#9ca3af' }}>
                 Configure as credenciais do seu provedor de e-mail
               </CardDescription>
             </CardHeader>
@@ -187,13 +187,13 @@ export function SmtpConfigPage() {
                     checked={config.enabled}
                     onCheckedChange={(checked) => setConfig({ ...config, enabled: checked })}
                   />
-                  <Label htmlFor="enabled">Habilitar notificações por e-mail</Label>
+                  <Label htmlFor="enabled" style={{ color: '#ffffff' }}>Habilitar notificações por e-mail</Label>
                 </div>
 
                 {/* Server Settings */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="host">Servidor SMTP</Label>
+                    <Label htmlFor="host" style={{ color: '#ffffff' }}>Servidor SMTP</Label>
                     <Input
                       id="host"
                       value={config.host}
@@ -204,7 +204,7 @@ export function SmtpConfigPage() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="port">Porta</Label>
+                    <Label htmlFor="port" style={{ color: '#ffffff' }}>Porta</Label>
                     <div className="flex space-x-2">
                       <Input
                         id="port"
@@ -230,7 +230,7 @@ export function SmtpConfigPage() {
                 {/* Authentication */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="username">Usuário/E-mail</Label>
+                    <Label htmlFor="username" style={{ color: '#ffffff' }}>Usuário/E-mail</Label>
                     <Input
                       id="username"
                       value={config.username}
@@ -241,7 +241,7 @@ export function SmtpConfigPage() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="password">Senha</Label>
+                    <Label htmlFor="password" style={{ color: '#ffffff' }}>Senha</Label>
                     <div className="relative">
                       <Input
                         id="password"
@@ -271,7 +271,7 @@ export function SmtpConfigPage() {
                 {/* From Settings */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="from_email">E-mail do Remetente</Label>
+                    <Label htmlFor="from_email" style={{ color: '#ffffff' }}>E-mail do Remetente</Label>
                     <Input
                       id="from_email"
                       value={config.from_email}
@@ -282,7 +282,7 @@ export function SmtpConfigPage() {
                   </div>
                   
                   <div className="space-y-2">
-                    <Label htmlFor="from_name">Nome do Remetente</Label>
+                    <Label htmlFor="from_name" style={{ color: '#ffffff' }}>Nome do Remetente</Label>
                     <Input
                       id="from_name"
                       value={config.from_name}
@@ -295,7 +295,7 @@ export function SmtpConfigPage() {
 
                 {/* Security Settings */}
                 <div className="space-y-4">
-                  <h4 className="font-medium">Configurações de Segurança</h4>
+                  <h4 className="font-medium" style={{ color: '#ffffff' }}>Configurações de Segurança</h4>
                   <div className="flex flex-col space-y-2">
                     <div className="flex items-center space-x-2">
                       <Switch
@@ -303,7 +303,7 @@ export function SmtpConfigPage() {
                         checked={config.use_tls}
                         onCheckedChange={(checked) => setConfig({ ...config, use_tls: checked })}
                       />
-                      <Label htmlFor="use_tls">Usar TLS (recomendado para porta 587)</Label>
+                      <Label htmlFor="use_tls" style={{ color: '#ffffff' }}>Usar TLS (recomendado para porta 587)</Label>
                     </div>
                     
                     <div className="flex items-center space-x-2">
@@ -312,7 +312,7 @@ export function SmtpConfigPage() {
                         checked={config.use_ssl}
                         onCheckedChange={(checked) => setConfig({ ...config, use_ssl: checked })}
                       />
-                      <Label htmlFor="use_ssl">Usar SSL (recomendado para porta 465)</Label>
+                      <Label htmlFor="use_ssl" style={{ color: '#ffffff' }}>Usar SSL (recomendado para porta 465)</Label>
                     </div>
                   </div>
                 </div>
@@ -332,19 +332,19 @@ export function SmtpConfigPage() {
 
         {/* Test Panel */}
         <div>
-          <Card>
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <TestTube className="h-5 w-5" />
+              <CardTitle className="flex items-center space-x-2" style={{ color: '#ffffff' }}>
+                <TestTube className="h-5 w-5" style={{ color: '#ffffff' }} />
                 <span>Teste de E-mail</span>
               </CardTitle>
-              <CardDescription>
+              <CardDescription style={{ color: '#9ca3af' }}>
                 Envie um e-mail de teste para verificar a configuração
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="test_email">E-mail de Teste</Label>
+                <Label htmlFor="test_email" style={{ color: '#ffffff' }}>E-mail de Teste</Label>
                 <Input
                   id="test_email"
                   type="email"
@@ -369,11 +369,11 @@ export function SmtpConfigPage() {
               </Button>
               
               {!config.enabled && (
-                <div className="flex items-start space-x-2 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
-                  <AlertCircle className="h-4 w-4 text-yellow-600 mt-0.5" />
-                  <div className="text-sm text-yellow-800">
-                    <p className="font-medium">SMTP Desabilitado</p>
-                    <p>Habilite o SMTP para enviar e-mails de teste.</p>
+                <div className="flex items-start space-x-2 p-3 rounded-md" style={{ backgroundColor: '#2c313a', borderColor: '#6b26d9', border: '1px solid' }}>
+                  <AlertCircle className="h-4 w-4 mt-0.5" style={{ color: '#f59e0b' }} />
+                  <div className="text-sm">
+                    <p className="font-medium" style={{ color: '#f59e0b' }}>SMTP Desabilitado</p>
+                    <p style={{ color: '#9ca3af' }}>Habilite o SMTP para enviar e-mails de teste.</p>
                   </div>
                 </div>
               )}
@@ -381,14 +381,14 @@ export function SmtpConfigPage() {
           </Card>
 
           {/* Status Card */}
-          <Card className="mt-6">
+          <Card className="mt-6" style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader>
-              <CardTitle className="text-sm">Status da Configuração</CardTitle>
+              <CardTitle className="text-sm" style={{ color: '#ffffff' }}>Status da Configuração</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-2">
                 <div className="flex items-center justify-between text-sm">
-                  <span>SMTP Habilitado</span>
+                  <span style={{ color: '#9ca3af' }}>SMTP Habilitado</span>
                   {config.enabled ? (
                     <CheckCircle className="h-4 w-4 text-green-600" />
                   ) : (
@@ -397,7 +397,7 @@ export function SmtpConfigPage() {
                 </div>
                 
                 <div className="flex items-center justify-between text-sm">
-                  <span>Servidor Configurado</span>
+                  <span style={{ color: '#9ca3af' }}>Servidor Configurado</span>
                   {config.host ? (
                     <CheckCircle className="h-4 w-4 text-green-600" />
                   ) : (
@@ -406,7 +406,7 @@ export function SmtpConfigPage() {
                 </div>
                 
                 <div className="flex items-center justify-between text-sm">
-                  <span>Credenciais</span>
+                  <span style={{ color: '#9ca3af' }}>Credenciais</span>
                   {config.username && config.password ? (
                     <CheckCircle className="h-4 w-4 text-green-600" />
                   ) : (

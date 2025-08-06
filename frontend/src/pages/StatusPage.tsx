@@ -166,19 +166,19 @@ export function StatusPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#14161a' }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '#6b26d9' }}></div>
       </div>
     )
   }
 
   if (!data) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#14161a' }}>
         <div className="text-center">
           <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold text-gray-900 mb-2">Erro ao carregar status</h2>
-          <p className="text-gray-600 mb-4">Não foi possível carregar as informações de status</p>
+          <h2 className="text-xl font-semibold mb-2" style={{ color: '#ffffff' }}>Erro ao carregar status</h2>
+          <p className="mb-4" style={{ color: '#9ca3af' }}>Não foi possível carregar as informações de status</p>
           <Button onClick={handleRefresh}>
             Tentar novamente
           </Button>
@@ -190,16 +190,16 @@ export function StatusPage() {
   const statusInfo = getOverallStatusInfo(data.overall_status)
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen" style={{ backgroundColor: '#14161a' }}>
       <div className="max-w-4xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Status dos Serviços</h1>
-          <p className="text-gray-600">Acompanhe o status em tempo real dos nossos serviços</p>
+          <h1 className="text-3xl font-bold mb-2" style={{ color: '#ffffff' }}>Status dos Serviços</h1>
+          <p style={{ color: '#9ca3af' }}>Acompanhe o status em tempo real dos nossos serviços</p>
         </div>
 
         {/* Overall Status */}
-        <Card className={`mb-8 border-2 ${statusInfo.bgColor}`}>
+        <Card className="mb-8 border-2" style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
@@ -208,7 +208,7 @@ export function StatusPage() {
                   <h2 className={`text-xl font-semibold ${statusInfo.color}`}>
                     {statusInfo.text}
                   </h2>
-                  <p className="text-sm text-gray-600">
+                  <p className="text-sm" style={{ color: '#9ca3af' }}>
                     Última atualização: {new Date(data.last_updated).toLocaleString('pt-BR')}
                   </p>
                 </div>
@@ -227,21 +227,21 @@ export function StatusPage() {
         </Card>
 
         {/* Services Status */}
-        <Card className="mb-8">
+        <Card className="mb-8" style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
           <CardHeader>
-            <CardTitle>Status dos Serviços</CardTitle>
-            <CardDescription>
+            <CardTitle style={{ color: '#ffffff' }}>Status dos Serviços</CardTitle>
+            <CardDescription style={{ color: '#9ca3af' }}>
               Status atual de todos os serviços monitorados
             </CardDescription>
           </CardHeader>
           <CardContent>
             {data.monitors.length === 0 ? (
               <div className="text-center py-8">
-                <Globe className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">
+                <Globe className="h-12 w-12 mx-auto mb-4" style={{ color: '#9ca3af' }} />
+                <h3 className="text-lg font-medium mb-2" style={{ color: '#ffffff' }}>
                   Nenhum serviço configurado
                 </h3>
-                <p className="text-gray-600">
+                <p style={{ color: '#9ca3af' }}>
                   Não há serviços sendo monitorados no momento
                 </p>
               </div>
@@ -250,14 +250,19 @@ export function StatusPage() {
                 {data.monitors.map((monitor) => (
                   <div
                     key={monitor.id}
-                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center justify-between p-4 rounded-lg transition-colors"
+                    style={{ 
+                      backgroundColor: '#2c313a', 
+                      borderColor: '#2c313a',
+                      border: '1px solid'
+                    }}
                   >
                     <div className="flex items-center space-x-4">
                       {getStatusIcon(monitor.status)}
                       <div>
-                        <h4 className="font-medium text-gray-900">{monitor.name}</h4>
-                        <p className="text-sm text-gray-600">{monitor.url}</p>
-                        <p className="text-xs text-gray-500">{monitor.group_name}</p>
+                        <h4 className="font-medium" style={{ color: '#ffffff' }}>{monitor.name}</h4>
+                        <p className="text-sm" style={{ color: '#9ca3af' }}>{monitor.url}</p>
+                        <p className="text-xs" style={{ color: '#9ca3af' }}>{monitor.group_name}</p>
                       </div>
                     </div>
                     
@@ -266,19 +271,19 @@ export function StatusPage() {
                       <div className="text-right hidden sm:block">
                         <div className="flex space-x-4 text-xs">
                           <div>
-                            <p className="text-gray-500">24h</p>
+                            <p style={{ color: '#9ca3af' }}>24h</p>
                             <p className={`font-medium ${getUptimeColor(monitor.uptime_24h)}`}>
                               {monitor.uptime_24h?.toFixed(1) || '0.0'}%
                             </p>
                           </div>
                           <div>
-                            <p className="text-gray-500">7d</p>
+                            <p style={{ color: '#9ca3af' }}>7d</p>
                             <p className={`font-medium ${getUptimeColor(monitor.uptime_7d)}`}>
                               {monitor.uptime_7d?.toFixed(1) || '0.0'}%
                             </p>
                           </div>
                           <div>
-                            <p className="text-gray-500">30d</p>
+                            <p style={{ color: '#9ca3af' }}>30d</p>
                             <p className={`font-medium ${getUptimeColor(monitor.uptime_30d)}`}>
                               {monitor.uptime_30d?.toFixed(1) || '0.0'}%
                             </p>
@@ -289,10 +294,10 @@ export function StatusPage() {
                       {/* Response Time */}
                       {monitor.response_time && (
                         <div className="text-right">
-                          <p className="text-sm font-medium">
+                          <p className="text-sm font-medium" style={{ color: '#ffffff' }}>
                             {formatDuration(monitor.response_time)}
                           </p>
-                          <p className="text-xs text-gray-500">resposta</p>
+                          <p className="text-xs" style={{ color: '#9ca3af' }}>resposta</p>
                         </div>
                       )}
                       
