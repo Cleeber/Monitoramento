@@ -84,22 +84,6 @@ export function Layout() {
               className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-700"
               onClick={handleLogout}
             >
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-700 mt-1"
-              onClick={handleLogout}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              Help & Support
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-700 mt-1"
-              onClick={handleLogout}
-            >
               <LogOut className="mr-2 h-4 w-4" />
               Log Out
             </Button>
@@ -109,7 +93,7 @@ export function Layout() {
 
       {/* Desktop sidebar */}
       <div className="hidden lg:fixed lg:inset-y-0 lg:flex lg:w-64 lg:flex-col">
-        <div className="flex flex-col flex-grow pt-5 pb-4 overflow-y-auto" style={{backgroundColor: '#181b20'}}>
+        <div className="flex flex-col flex-grow pt-5 pb-4 overflow-y-auto" style={{backgroundColor: '#181b20', borderRight: '1px solid #2c313a'}}>
           <div className="flex items-center flex-shrink-0 px-4 mb-8">
             <div className="flex items-center">
               <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center mr-3">
@@ -147,22 +131,6 @@ export function Layout() {
           <div className="mt-auto border-t border-gray-700 p-4">
             <Button
               variant="ghost"
-              className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-700 mb-1"
-              onClick={handleLogout}
-            >
-              <Settings className="mr-2 h-4 w-4" />
-              Settings
-            </Button>
-            <Button
-              variant="ghost"
-              className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-700 mb-1"
-              onClick={handleLogout}
-            >
-              <FileText className="mr-2 h-4 w-4" />
-              Help & Support
-            </Button>
-            <Button
-              variant="ghost"
               className="w-full justify-start text-gray-300 hover:text-white hover:bg-gray-700"
               onClick={handleLogout}
             >
@@ -191,14 +159,6 @@ export function Layout() {
               <h2 className="text-lg font-semibold text-white">
                 {navigation.find(item => item.href === location.pathname)?.name || 'Dashboard'}
               </h2>
-              <div className="flex items-center gap-4">
-                <Button className="bg-purple-600 hover:bg-purple-700 text-white">
-                  Download CSV
-                </Button>
-                <Button className="bg-purple-600 hover:bg-purple-700 text-white">
-                  Add Site
-                </Button>
-              </div>
             </div>
           </div>
         </div>

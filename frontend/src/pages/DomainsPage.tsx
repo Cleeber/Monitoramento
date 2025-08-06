@@ -174,8 +174,8 @@ export function DomainsPage() {
       name: monitor.name,
       url: monitor.url,
       type: monitor.type,
-      interval: monitor.interval,
-      timeout: monitor.timeout,
+      interval: Math.floor(monitor.interval / 1000), // Converter de milissegundos para segundos
+      timeout: Math.floor(monitor.timeout / 1000),   // Converter de milissegundos para segundos
       group_id: monitor.group_id,
       enabled: monitor.enabled
     })
@@ -435,7 +435,7 @@ export function DomainsPage() {
                         <span>•</span>
                         <span>{monitor.type.toUpperCase()}</span>
                         <span>•</span>
-                        <span>Intervalo: {monitor.interval}s</span>
+                        <span>Intervalo: {Math.floor(monitor.interval / 1000)}s</span>
                       </div>
                     </div>
                   </div>
@@ -457,6 +457,7 @@ export function DomainsPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleEdit(monitor)}
+                        className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-blue-600 hover:text-white hover:border-blue-500"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -464,7 +465,7 @@ export function DomainsPage() {
                         variant="outline"
                         size="sm"
                         onClick={() => handleDelete(monitor.id)}
-                        className="text-red-600 hover:text-red-700"
+                        className="bg-gray-700 border-gray-600 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-500"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
