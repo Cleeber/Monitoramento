@@ -46,6 +46,7 @@ export interface Database {
           id: string
           name: string
           description: string | null
+          slug: string | null
           notification_emails: string[]
           created_at: string
           updated_at: string
@@ -54,6 +55,7 @@ export interface Database {
           id?: string
           name: string
           description?: string | null
+          slug?: string | null
           notification_emails?: string[]
           created_at?: string
           updated_at?: string
@@ -62,6 +64,7 @@ export interface Database {
           id?: string
           name?: string
           description?: string | null
+          slug?: string | null
           notification_emails?: string[]
           updated_at?: string
         }
@@ -69,45 +72,57 @@ export interface Database {
       monitors: {
         Row: {
           id: string
-          group_id: string
+          group_id: string | null
           name: string
           url: string
+          slug: string | null
           type: 'http' | 'ping' | 'tcp'
           interval: number
           timeout: number
           status: 'online' | 'offline' | 'warning' | 'unknown'
           last_check: string | null
           response_time: number | null
+          uptime_24h: number
+          uptime_7d: number
+          uptime_30d: number
           is_active: boolean
           created_at: string
           updated_at: string
         }
         Insert: {
           id?: string
-          group_id: string
+          group_id?: string | null
           name: string
           url: string
+          slug?: string | null
           type?: 'http' | 'ping' | 'tcp'
           interval?: number
           timeout?: number
           status?: 'online' | 'offline' | 'warning' | 'unknown'
           last_check?: string | null
           response_time?: number | null
+          uptime_24h?: number
+          uptime_7d?: number
+          uptime_30d?: number
           is_active?: boolean
           created_at?: string
           updated_at?: string
         }
         Update: {
           id?: string
-          group_id?: string
+          group_id?: string | null
           name?: string
           url?: string
+          slug?: string | null
           type?: 'http' | 'ping' | 'tcp'
           interval?: number
           timeout?: number
           status?: 'online' | 'offline' | 'warning' | 'unknown'
           last_check?: string | null
           response_time?: number | null
+          uptime_24h?: number
+          uptime_7d?: number
+          uptime_30d?: number
           is_active?: boolean
           updated_at?: string
         }

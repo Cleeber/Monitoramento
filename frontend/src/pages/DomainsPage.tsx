@@ -39,6 +39,7 @@ interface Monitor {
   uptime_24h: number
   uptime_7d: number
   uptime_30d: number
+  slug: string
 }
 
 interface Group {
@@ -55,6 +56,7 @@ interface MonitorFormData {
   timeout: number
   group_id: string | null
   enabled: boolean
+  slug: string
 }
 
 export function DomainsPage() {
@@ -72,7 +74,8 @@ export function DomainsPage() {
     interval: 60,
     timeout: 30,
     group_id: null,
-    enabled: true
+    enabled: true,
+    slug: ''
   })
   const { addToast } = useToast()
 
@@ -177,7 +180,8 @@ export function DomainsPage() {
       interval: Math.floor(monitor.interval / 1000), // Converter de milissegundos para segundos
       timeout: Math.floor(monitor.timeout / 1000),   // Converter de milissegundos para segundos
       group_id: monitor.group_id,
-      enabled: monitor.enabled
+      enabled: monitor.enabled,
+      slug: monitor.slug || ''
     })
     setIsDialogOpen(true)
   }
@@ -190,7 +194,8 @@ export function DomainsPage() {
       interval: 60,
       timeout: 30,
       group_id: null,
-      enabled: true
+      enabled: true,
+      slug: ''
     })
   }
 
@@ -318,6 +323,19 @@ export function DomainsPage() {
                     onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) })}
                   />
                 </div>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="slug" className="text-white">Slug para Página de Status</Label>
+                <Input
+                  id="slug"
+                  value={formData.slug}
+                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                  placeholder="Ex: meu-dominio-1 (deixe vazio para gerar automaticamente)"
+                />
+                <p className="text-xs text-gray-400">
+                  Será usado na URL da página de status: /status/seu-slug
+                </p>
               </div>
               
               <div className="space-y-2">

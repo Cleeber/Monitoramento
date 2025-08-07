@@ -19,6 +19,7 @@ interface Group {
   id: string
   name: string
   description: string
+  slug: string
   monitor_count: number
   created_at: string
 }
@@ -26,6 +27,7 @@ interface Group {
 interface GroupFormData {
   name: string
   description: string
+  slug: string
 }
 
 export function GroupsPage() {
@@ -36,7 +38,8 @@ export function GroupsPage() {
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [formData, setFormData] = useState<GroupFormData>({
     name: '',
-    description: ''
+    description: '',
+    slug: ''
   })
   const { addToast } = useToast()
 
@@ -127,7 +130,8 @@ export function GroupsPage() {
     setEditingGroup(group)
     setFormData({
       name: group.name,
-      description: group.description
+      description: group.description,
+      slug: group.slug || ''
     })
     setIsDialogOpen(true)
   }
@@ -135,7 +139,8 @@ export function GroupsPage() {
   const resetForm = () => {
     setFormData({
       name: '',
-      description: ''
+      description: '',
+      slug: ''
     })
   }
 
@@ -205,6 +210,19 @@ export function GroupsPage() {
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                   placeholder="Descrição opcional do grupo"
                 />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="slug" className="text-white">Slug para Página de Status</Label>
+                <Input
+                  id="slug"
+                  value={formData.slug}
+                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                  placeholder="Ex: meu-grupo-1 (deixe vazio para gerar automaticamente)"
+                />
+                <p className="text-xs text-gray-400">
+                  Será usado na URL da página de status: /status/seu-slug
+                </p>
               </div>
               
               <div className="flex justify-end space-x-2">

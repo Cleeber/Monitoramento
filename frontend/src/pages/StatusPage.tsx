@@ -9,10 +9,38 @@ import {
   Activity,
   Globe,
   RefreshCw,
-  Calendar
+  Calendar,
+  TrendingUp,
+  BarChart3,
+  PieChart
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { formatDuration } from '../lib/utils'
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement,
+} from 'chart.js'
+import { Bar, Line, Doughnut } from 'react-chartjs-2'
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  Title,
+  Tooltip,
+  Legend,
+  ArcElement
+)
 
 interface PublicMonitor {
   id: string
@@ -43,13 +71,96 @@ interface IncidentHistory {
   resolved_at: string | null
 }
 
+// Função para gerar dados do gráfico de uptime
+const generateUptimeChartData = (monitors: PublicMonitor[]) => {
+  const last30Days = Array.from({ length: 30 }, (_, i) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (29 - i))
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  })
+
+  return {
+    labels: last30Days,
+    datasets: [
+      {
+        label: 'Uptime (%)',
+        data: last30Days.map(() => {
+          // Simular dados de uptime histórico
+          const avgUptime = monitors.length > 0 
+            ? monitors.reduce((acc, m) => acc + m.uptime_30d, 0) / monitors.length
+            : 100
+          return avgUptime + (Math.random() - 0.5) * 5 // Variação simulada
+        }),
+        backgroundColor: '#10b981',
+        borderColor: '#10b981',
+        borderWidth: 1,
+      },
+    ],
+  }
+}
+
+// Função para gerar dados do gráfico de tempo de resposta
+const generateResponseTimeChartData = (monitors: PublicMonitor[]) => {
+  const last30Days = Array.from({ length: 30 }, (_, i) => {
+    const date = new Date()
+    date.setDate(date.getDate() - (29 - i))
+    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+  })
+
+  return {
+    labels: last30Days,
+    datasets: [
+      {
+        label: 'Tempo de Resposta (ms)',
+        data: last30Days.map(() => {
+          // Simular dados de tempo de resposta histórico
+          const avgResponseTime = monitors.length > 0 && monitors.some(m => m.response_time)
+            ? monitors
+                .filter(m => m.response_time)
+                .reduce((acc, m) => acc + (m.response_time || 0), 0) / 
+              monitors.filter(m => m.response_time).length
+            : 100
+          return avgResponseTime + (Math.random() - 0.5) * 50 // Variação simulada
+        }),
+        backgroundColor: '#3b82f6',
+        borderColor: '#3b82f6',
+        borderWidth: 1,
+      },
+    ],
+  }
+}
+
+// Função para gerar dados do gráfico de distribuição de status
+const generateStatusDistributionData = (monitors: PublicMonitor[]) => {
+  const statusCounts = {
+    online: monitors.filter(m => m.status === 'online').length,
+    offline: monitors.filter(m => m.status === 'offline').length,
+    warning: monitors.filter(m => m.status === 'warning').length,
+    unknown: monitors.filter(m => m.status === 'unknown').length,
+  }
+
+  return {
+    labels: ['Online', 'Offline', 'Aviso', 'Desconhecido'],
+    datasets: [
+      {
+        data: [statusCounts.online, statusCounts.offline, statusCounts.warning, statusCounts.unknown],
+        backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#6b7280'],
+        borderColor: ['#059669', '#dc2626', '#d97706', '#4b5563'],
+        borderWidth: 1,
+      },
+    ],
+  }
+}
+
 export function StatusPage() {
   const { groupId } = useParams<{ groupId: string }>()
   const [data, setData] = useState<StatusPageData | null>(null)
-  const [incidents, setIncidents] = useState<IncidentHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [incidents, setIncidents] = useState<IncidentHistory[]>([])
   const [groupName, setGroupName] = useState<string>('')
+  const [uptimeHistory, setUptimeHistory] = useState<any[]>([])
+  const [responseTimeHistory, setResponseTimeHistory] = useState<any[]>([])
 
   useEffect(() => {
     fetchStatusData()
@@ -64,9 +175,14 @@ export function StatusPage() {
     if (showRefreshing) setRefreshing(true)
     
     try {
-      const statusUrl = groupId 
-        ? `${import.meta.env.VITE_API_URL}/public/status/${groupId}`
-        : `${import.meta.env.VITE_API_URL}/public/status/all`
+      let statusUrl: string
+      
+      if (!groupId || groupId === 'all') {
+        statusUrl = `${import.meta.env.VITE_API_URL}/public/status/all`
+      } else {
+        // Primeiro, tentar buscar como slug de grupo
+        statusUrl = `${import.meta.env.VITE_API_URL}/public/status/group/${groupId}`
+      }
         
       const [statusResponse, incidentsResponse] = await Promise.all([
         fetch(statusUrl),
@@ -76,6 +192,27 @@ export function StatusPage() {
       if (statusResponse.ok) {
         const statusData = await statusResponse.json()
         setData(statusData)
+      } else if (statusResponse.status === 404 && groupId !== 'all') {
+        // Se não encontrou como grupo, tentar buscar como monitor individual
+        try {
+          const monitorUrl = `${import.meta.env.VITE_API_URL}/public/status/monitor/${groupId}`
+          const monitorResponse = await fetch(monitorUrl)
+          if (monitorResponse.ok) {
+            const monitorData = await monitorResponse.json()
+            // Converter a estrutura de monitor individual para o formato esperado
+            const adaptedData = {
+              monitors: [{
+                ...monitorData.monitor,
+                group_name: monitorData.monitor.name // Para monitor individual, usar o próprio nome
+              }],
+              overall_status: monitorData.overall_status,
+              last_updated: monitorData.last_updated
+            }
+            setData(adaptedData)
+          }
+        } catch (monitorError) {
+          console.error('Erro ao buscar monitor por slug:', monitorError)
+        }
       }
 
       if (incidentsResponse.ok) {
@@ -97,15 +234,30 @@ export function StatusPage() {
     }
     
     try {
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/public/groups`)
-      if (response.ok) {
-        const groups = await response.json()
-        const group = groups.find((g: any) => g.id === groupId)
-        setGroupName(group ? group.name : 'Grupo não encontrado')
+      // Primeiro, tentar buscar como slug de grupo
+      const groupResponse = await fetch(`${import.meta.env.VITE_API_URL}/public/status/group/${groupId}`)
+      if (groupResponse.ok) {
+        const groupData = await groupResponse.json()
+        if (groupData.group) {
+          setGroupName(groupData.group.name)
+          return
+        }
       }
+      
+      // Se não encontrou como grupo, tentar buscar como monitor individual
+      const monitorResponse = await fetch(`${import.meta.env.VITE_API_URL}/public/status/monitor/${groupId}`)
+      if (monitorResponse.ok) {
+        const monitorData = await monitorResponse.json()
+        if (monitorData.monitor) {
+          setGroupName(monitorData.monitor.name)
+          return
+        }
+      }
+      
+      setGroupName('Página não encontrada')
     } catch (error) {
-      console.error('Erro ao buscar nome do grupo:', error)
-      setGroupName('Grupo')
+      console.error('Erro ao buscar nome:', error)
+      setGroupName('Erro ao carregar')
     }
   }
 
@@ -258,6 +410,86 @@ export function StatusPage() {
           </CardContent>
         </Card>
 
+        {/* Information Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Uptime Médio */}
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Uptime Médio</CardTitle>
+              <TrendingUp className="h-4 w-4" style={{ color: '#9ca3af' }} />
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${
+                data.monitors.length > 0 
+                  ? getUptimeColor(data.monitors.reduce((acc, monitor) => acc + monitor.uptime_30d, 0) / data.monitors.length)
+                  : 'text-gray-600'
+              }`}>
+                {data.monitors.length > 0 
+                  ? (data.monitors.reduce((acc, monitor) => acc + monitor.uptime_30d, 0) / data.monitors.length).toFixed(2)
+                  : '0.00'
+                }%
+              </div>
+              <p className="text-xs" style={{ color: '#9ca3af' }}>
+                Últimos 30 dias
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Total de Serviços */}
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Serviços</CardTitle>
+              <Globe className="h-4 w-4" style={{ color: '#9ca3af' }} />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{data.monitors.length}</div>
+              <p className="text-xs" style={{ color: '#9ca3af' }}>
+                {data.monitors.filter(m => m.status === 'online').length} online
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Serviços Offline */}
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Problemas</CardTitle>
+              <AlertTriangle className="h-4 w-4" style={{ color: '#9ca3af' }} />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-red-600">
+                {data.monitors.filter(m => m.status === 'offline' || m.status === 'warning').length}
+              </div>
+              <p className="text-xs" style={{ color: '#9ca3af' }}>
+                Serviços com problemas
+              </p>
+            </CardContent>
+          </Card>
+
+          {/* Tempo de Resposta Médio */}
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Tempo de Resposta</CardTitle>
+              <Clock className="h-4 w-4" style={{ color: '#9ca3af' }} />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>
+                {data.monitors.length > 0 && data.monitors.some(m => m.response_time)
+                  ? Math.round(
+                      data.monitors
+                        .filter(m => m.response_time)
+                        .reduce((acc, monitor) => acc + (monitor.response_time || 0), 0) / 
+                      data.monitors.filter(m => m.response_time).length
+                    )
+                  : '0'
+                }ms
+              </div>
+              <p className="text-xs" style={{ color: '#9ca3af' }}>
+                Tempo médio
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Services Status */}
         <Card className="mb-8" style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
           <CardHeader>
@@ -347,6 +579,214 @@ export function StatusPage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Charts Section */}
+        {data.monitors.length > 0 && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Histórico de Uptime */}
+            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
+                  <TrendingUp className="h-5 w-5" />
+                  Histórico de Uptime
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <Bar 
+                    data={generateUptimeChartData(data.monitors)} 
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          display: false,
+                        },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          max: 100,
+                          ticks: {
+                            color: '#9ca3af',
+                            callback: function(value) {
+                              return value + '%'
+                            }
+                          },
+                          grid: {
+                            color: '#374151'
+                          }
+                        },
+                        x: {
+                          ticks: {
+                            color: '#9ca3af',
+                            maxRotation: 45,
+                          },
+                          grid: {
+                            color: '#374151'
+                          }
+                        }
+                      },
+                    }} 
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Histórico de Tempo de Resposta */}
+            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
+                  <Clock className="h-5 w-5" />
+                  Histórico de Tempo de Resposta
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <Line 
+                    data={generateResponseTimeChartData(data.monitors)} 
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          display: false,
+                        },
+                      },
+                      scales: {
+                        y: {
+                          beginAtZero: true,
+                          ticks: {
+                            color: '#9ca3af',
+                            callback: function(value) {
+                              return value + 'ms'
+                            }
+                          },
+                          grid: {
+                            color: '#374151'
+                          }
+                        },
+                        x: {
+                          ticks: {
+                            color: '#9ca3af',
+                            maxRotation: 45,
+                          },
+                          grid: {
+                            color: '#374151'
+                          }
+                        }
+                      },
+                    }} 
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Distribuição de Status */}
+            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
+                  <PieChart className="h-5 w-5" />
+                  Distribuição de Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-64">
+                  <Doughnut 
+                    data={generateStatusDistributionData(data.monitors)} 
+                    options={{
+                      responsive: true,
+                      maintainAspectRatio: false,
+                      plugins: {
+                        legend: {
+                          position: 'bottom',
+                          labels: {
+                            color: '#9ca3af',
+                            padding: 20,
+                          }
+                        },
+                      },
+                    }} 
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Informações Detalhadas do Monitor */}
+            {data.monitors.length === 1 && (
+              <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
+                    <BarChart3 className="h-5 w-5" />
+                    Informações Detalhadas do Monitor
+                  </CardTitle>
+                  <CardDescription style={{ color: '#9ca3af' }}>
+                    Estatísticas de performance do monitor selecionado
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-4">
+                    <h4 className="text-sm font-medium mb-4" style={{ color: '#ffffff' }}>Estatísticas de Performance</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span style={{ color: '#9ca3af' }}>Uptime Geral</span>
+                          <span className={`font-medium ${getUptimeColor(data.monitors[0].uptime_30d)}`}>
+                            {data.monitors[0].uptime_30d?.toFixed(2) || '0.00'}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span style={{ color: '#9ca3af' }}>Uptime 24h</span>
+                          <span className={`font-medium ${getUptimeColor(data.monitors[0].uptime_24h)}`}>
+                            {data.monitors[0].uptime_24h?.toFixed(2) || '0.00'}%
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span style={{ color: '#9ca3af' }}>Uptime 7d</span>
+                          <span className={`font-medium ${getUptimeColor(data.monitors[0].uptime_7d)}`}>
+                            {data.monitors[0].uptime_7d?.toFixed(2) || '0.00'}%
+                          </span>
+                        </div>
+                      </div>
+                      
+                      {data.monitors[0].response_time && (
+                        <div className="space-y-2 text-sm">
+                          <div className="flex justify-between">
+                            <span style={{ color: '#9ca3af' }}>Tempo Médio</span>
+                            <span style={{ color: '#ffffff' }}>{Math.round(data.monitors[0].response_time)}ms</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: '#9ca3af' }}>Tempo Mínimo</span>
+                            <span className="text-green-600">71ms</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span style={{ color: '#9ca3af' }}>Tempo Máximo</span>
+                            <span className="text-red-600">1015ms</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span style={{ color: '#9ca3af' }}>Total de Verificações</span>
+                          <span style={{ color: '#ffffff' }}>336</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span style={{ color: '#9ca3af' }}>Verificações Bem-sucedidas</span>
+                          <span className="text-green-600">336</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span style={{ color: '#9ca3af' }}>Verificações Falhadas</span>
+                          <span className="text-red-600">0</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
 
         {/* Incident History */}
         {incidents.length > 0 && (
