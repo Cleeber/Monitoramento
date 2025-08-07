@@ -56,6 +56,7 @@ export interface Database {
           id: string
           name: string
           description: string | null
+          slug: string | null
           notification_emails: string[]
           created_at: string
           updated_at: string
@@ -64,6 +65,7 @@ export interface Database {
           id?: string
           name: string
           description?: string | null
+          slug?: string | null
           notification_emails?: string[]
           created_at?: string
           updated_at?: string
@@ -72,6 +74,7 @@ export interface Database {
           id?: string
           name?: string
           description?: string | null
+          slug?: string | null
           notification_emails?: string[]
           updated_at?: string
         }
@@ -82,6 +85,7 @@ export interface Database {
           group_id: string
           name: string
           url: string
+          slug: string | null
           type: 'http' | 'ping' | 'tcp'
           interval: number
           timeout: number
@@ -101,6 +105,7 @@ export interface Database {
           group_id: string
           name: string
           url: string
+          slug?: string | null
           type: 'http' | 'ping' | 'tcp'
           interval?: number
           timeout?: number
@@ -120,6 +125,7 @@ export interface Database {
           group_id?: string
           name?: string
           url?: string
+          slug?: string | null
           type?: 'http' | 'ping' | 'tcp'
           interval?: number
           timeout?: number

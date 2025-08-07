@@ -100,13 +100,14 @@ export class DatabaseService {
     return data
   }
 
-  async createGroup(groupData: { name: string; description?: string }) {
+  async createGroup(groupData: { name: string; description?: string; slug?: string }) {
     const { data, error } = await supabase
       .from('groups')
       .insert({
         id: uuidv4(),
         name: groupData.name,
         description: groupData.description || null,
+        slug: groupData.slug,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
@@ -117,7 +118,7 @@ export class DatabaseService {
     return data
   }
 
-  async updateGroup(id: string, updates: { name?: string; description?: string }) {
+  async updateGroup(id: string, updates: { name?: string; description?: string; slug?: string }) {
     const { data, error } = await supabase
       .from('groups')
       .update({
@@ -189,6 +190,7 @@ export class DatabaseService {
     interval?: number
     timeout?: number
     group_id?: string | null
+    slug?: string
     is_active?: boolean
   }) {
     const { data, error } = await supabase
@@ -201,6 +203,7 @@ export class DatabaseService {
         interval: monitorData.interval || 60000,
         timeout: monitorData.timeout || 30000,
         group_id: monitorData.group_id,
+        slug: monitorData.slug,
         status: 'unknown',
         uptime_24h: 0,
         uptime_7d: 0,
