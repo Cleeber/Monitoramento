@@ -67,7 +67,7 @@ export function Layout() {
                       ? "text-white"
                       : "text-gray-300 hover:text-white"
                   )}
-                  style={isActive ? {backgroundColor: '#6b26d9'} : {}}
+                  style={isActive ? {backgroundColor: '#1e3a8a'} : {}}
                   onMouseEnter={(e) => !isActive && (e.currentTarget.style.backgroundColor = '#2c313a')}
                   onMouseLeave={(e) => !isActive && (e.currentTarget.style.backgroundColor = 'transparent')}
                   onClick={() => setSidebarOpen(false)}
@@ -87,7 +87,7 @@ export function Layout() {
                   ? "text-white"
                   : "text-gray-300 hover:text-white"
               )}
-              style={location.pathname === '/paginas-status' ? {backgroundColor: '#6b26d9'} : {}}
+              style={location.pathname === '/paginas-status' ? {backgroundColor: '#1e3a8a'} : {}}
               onMouseEnter={(e) => location.pathname !== '/paginas-status' && (e.currentTarget.style.backgroundColor = '#2c313a')}
               onMouseLeave={(e) => location.pathname !== '/paginas-status' && (e.currentTarget.style.backgroundColor = 'transparent')}
               onClick={() => setSidebarOpen(false)}
@@ -116,7 +116,7 @@ export function Layout() {
         <div className="flex flex-col flex-grow pt-5 pb-4 overflow-y-auto" style={{backgroundColor: '#181b20', borderRight: '1px solid #2c313a'}}>
           <div className="flex items-center flex-shrink-0 px-4 mb-8">
             <div className="flex items-center">
-              <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center mr-3">
+              <div className="w-8 h-8 bg-blue-800 rounded-lg flex items-center justify-center mr-3">
                 <span className="text-white font-bold text-sm">SM</span>
               </div>
               <h1 className="text-xl font-bold text-white">Site Monitor</h1>
@@ -136,7 +136,7 @@ export function Layout() {
                       ? "text-white"
                       : "text-gray-300 hover:text-white"
                   )}
-                  style={isActive ? {backgroundColor: '#6b26d9'} : {}}
+                  style={isActive ? {backgroundColor: '#1e3a8a'} : {}}
                   onMouseEnter={(e) => !isActive && (e.currentTarget.style.backgroundColor = '#2c313a')}
                   onMouseLeave={(e) => !isActive && (e.currentTarget.style.backgroundColor = 'transparent')}
                 >
@@ -155,7 +155,7 @@ export function Layout() {
                   ? "text-white"
                   : "text-gray-300 hover:text-white"
               )}
-              style={location.pathname === '/paginas-status' ? {backgroundColor: '#6b26d9'} : {}}
+              style={location.pathname === '/paginas-status' ? {backgroundColor: '#1e3a8a'} : {}}
               onMouseEnter={(e) => location.pathname !== '/paginas-status' && (e.currentTarget.style.backgroundColor = '#2c313a')}
               onMouseLeave={(e) => location.pathname !== '/paginas-status' && (e.currentTarget.style.backgroundColor = 'transparent')}
             >
@@ -179,7 +179,7 @@ export function Layout() {
       </div>
 
       {/* Main content */}
-      <div className="lg:pl-64">
+      <div className="lg:pl-64 min-h-screen" style={{backgroundColor: '#14161a'}}>
         {/* Top bar */}
         <div className="sticky top-0 z-40 flex h-16 flex-shrink-0 items-center gap-x-4 px-4 shadow-sm sm:gap-x-6 sm:px-6 lg:px-8" style={{backgroundColor: '#14161a', borderBottom: '1px solid #2c313a'}}>
           <Button
@@ -201,7 +201,7 @@ export function Layout() {
         </div>
 
         {/* Page content */}
-        <main className="py-6 min-h-screen" style={{backgroundColor: '#14161a'}}>
+        <main className="py-6" style={{backgroundColor: '#14161a'}}>
           <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
             <Outlet />
           </div>

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { ExternalLink, Globe, Users, Monitor, Filter, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Button } from '../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import useGroups from '../hooks/useGroups';
 import useMonitors from '../hooks/useMonitors';
 
@@ -151,7 +152,7 @@ const StatusPagesPage: React.FC = () => {
         <div className="rounded-lg border p-6" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
           <div className="flex items-start justify-between">
             <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-lg" style={{backgroundColor: '#6b26d9'}}>
+              <div className="p-2 rounded-lg" style={{backgroundColor: '#1e3a8a'}}>
                 <Globe className="h-6 w-6 text-white" />
               </div>
               <div>
@@ -167,9 +168,9 @@ const StatusPagesPage: React.FC = () => {
             <button
               onClick={() => handleOpenStatusPage('http://localhost:3000/status/all')}
               className="flex items-center space-x-2 px-4 py-2 text-white rounded-lg transition-colors"
-              style={{backgroundColor: '#6b26d9'}}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#5b21b6'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#6b26d9'}
+              style={{backgroundColor: '#1e3a8a'}}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e40af'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1e3a8a'}
             >
               <ExternalLink className="h-4 w-4" />
               <span>Abrir</span>
@@ -192,37 +193,47 @@ const StatusPagesPage: React.FC = () => {
                 onReverseChange={setGroupsSortReverse}
               />
             </div>
-            <div className="grid gap-4">
-              {sortedGroups.map((group) => (
-                <div key={group.id} className="rounded-lg border p-6" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 rounded-lg" style={{backgroundColor: '#059669'}}>
-                        <Users className="h-6 w-6 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-white">{group.name}</h3>
-                        {group.description && (
-                          <p className="text-gray-400 text-sm">{group.description}</p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">
-                          URL: http://localhost:3000/status/{group.slug}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleOpenStatusPage(`http://localhost:3000/status/${group.slug}`)}
-                      className="flex items-center space-x-2 px-4 py-2 text-white rounded-lg transition-colors"
-                      style={{backgroundColor: '#059669'}}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#047857'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#059669'}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      <span>Abrir</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div className="rounded-lg border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
+              <Table>
+                <TableHeader>
+                  <TableRow style={{borderColor: '#2c313a'}}>
+                    <TableHead className="text-gray-300">Grupo</TableHead>
+                    <TableHead className="text-gray-300">Descrição</TableHead>
+                    <TableHead className="text-gray-300">URL</TableHead>
+                    <TableHead className="text-gray-300 text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedGroups.map((group) => (
+                    <TableRow key={group.id} style={{borderColor: '#2c313a'}} className="hover:bg-gray-800/50">
+                      <TableCell className="text-white">
+                        <div className="flex items-center space-x-2">
+                          <Users className="h-4 w-4 text-green-500" />
+                          <span className="font-medium">{group.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-gray-300">
+                        {group.description || '-'}
+                      </TableCell>
+                      <TableCell className="text-gray-300">
+                        <code className="text-xs bg-gray-800 px-2 py-1 rounded">
+                          http://localhost:3000/status/{group.slug}
+                        </code>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          onClick={() => handleOpenStatusPage(`http://localhost:3000/status/${group.slug}`)}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          size="sm"
+                        >
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          Abrir
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </div>
         )}
@@ -243,35 +254,49 @@ const StatusPagesPage: React.FC = () => {
                 showStatus={true} 
               />
             </div>
-            <div className="grid gap-4">
-              {sortedMonitors.map((monitor) => (
-                <div key={monitor.id} className="rounded-lg border p-6" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 rounded-lg" style={{backgroundColor: '#dc2626'}}>
-                        <Monitor className="h-6 w-6 text-white" />
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-white">{monitor.name}</h3>
-                        <p className="text-gray-400 text-sm">{monitor.url}</p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          URL: http://localhost:3000/status/{monitor.slug}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handleOpenStatusPage(`http://localhost:3000/status/${monitor.slug}`)}
-                      className="flex items-center space-x-2 px-4 py-2 text-white rounded-lg transition-colors"
-                      style={{backgroundColor: '#dc2626'}}
-                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#b91c1c'}
-                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#dc2626'}
-                    >
-                      <ExternalLink className="h-4 w-4" />
-                      <span>Abrir</span>
-                    </button>
-                  </div>
-                </div>
-              ))}
+            <div className="rounded-lg border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
+              <Table>
+                <TableHeader>
+                  <TableRow style={{borderColor: '#2c313a'}}>
+                    <TableHead className="text-gray-300">Monitor</TableHead>
+                    <TableHead className="text-gray-300">URL Monitorada</TableHead>
+                    <TableHead className="text-gray-300">URL da Página</TableHead>
+                    <TableHead className="text-gray-300 text-right">Ações</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {sortedMonitors.map((monitor) => (
+                    <TableRow key={monitor.id} style={{borderColor: '#2c313a'}} className="hover:bg-gray-800/50">
+                      <TableCell className="text-white">
+                        <div className="flex items-center space-x-2">
+                          <Monitor className="h-4 w-4 text-green-500" />
+                          <span className="font-medium">{monitor.name}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-gray-300">
+                        <code className="text-xs bg-gray-800 px-2 py-1 rounded">
+                          {monitor.url}
+                        </code>
+                      </TableCell>
+                      <TableCell className="text-gray-300">
+                        <code className="text-xs bg-gray-800 px-2 py-1 rounded">
+                          http://localhost:3000/status/{monitor.slug}
+                        </code>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          onClick={() => handleOpenStatusPage(`http://localhost:3000/status/${monitor.slug}`)}
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          size="sm"
+                        >
+                          <ExternalLink className="h-4 w-4 mr-1" />
+                          Abrir
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </div>
           </div>
         )}

@@ -250,7 +250,7 @@ export function ReportsPage() {
       let yPosition = 20
       
       // Cores para o design
-      const primaryColor = [107, 38, 217] // #6b26d9
+      const primaryColor = [30, 58, 138] // #1e3a8a
       const textColor = [255, 255, 255] // #ffffff
       const grayColor = [156, 163, 175] // #9ca3af
       const darkBg = [24, 27, 32] // #181b20
@@ -748,7 +748,6 @@ export function ReportsPage() {
           <Button 
             onClick={handleExport} 
             disabled={exporting || reports.length === 0}
-            variant="outline"
           >
             {exporting ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>

@@ -369,7 +369,7 @@ export function SmtpConfigPage() {
               </Button>
               
               {!config.enabled && (
-                <div className="flex items-start space-x-2 p-3 rounded-md" style={{ backgroundColor: '#2c313a', borderColor: '#6b26d9', border: '1px solid' }}>
+                <div className="flex items-start space-x-2 p-3 rounded-md" style={{ backgroundColor: '#2c313a', borderColor: '#1e3a8a', border: '1px solid' }}>
                   <AlertCircle className="h-4 w-4 mt-0.5" style={{ color: '#f59e0b' }} />
                   <div className="text-sm">
                     <p className="font-medium" style={{ color: '#f59e0b' }}>SMTP Desabilitado</p>

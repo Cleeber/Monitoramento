@@ -56,31 +56,29 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8">
-        <div className="text-center">
-          <div className="mx-auto h-12 w-12 flex items-center justify-center rounded-full bg-primary">
-            <Monitor className="h-6 w-6 text-primary-foreground" />
+    <div className="min-h-screen flex items-center justify-center p-4" style={{backgroundColor: '#14161a'}}>
+      <div className="w-full max-w-md">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="mx-auto w-16 h-16 bg-blue-800 rounded-full flex items-center justify-center mb-4">
+            <Monitor className="h-8 w-8 text-white" />
           </div>
-          <h2 className="mt-6 text-3xl font-bold text-gray-900">
-            Uptime Monitor
-          </h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Sistema de monitoramento de sites para agências
-          </p>
+          <h1 className="text-3xl font-bold text-white">Uptime Monitor</h1>
+          <p className="text-gray-400 mt-2">Sistema de monitoramento de sites para agências</p>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Fazer login</CardTitle>
-            <CardDescription>
+        {/* Login Card */}
+        <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
+          <CardHeader className="space-y-1 pb-6">
+            <CardTitle className="text-2xl font-semibold text-center text-white">Fazer login</CardTitle>
+            <CardDescription className="text-center text-gray-400">
               Entre com suas credenciais para acessar o sistema
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="space-y-2">
-                <Label htmlFor="email">E-mail</Label>
+                <Label htmlFor="email" className="text-gray-300">E-mail</Label>
                 <Input
                   id="email"
                   name="email"
@@ -91,11 +89,13 @@ export function LoginPage() {
                   onChange={handleChange}
                   placeholder="seu@email.com"
                   disabled={isLoading}
+                  style={{backgroundColor: '#2c313a', borderColor: '#2c313a', color: '#ffffff'}}
+                  className="focus:border-blue-800 focus:ring-blue-800"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">Senha</Label>
+                <Label htmlFor="password" className="text-gray-300">Senha</Label>
                 <div className="relative">
                   <Input
                     id="password"
@@ -107,7 +107,8 @@ export function LoginPage() {
                     onChange={handleChange}
                     placeholder="••••••••"
                     disabled={isLoading}
-                    className="pr-10"
+                    className="pr-10 focus:border-blue-800 focus:ring-blue-800"
+                    style={{backgroundColor: '#2c313a', borderColor: '#2c313a', color: '#ffffff'}}
                   />
                   <Button
                     type="button"
@@ -129,6 +130,7 @@ export function LoginPage() {
               <Button
                 type="submit"
                 className="w-full"
+                style={{backgroundColor: '#1e3a8a', color: '#ffffff'}}
                 disabled={isLoading || !formData.email || !formData.password}
               >
                 {isLoading ? (
@@ -144,11 +146,19 @@ export function LoginPage() {
           </CardContent>
         </Card>
 
-        <div className="text-center text-sm text-gray-600">
-          <p>Credenciais padrão para teste:</p>
-          <p className="font-mono bg-gray-100 p-2 rounded mt-2">
-            admin@agencia.com / admin123
-          </p>
+        {/* Test Credentials */}
+        <div className="mt-6 p-4 rounded-lg border" style={{backgroundColor: '#2c313a', borderColor: '#374151'}}>
+          <h3 className="text-sm font-medium text-gray-300 mb-3 text-center">Credenciais para Teste</h3>
+          <div className="space-y-2 text-sm">
+            <div className="flex items-center justify-between p-2 rounded" style={{backgroundColor: '#374151'}}>
+              <span className="text-gray-400 font-medium">Email:</span>
+              <span className="text-white font-mono">admin@agencia.com</span>
+            </div>
+            <div className="flex items-center justify-between p-2 rounded" style={{backgroundColor: '#374151'}}>
+              <span className="text-gray-400 font-medium">Senha:</span>
+              <span className="text-white font-mono">admin123</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

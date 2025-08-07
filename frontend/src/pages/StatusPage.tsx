@@ -346,7 +346,7 @@ export function StatusPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#14161a' }}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '#6b26d9' }}></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '#1e3a8a' }}></div>
       </div>
     )
   }
@@ -376,7 +376,7 @@ export function StatusPage() {
           <h1 className="text-3xl font-bold mb-2" style={{ color: '#ffffff' }}>Status dos Serviços</h1>
           <p style={{ color: '#9ca3af' }}>Acompanhe o status em tempo real dos nossos serviços</p>
           {groupName && (
-            <p className="text-lg font-medium mt-2" style={{ color: '#6b26d9' }}>
+            <p className="text-lg font-medium mt-2" style={{ color: '#1e3a8a' }}>
               {groupName}
             </p>
           )}

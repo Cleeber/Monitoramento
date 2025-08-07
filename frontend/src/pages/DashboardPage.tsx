@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Badge } from '../components/ui/badge'
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { 
   Activity, 
   AlertTriangle, 
@@ -17,6 +18,7 @@ import {
   Zap,
   ArrowUpDown
 } from 'lucide-react'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { Link } from 'react-router-dom'
 import { cn, formatDuration, calculateUptime } from '../lib/utils'
 import { formatDistanceToNow } from 'date-fns'
@@ -149,18 +151,6 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-8">
-        <div>
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-sm">SM</span>
-            </div>
-            <h1 className="text-2xl font-bold text-white">Site Monitor</h1>
-          </div>
-          <p className="text-gray-400">Monitoramento de sites para HQ Last 30 Days</p>
-        </div>
-      </div>
 
       {/* Stats Cards */}
       {stats && (
@@ -232,45 +222,70 @@ export function DashboardPage() {
               >
                 <ArrowUpDown className={`h-4 w-4 text-gray-400 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
               </button>
-              <select 
-                value={sortBy} 
-                onChange={(e) => setSortBy(e.target.value as 'recent' | 'alphabetical' | 'status')}
-                className="bg-gray-800 text-white text-sm border border-gray-600 rounded px-2 py-1 focus:outline-none focus:border-gray-500"
-              >
-                <option value="recent">Mais Recentes</option>
-                <option value="alphabetical">Ordem Alfabética</option>
-                <option value="status">Por Status</option>
-              </select>
+              <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'recent' | 'alphabetical' | 'status')}>
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Ordenar por" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Mais Recentes</SelectItem>
+                  <SelectItem value="alphabetical">Ordem Alfabética</SelectItem>
+                  <SelectItem value="status">Por Status</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            {monitors.length > 0 ? (
-              getSortedMonitors().slice(0, 4).map((monitor) => (
-                <div key={monitor.id} className="flex items-center justify-between p-3 rounded-lg" style={{backgroundColor: '#2c313a', border: '1px solid #2c313a'}}>
-                  <div className="flex items-center gap-3">
-                    {getStatusIcon(monitor.status)}
-                    <div>
-                      <p className="text-white text-sm font-medium">{monitor.name}</p>
-                      <p className="text-gray-400 text-xs">{monitor.status}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Badge className={getStatusColor(monitor.status)}>
-                      {monitor.uptime_24h?.toFixed(0) || '0'}%
-                    </Badge>
-                    <span className="text-gray-400 text-xs">{monitor.response_time || 0}ms</span>
-                  </div>
-                </div>
-              ))
-            ) : (
-              <div className="text-center py-8">
-                <Monitor className="h-8 w-8 text-gray-600 mx-auto mb-2" />
-                <p className="text-gray-400 text-sm">No monitors configured</p>
-              </div>
-            )}
-          </div>
+          {monitors.length > 0 ? (
+            <Table>
+              <TableHeader>
+                <TableRow style={{borderColor: '#2c313a'}}>
+                  <TableHead className="text-gray-300">Status</TableHead>
+                  <TableHead className="text-gray-300">Nome</TableHead>
+                  <TableHead className="text-gray-300">URL</TableHead>
+                  <TableHead className="text-gray-300">Grupo</TableHead>
+                  <TableHead className="text-gray-300">Uptime 24h</TableHead>
+                  <TableHead className="text-gray-300">Tempo de Resposta</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {getSortedMonitors().map((monitor) => (
+                  <TableRow key={monitor.id} style={{borderColor: '#2c313a'}} className="hover:bg-gray-800/50">
+                    <TableCell className="text-white">
+                      <div className="flex items-center space-x-2">
+                        {getStatusIcon(monitor.status)}
+                        <span className="text-xs capitalize">{monitor.status}</span>
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-white">
+                      <span className="font-medium">{monitor.name}</span>
+                    </TableCell>
+                    <TableCell className="text-gray-300">
+                      <code className="text-xs bg-gray-800 px-2 py-1 rounded">
+                        {monitor.url}
+                      </code>
+                    </TableCell>
+                    <TableCell className="text-gray-300">
+                      {monitor.group_name || 'Sem grupo'}
+                    </TableCell>
+                    <TableCell className="text-gray-300">
+                      <Badge className={getStatusColor(monitor.status)}>
+                        {monitor.uptime_24h?.toFixed(0) || '0'}%
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-gray-300">
+                      <span className="text-sm">{monitor.response_time || 0}ms</span>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="text-center py-8">
+              <Monitor className="h-8 w-8 text-gray-600 mx-auto mb-2" />
+              <p className="text-gray-400 text-sm">Nenhum monitor configurado</p>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

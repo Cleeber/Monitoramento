@@ -132,10 +132,10 @@ const SelectItem = React.forwardRef<
     style={{
       color: '#ffffff',
       '&:hover': {
-        backgroundColor: '#6b26d9'
+        backgroundColor: '#1e3a8a'
       },
       '&[data-highlighted]': {
-        backgroundColor: '#6b26d9'
+        backgroundColor: '#1e3a8a'
       }
     }}
     {...props}

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog'
 import { Label } from '../components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
@@ -433,69 +433,84 @@ export function DomainsPage() {
               )}
             </div>
           ) : (
-            <div className="space-y-4">
-              {filteredMonitors.map((monitor) => (
-                <div
-                  key={monitor.id}
-                  className="flex items-center justify-between p-4 border rounded-lg transition-colors"
-                  style={{borderColor: '#2c313a', backgroundColor: '#2c313a'}}
-                >
-                  <div className="flex items-center space-x-4">
-                    {getStatusIcon(monitor.status)}
-                    <div>
+            <Table>
+              <TableHeader>
+                <TableRow style={{borderColor: '#2c313a'}}>
+                  <TableHead className="text-gray-300">Status</TableHead>
+                  <TableHead className="text-gray-300">Nome</TableHead>
+                  <TableHead className="text-gray-300">URL</TableHead>
+                  <TableHead className="text-gray-300">Tipo</TableHead>
+                  <TableHead className="text-gray-300">Grupo</TableHead>
+                  <TableHead className="text-gray-300">Intervalo</TableHead>
+                  <TableHead className="text-gray-300">Resposta</TableHead>
+                  <TableHead className="text-gray-300">Ações</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredMonitors.map((monitor) => (
+                  <TableRow 
+                    key={monitor.id} 
+                    className="hover:bg-gray-800/50 transition-colors"
+                    style={{borderColor: '#2c313a'}}
+                  >
+                    <TableCell>
                       <div className="flex items-center space-x-2">
-                        <h4 className="font-medium text-white">{monitor.name}</h4>
+                        {getStatusIcon(monitor.status)}
                         {!monitor.enabled && (
                           <Badge variant="outline" className="text-xs">
                             Pausado
                           </Badge>
                         )}
                       </div>
-                      <p className="text-sm text-gray-300">{monitor.url}</p>
-                      <div className="flex items-center space-x-4 text-xs text-gray-400">
-                        <span>{monitor.group_name || 'Sem grupo'}</span>
-                        <span>•</span>
-                        <span>{monitor.type.toUpperCase()}</span>
-                        <span>•</span>
-                        <span>Intervalo: {Math.floor(monitor.interval / 1000)}s</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="flex items-center space-x-4">
-                    {monitor.response_time && (
-                      <div className="text-right">
-                        <p className="text-sm font-medium text-white">
+                    </TableCell>
+                    <TableCell>
+                      <span className="font-medium text-white">{monitor.name}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-gray-300 text-sm">{monitor.url}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-gray-400 text-sm">{monitor.type.toUpperCase()}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-gray-400 text-sm">{monitor.group_name || 'Sem grupo'}</span>
+                    </TableCell>
+                    <TableCell>
+                      <span className="text-gray-400 text-sm">{Math.floor(monitor.interval / 1000)}s</span>
+                    </TableCell>
+                    <TableCell>
+                      {monitor.response_time ? (
+                        <span className="text-white text-sm font-medium">
                           {monitor.response_time}ms
-                        </p>
-                        <p className="text-xs text-gray-400">resposta</p>
+                        </span>
+                      ) : (
+                        <span className="text-gray-500 text-sm">-</span>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleEdit(monitor)}
+                          className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-blue-600 hover:text-white hover:border-blue-500"
+                        >
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleDelete(monitor.id)}
+                          className="bg-gray-700 border-gray-600 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-500"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
-                    )}
-                    
-
-                    
-                    <div className="flex items-center space-x-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleEdit(monitor)}
-                        className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-blue-600 hover:text-white hover:border-blue-500"
-                      >
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => handleDelete(monitor.id)}
-                        className="bg-gray-700 border-gray-600 text-red-400 hover:bg-red-600 hover:text-white hover:border-red-500"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           )}
         </CardContent>
       </Card>
