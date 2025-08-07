@@ -22,7 +22,7 @@ Interface web para o sistema de monitoramento de uptime.
 ### Páginas Protegidas
 - **Dashboard** - Visão geral dos monitores e estatísticas
 - **Domínios** - Gerenciamento de monitores (HTTP, Ping, TCP)
-- **Clientes** - Gerenciamento de grupos/clientes
+- **Grupos** - Gerenciamento de grupos
 - **Configuração SMTP** - Configuração de e-mail para notificações
 - **Relatórios** - Relatórios detalhados e exportação
 

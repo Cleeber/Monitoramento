@@ -6,10 +6,11 @@ import { Layout } from './components/Layout'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { DomainsPage } from './pages/DomainsPage'
-import { ClientsPage } from './pages/ClientsPage'
+import { GroupsPage } from './pages/GroupsPage'
 import { StatusPage } from './pages/StatusPage'
 import { SmtpConfigPage } from './pages/SmtpConfigPage'
 import { ReportsPage } from './pages/ReportsPage'
+import StatusPagesPage from './pages/StatusPagesPage'
 import { Toaster } from './components/ui/toaster'
 
 function App() {
@@ -34,9 +35,10 @@ function App() {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="dominios" element={<DomainsPage />} />
-                <Route path="clientes" element={<ClientsPage />} />
+                <Route path="grupos" element={<GroupsPage />} />
                 <Route path="config/smtp" element={<SmtpConfigPage />} />
                 <Route path="relatorios" element={<ReportsPage />} />
+                <Route path="paginas-status" element={<StatusPagesPage />} />
               </Route>
               
               {/* Rota de fallback */}

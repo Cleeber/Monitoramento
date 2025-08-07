@@ -188,7 +188,7 @@ export class DatabaseService {
     type: 'http' | 'ping' | 'tcp'
     interval?: number
     timeout?: number
-    group_id: string
+    group_id?: string | null
     is_active?: boolean
   }) {
     const { data, error } = await supabase

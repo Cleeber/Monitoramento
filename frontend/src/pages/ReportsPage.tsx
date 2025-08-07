@@ -19,6 +19,8 @@ import {
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
 import { formatDuration, calculateUptime } from '../lib/utils'
+import jsPDF from 'jspdf'
+import html2canvas from 'html2canvas'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -125,6 +127,25 @@ export function ReportsPage() {
     fetchMonitors()
   }, [])
 
+  // Resetar monitor selecionado quando grupo for alterado
+  useEffect(() => {
+    if (selectedGroup !== 'all' && selectedMonitor !== 'all') {
+      const filteredMonitors = monitors.filter(monitor => monitor.group_id === selectedGroup)
+      const isMonitorInGroup = filteredMonitors.some(monitor => monitor.id === selectedMonitor)
+      if (!isMonitorInGroup) {
+        setSelectedMonitor('all')
+      }
+    }
+  }, [selectedGroup, monitors, selectedMonitor])
+
+  // Função para filtrar monitores por grupo selecionado
+  const getFilteredMonitors = () => {
+    if (selectedGroup === 'all') {
+      return monitors
+    }
+    return monitors.filter(monitor => monitor.group_id === selectedGroup)
+  }
+
   const fetchGroups = async () => {
     try {
       const token = localStorage.getItem('auth_token')
@@ -200,34 +221,260 @@ export function ReportsPage() {
     }
   }
 
+  const captureChart = async (elementId: string): Promise<string | null> => {
+    try {
+      const element = document.getElementById(elementId)
+      if (!element) return null
+      
+      const canvas = await html2canvas(element, {
+        backgroundColor: '#181b20',
+        scale: 2,
+        logging: false,
+        useCORS: true
+      })
+      
+      return canvas.toDataURL('image/png')
+    } catch (error) {
+      console.error('Erro ao capturar gráfico:', error)
+      return null
+    }
+  }
+
   const handleExport = async () => {
     setExporting(true)
     try {
-      const token = localStorage.getItem('auth_token')
-      const params = new URLSearchParams({
-        period: selectedTimeRange,
-        format: 'csv',
-        ...(selectedGroup !== 'all' && { group_id: selectedGroup })
-      })
+      // Criar novo documento PDF
+      const doc = new jsPDF('p', 'mm', 'a4')
+      const pageWidth = doc.internal.pageSize.getWidth()
+      const pageHeight = doc.internal.pageSize.getHeight()
+      let yPosition = 20
       
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/reports/export?${params}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
-
-      if (response.ok) {
-        const blob = await response.blob()
-        const url = window.URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = `relatorio-${selectedTimeRange}-${new Date().toISOString().split('T')[0]}.csv`
-        document.body.appendChild(a)
-        a.click()
-        window.URL.revokeObjectURL(url)
-        document.body.removeChild(a)
-        addToast('Relatório exportado com sucesso', 'success')
-      } else {
-        throw new Error('Erro ao exportar relatório')
+      // Cores para o design
+      const primaryColor = [107, 38, 217] // #6b26d9
+      const textColor = [255, 255, 255] // #ffffff
+      const grayColor = [156, 163, 175] // #9ca3af
+      const darkBg = [24, 27, 32] // #181b20
+      
+      // Header com fundo colorido
+      doc.setFillColor(...primaryColor)
+      doc.rect(0, 0, pageWidth, 40, 'F')
+      
+      // Título do relatório
+      doc.setTextColor(...textColor)
+      doc.setFontSize(24)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Relatório de Monitoramento', pageWidth / 2, 25, { align: 'center' })
+      
+      yPosition = 50
+      
+      // Informações do período em caixa
+      doc.setFillColor(240, 240, 240)
+      doc.rect(15, yPosition - 5, pageWidth - 30, 25, 'F')
+      doc.setDrawColor(200, 200, 200)
+      doc.rect(15, yPosition - 5, pageWidth - 30, 25, 'S')
+      
+      doc.setTextColor(0, 0, 0)
+      doc.setFontSize(12)
+      doc.setFont('helvetica', 'normal')
+      const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
+      doc.text(`Período: ${selectedRange?.label || selectedTimeRange}`, 20, yPosition + 5)
+      
+      const selectedGroupName = selectedGroup === 'all' ? 'Todos os grupos' : 
+        groups.find(g => g.id === selectedGroup)?.name || 'Grupo selecionado'
+      doc.text(`Grupo: ${selectedGroupName}`, 20, yPosition + 12)
+      
+      doc.text(`Data de geração: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, yPosition + 19)
+      
+      yPosition += 35
+      
+      // Estatísticas gerais com design melhorado
+      const overallStats = calculateOverallStats()
+      if (overallStats) {
+        doc.setFillColor(...primaryColor)
+        doc.rect(15, yPosition, pageWidth - 30, 8, 'F')
+        doc.setTextColor(...textColor)
+        doc.setFontSize(16)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Resumo Geral', 20, yPosition + 6)
+        
+        yPosition += 15
+        
+        // Cards de estatísticas
+        const stats = [
+          { label: 'Uptime Médio', value: `${overallStats.avgUptime.toFixed(2)}%`, color: overallStats.avgUptime >= 99 ? [34, 197, 94] : overallStats.avgUptime >= 95 ? [251, 191, 36] : [239, 68, 68] },
+          { label: 'Tempo de Resposta Médio', value: `${overallStats.avgResponseTime.toFixed(0)}ms`, color: [59, 130, 246] },
+          { label: 'Total de Verificações', value: overallStats.totalChecks.toLocaleString(), color: [107, 114, 128] },
+          { label: 'Verificações Bem-sucedidas', value: overallStats.totalSuccessful.toLocaleString(), color: [34, 197, 94] },
+          { label: 'Verificações Falhadas', value: (overallStats.totalChecks - overallStats.totalSuccessful).toLocaleString(), color: [239, 68, 68] },
+          { label: 'Total de Incidentes', value: overallStats.totalIncidents.toString(), color: [239, 68, 68] }
+        ]
+        
+        stats.forEach((stat, index) => {
+          const x = 20 + (index % 2) * 85
+          const y = yPosition + Math.floor(index / 2) * 20
+          
+          // Card background
+          doc.setFillColor(248, 250, 252)
+          doc.rect(x - 2, y - 2, 80, 15, 'F')
+          doc.setDrawColor(...stat.color)
+          doc.setLineWidth(0.5)
+          doc.rect(x - 2, y - 2, 80, 15, 'S')
+          
+          // Label
+          doc.setTextColor(75, 85, 99)
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'normal')
+          doc.text(stat.label, x, y + 4)
+          
+          // Value
+          doc.setTextColor(...stat.color)
+          doc.setFontSize(12)
+          doc.setFont('helvetica', 'bold')
+          doc.text(stat.value, x, y + 10)
+        })
+        
+        yPosition += 70
       }
+      
+      // Capturar e incluir gráficos
+      try {
+        // Adicionar nova página para gráficos
+        doc.addPage()
+        yPosition = 20
+        
+        doc.setFillColor(...primaryColor)
+        doc.rect(0, 0, pageWidth, 15, 'F')
+        doc.setTextColor(...textColor)
+        doc.setFontSize(16)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Gráficos e Análises', pageWidth / 2, 10, { align: 'center' })
+        
+        yPosition = 25
+        
+        // Tentar capturar gráficos (IDs podem variar)
+        const chartIds = ['uptime-chart', 'response-time-chart', 'status-distribution-chart']
+        const chartTitles = ['Gráfico de Uptime', 'Gráfico de Tempo de Resposta', 'Distribuição de Status']
+        
+        for (let i = 0; i < chartIds.length; i++) {
+          const chartImage = await captureChart(chartIds[i])
+          if (chartImage) {
+            if (yPosition > pageHeight - 80) {
+              doc.addPage()
+              yPosition = 20
+            }
+            
+            doc.setTextColor(0, 0, 0)
+            doc.setFontSize(12)
+            doc.setFont('helvetica', 'bold')
+            doc.text(chartTitles[i], 20, yPosition)
+            yPosition += 10
+            
+            // Adicionar imagem do gráfico
+            doc.addImage(chartImage, 'PNG', 20, yPosition, 170, 60)
+            yPosition += 70
+          }
+        }
+      } catch (error) {
+        console.error('Erro ao capturar gráficos:', error)
+      }
+      
+      // Detalhes por monitor em nova página
+      if (reports.length > 0) {
+        doc.addPage()
+        yPosition = 20
+        
+        doc.setFillColor(...primaryColor)
+        doc.rect(0, 0, pageWidth, 15, 'F')
+        doc.setTextColor(...textColor)
+        doc.setFontSize(16)
+        doc.setFont('helvetica', 'bold')
+        doc.text('Detalhes por Monitor', pageWidth / 2, 10, { align: 'center' })
+        
+        yPosition = 30
+        
+        reports.forEach((report, index) => {
+          // Verificar se precisa de nova página
+          if (yPosition > pageHeight - 80) {
+            doc.addPage()
+            yPosition = 20
+          }
+          
+          // Card do monitor
+          doc.setFillColor(248, 250, 252)
+          doc.rect(15, yPosition - 5, pageWidth - 30, 65, 'F')
+          doc.setDrawColor(229, 231, 235)
+          doc.rect(15, yPosition - 5, pageWidth - 30, 65, 'S')
+          
+          // Nome do monitor
+          doc.setTextColor(17, 24, 39)
+          doc.setFontSize(14)
+          doc.setFont('helvetica', 'bold')
+          doc.text(`${index + 1}. ${report.monitor_name}`, 20, yPosition + 5)
+          
+          // URL
+          doc.setTextColor(107, 114, 128)
+          doc.setFontSize(9)
+          doc.setFont('helvetica', 'normal')
+          doc.text(`URL: ${report.monitor_url}`, 20, yPosition + 12)
+          
+          // Informações em duas colunas
+          const leftColumn = [
+            `Grupo: ${report.group_name || 'Sem grupo'}`,
+            `Uptime: ${report.uptime_percentage.toFixed(2)}%`,
+            `Tempo de Resposta: ${report.avg_response_time.toFixed(0)}ms`,
+            `Verificações: ${report.successful_checks}/${report.total_checks}`
+          ]
+          
+          const rightColumn = [
+            `Incidentes: ${report.incidents}`,
+            `Resp. Mín: ${report.min_response_time}ms`,
+            `Resp. Máx: ${report.max_response_time}ms`,
+            report.last_incident ? `Último incidente: ${new Date(report.last_incident).toLocaleDateString('pt-BR')}` : 'Nenhum incidente'
+          ]
+          
+          leftColumn.forEach((text, i) => {
+            doc.setTextColor(55, 65, 81)
+            doc.setFontSize(9)
+            doc.text(text, 20, yPosition + 20 + (i * 6))
+          })
+          
+          rightColumn.forEach((text, i) => {
+            doc.setTextColor(55, 65, 81)
+            doc.setFontSize(9)
+            doc.text(text, 110, yPosition + 20 + (i * 6))
+          })
+          
+          // Status badge
+          const uptimeColor = report.uptime_percentage >= 99 ? [34, 197, 94] : 
+                             report.uptime_percentage >= 95 ? [251, 191, 36] : [239, 68, 68]
+          doc.setFillColor(...uptimeColor)
+          doc.rect(pageWidth - 45, yPosition, 25, 8, 'F')
+          doc.setTextColor(255, 255, 255)
+          doc.setFontSize(8)
+          doc.setFont('helvetica', 'bold')
+          const statusText = report.uptime_percentage >= 99 ? 'ÓTIMO' : 
+                            report.uptime_percentage >= 95 ? 'BOM' : 'RUIM'
+          doc.text(statusText, pageWidth - 32, yPosition + 5, { align: 'center' })
+          
+          yPosition += 75
+        })
+      }
+      
+      // Footer em todas as páginas
+      const totalPages = doc.getNumberOfPages()
+      for (let i = 1; i <= totalPages; i++) {
+        doc.setPage(i)
+        doc.setTextColor(156, 163, 175)
+        doc.setFontSize(8)
+        doc.text(`Página ${i} de ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' })
+        doc.text('Gerado pelo Sistema de Monitoramento', 20, pageHeight - 10)
+      }
+      
+      // Salvar o PDF
+      const fileName = `relatorio-monitoramento-${selectedTimeRange}-${new Date().toISOString().split('T')[0]}.pdf`
+      doc.save(fileName)
+      
+      addToast('Relatório PDF exportado com sucesso', 'success')
     } catch (error) {
       console.error('Erro ao exportar relatório:', error)
       addToast('Erro ao exportar relatório', 'error')
@@ -251,6 +498,22 @@ export function ReportsPage() {
   const calculateOverallStats = () => {
     if (reports.length === 0) return null
 
+    // Se um monitor específico está selecionado, mostrar apenas suas estatísticas
+    if (selectedMonitor !== 'all') {
+      const selectedReport = reports.find(report => report.monitor_id === selectedMonitor)
+      if (!selectedReport) return null
+      
+      return {
+        totalChecks: selectedReport.total_checks,
+        totalSuccessful: selectedReport.successful_checks,
+        totalIncidents: selectedReport.incidents,
+        avgUptime: selectedReport.uptime_percentage,
+        avgResponseTime: selectedReport.avg_response_time,
+        monitorsCount: 1
+      }
+    }
+
+    // Caso contrário, calcular estatísticas agregadas
     const totalChecks = reports.reduce((sum, report) => sum + report.total_checks, 0)
     const totalSuccessful = reports.reduce((sum, report) => sum + report.successful_checks, 0)
     const totalIncidents = reports.reduce((sum, report) => sum + report.incidents, 0)
@@ -492,7 +755,7 @@ export function ReportsPage() {
             ) : (
               <Download className="h-4 w-4 mr-2" />
             )}
-            {exporting ? 'Exportando...' : 'Exportar CSV'}
+            {exporting ? 'Exportando...' : 'Exportar PDF'}
           </Button>
         </div>
       </div>
@@ -535,7 +798,7 @@ export function ReportsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os monitores</SelectItem>
-            {monitors.map((monitor) => (
+            {getFilteredMonitors().map((monitor) => (
               <SelectItem key={monitor.id} value={monitor.id}>
                 {monitor.name}
               </SelectItem>
@@ -557,7 +820,7 @@ export function ReportsPage() {
                 {overallStats.avgUptime?.toFixed(2) || '0.00'}%
               </div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
-                {selectedRange?.label.toLowerCase()}
+                {selectedMonitor !== 'all' ? 'Monitor selecionado' : selectedRange?.label.toLowerCase()}
               </p>
             </CardContent>
           </Card>
@@ -583,7 +846,7 @@ export function ReportsPage() {
             <CardContent>
               <div className="text-2xl font-bold text-red-600">{overallStats.totalIncidents}</div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
-                {overallStats.monitorsCount} monitores
+                {selectedMonitor !== 'all' ? 'Incidentes do monitor' : `${overallStats.monitorsCount} monitores`}
               </p>
             </CardContent>
           </Card>
@@ -596,7 +859,7 @@ export function ReportsPage() {
             <CardContent>
               <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{Math.round(overallStats.avgResponseTime)}ms</div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
-                Média geral
+                {selectedMonitor !== 'all' ? 'Tempo médio do monitor' : 'Média geral'}
               </p>
             </CardContent>
           </Card>
@@ -609,7 +872,7 @@ export function ReportsPage() {
           {/* Coluna Esquerda - Cards Menores */}
           <div className="lg:col-span-1 space-y-6">
             {/* Gráfico de Uptime */}
-            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }} id="uptime-chart">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
                   <TrendingUp className="h-5 w-5" />
@@ -676,7 +939,7 @@ export function ReportsPage() {
             </Card>
 
             {/* Gráfico de Tempo de Resposta */}
-            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }} id="response-time-chart">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
                   <Clock className="h-5 w-5" />
@@ -736,7 +999,7 @@ export function ReportsPage() {
             </Card>
 
             {/* Gráfico de Distribuição de Status */}
-            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }} id="status-distribution-chart">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
                   <PieChart className="h-5 w-5" />

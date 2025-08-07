@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useParams } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { 
@@ -43,25 +44,32 @@ interface IncidentHistory {
 }
 
 export function StatusPage() {
+  const { groupId } = useParams<{ groupId: string }>()
   const [data, setData] = useState<StatusPageData | null>(null)
   const [incidents, setIncidents] = useState<IncidentHistory[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [groupName, setGroupName] = useState<string>('')
 
   useEffect(() => {
     fetchStatusData()
+    fetchGroupName()
     
     // Atualizar a cada 30 segundos
     const interval = setInterval(fetchStatusData, 30000)
     return () => clearInterval(interval)
-  }, [])
+  }, [groupId])
 
   const fetchStatusData = async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true)
     
     try {
+      const statusUrl = groupId 
+        ? `${import.meta.env.VITE_API_URL}/public/status/${groupId}`
+        : `${import.meta.env.VITE_API_URL}/public/status/all`
+        
       const [statusResponse, incidentsResponse] = await Promise.all([
-        fetch(`${import.meta.env.VITE_API_URL}/public/status`),
+        fetch(statusUrl),
         fetch(`${import.meta.env.VITE_API_URL}/public/incidents`)
       ])
 
@@ -79,6 +87,25 @@ export function StatusPage() {
     } finally {
       setLoading(false)
       setRefreshing(false)
+    }
+  }
+
+  const fetchGroupName = async () => {
+    if (!groupId || groupId === 'all') {
+      setGroupName('Todos os Grupos')
+      return
+    }
+    
+    try {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/public/groups`)
+      if (response.ok) {
+        const groups = await response.json()
+        const group = groups.find((g: any) => g.id === groupId)
+        setGroupName(group ? group.name : 'Grupo não encontrado')
+      }
+    } catch (error) {
+      console.error('Erro ao buscar nome do grupo:', error)
+      setGroupName('Grupo')
     }
   }
 
@@ -196,6 +223,11 @@ export function StatusPage() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold mb-2" style={{ color: '#ffffff' }}>Status dos Serviços</h1>
           <p style={{ color: '#9ca3af' }}>Acompanhe o status em tempo real dos nossos serviços</p>
+          {groupName && (
+            <p className="text-lg font-medium mt-2" style={{ color: '#6b26d9' }}>
+              {groupName}
+            </p>
+          )}
         </div>
 
         {/* Overall Status */}

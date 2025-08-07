@@ -18,7 +18,7 @@ Este diretório contém os scripts SQL necessários para configurar o banco de d
 ### 3. Verifique as Tabelas Criadas
 Após executar o script, as seguintes tabelas devem estar disponíveis:
 - `users` - Usuários do sistema
-- `groups` - Grupos/Clientes
+- `groups` - Grupos
 - `monitors` - Monitores de uptime
 - `monitor_checks` - Histórico de verificações
 - `smtp_config` - Configuração de email
@@ -35,12 +35,12 @@ SUPABASE_SERVICE_ROLE_KEY=sua_chave_de_servico
 ### 5. Dados Padrão
 O script já inclui:
 - Usuário administrador: `admin@agencia.com` / `admin123`
-- Grupo de exemplo: "Cliente Exemplo"
+- Grupo de exemplo: "Grupo Exemplo"
 
 ## Funcionalidades Implementadas
 
-### Cadastro de Clientes (Grupos)
-- ✅ Criar novos grupos/clientes
+### Cadastro de Grupos
+- ✅ Criar novos grupos
 - ✅ Listar grupos existentes
 - ✅ Editar informações do grupo
 - ✅ Excluir grupos (com verificação de dependências)
@@ -50,7 +50,7 @@ O script já inclui:
 - ✅ Listar monitores existentes
 - ✅ Editar configurações do monitor
 - ✅ Excluir monitores
-- ✅ Associar monitores a grupos
+- ✅ Associar monitores a grupos (opcional)
 
 ### Integração com Supabase
 - ✅ Todas as operações CRUD utilizam o Supabase
@@ -64,15 +64,15 @@ O script já inclui:
    - Acesse `http://localhost:3000/login`
    - Use: `admin@agencia.com` / `admin123`
 
-2. **Teste de Cadastro de Cliente**:
-   - Vá para a página de Clientes
-   - Clique em "Adicionar Cliente"
+2. **Teste de Cadastro de Grupo**:
+   - Vá para a página de Grupos
+   - Clique em "Adicionar Grupo"
    - Preencha os dados e salve
 
 3. **Teste de Cadastro de Domínio**:
    - Vá para a página de Domínios
    - Clique em "Adicionar Monitor"
-   - Selecione um cliente e configure o monitor
+   - Opcionalmente selecione um grupo e configure o monitor
 
 ## Troubleshooting
 

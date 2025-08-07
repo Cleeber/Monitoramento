@@ -23,7 +23,7 @@ const monitoringService = new MonitoringService()
 app.use(helmet())
 app.use(compression())
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:3002', 'http://127.0.0.1:3002'],
   credentials: true
 }))
 app.use(express.json({ limit: '10mb' }))
@@ -216,13 +216,15 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
   try {
     const { name, url, type, interval, timeout, group_id, enabled = true } = req.body
     
-    if (!name || !url || !type || !group_id) {
-      return res.status(400).json({ error: 'Campos obrigatórios: name, url, type, group_id' })
+    if (!name || !url || !type) {
+      return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
     }
     
-    const group = await databaseService.getGroupById(group_id)
-    if (!group) {
-      return res.status(400).json({ error: 'Grupo não encontrado' })
+    if (group_id) {
+      const group = await databaseService.getGroupById(group_id)
+      if (!group) {
+        return res.status(400).json({ error: 'Grupo não encontrado' })
+      }
     }
     
     const newMonitor = await databaseService.createMonitor({
@@ -577,13 +579,37 @@ app.get('/api/reports/export', authenticateToken, (req, res) => {
 })
 
 // Rotas públicas (status page)
-app.get('/api/public/status', (req, res) => {
-  const monitors = monitoringService.getMonitors()
+
+// Rota pública para listar grupos
+app.get('/api/public/groups', async (req, res) => {
+  try {
+    const groups = await databaseService.getGroups()
+    res.json(groups.map(g => ({
+      id: g.id,
+      name: g.name,
+      description: g.description
+    })))
+  } catch (error) {
+    console.error('Erro ao buscar grupos públicos:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Rota pública para status por grupo
+app.get('/api/public/status/:groupId?', (req, res) => {
+  const { groupId } = req.params
+  let monitors = monitoringService.getMonitors()
+  
+  // Filtrar por grupo se especificado
+  if (groupId && groupId !== 'all') {
+    monitors = monitors.filter(m => m.group_id === groupId)
+  }
+  
   const onlineCount = monitors.filter(m => m.status === 'online').length
   const totalCount = monitors.length
   
   let overall_status = 'operational'
-  if (onlineCount === 0) {
+  if (onlineCount === 0 && totalCount > 0) {
     overall_status = 'outage'
   } else if (onlineCount < totalCount) {
     overall_status = 'degraded'
@@ -603,7 +629,8 @@ app.get('/api/public/status', (req, res) => {
       group_name: m.group_name
     })),
     overall_status,
-    last_updated: new Date().toISOString()
+    last_updated: new Date().toISOString(),
+    group_id: groupId || 'all'
   })
 })
 

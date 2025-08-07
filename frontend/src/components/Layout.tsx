@@ -9,15 +9,17 @@ import {
   FileText, 
   LogOut,
   Menu,
-  X
+  X,
+  ExternalLink
 } from 'lucide-react'
 import { useState } from 'react'
 import { cn } from '../lib/utils'
 
+
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Domínios', href: '/dominios', icon: Globe },
-  { name: 'Clientes', href: '/clientes', icon: Users },
+  { name: 'Grupos', href: '/grupos', icon: Users },
   { name: 'Configurações SMTP', href: '/config/smtp', icon: Settings },
   { name: 'Relatórios', href: '/relatorios', icon: FileText },
 ]
@@ -75,6 +77,24 @@ export function Layout() {
                 </Link>
               )
             })}
+            
+            {/* Menu de Páginas de Status */}
+            <Link
+              to="/paginas-status"
+              className={cn(
+                "group flex items-center px-2 py-2 text-sm font-medium rounded-md",
+                location.pathname === '/paginas-status'
+                  ? "text-white"
+                  : "text-gray-300 hover:text-white"
+              )}
+              style={location.pathname === '/paginas-status' ? {backgroundColor: '#6b26d9'} : {}}
+              onMouseEnter={(e) => location.pathname !== '/paginas-status' && (e.currentTarget.style.backgroundColor = '#2c313a')}
+              onMouseLeave={(e) => location.pathname !== '/paginas-status' && (e.currentTarget.style.backgroundColor = 'transparent')}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <ExternalLink className="mr-3 h-5 w-5" />
+              Páginas de Status
+            </Link>
           </nav>
 
           {/* Bottom Section */}
@@ -125,6 +145,23 @@ export function Layout() {
                 </Link>
               )
             })}
+            
+            {/* Menu de Páginas de Status */}
+            <Link
+              to="/paginas-status"
+              className={cn(
+                "group flex items-center px-2 py-2 text-sm font-medium rounded-md",
+                location.pathname === '/paginas-status'
+                  ? "text-white"
+                  : "text-gray-300 hover:text-white"
+              )}
+              style={location.pathname === '/paginas-status' ? {backgroundColor: '#6b26d9'} : {}}
+              onMouseEnter={(e) => location.pathname !== '/paginas-status' && (e.currentTarget.style.backgroundColor = '#2c313a')}
+              onMouseLeave={(e) => location.pathname !== '/paginas-status' && (e.currentTarget.style.backgroundColor = 'transparent')}
+            >
+              <ExternalLink className="mr-3 h-5 w-5" />
+              Páginas de Status
+            </Link>
           </nav>
 
           {/* Bottom Section */}

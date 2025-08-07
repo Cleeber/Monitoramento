@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS public.users (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Tabela de grupos (clientes)
+-- Tabela de grupos
 CREATE TABLE IF NOT EXISTS public.groups (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS public.monitors (
     type VARCHAR(50) DEFAULT 'http' NOT NULL,
     interval INTEGER DEFAULT 60000 NOT NULL,
     timeout INTEGER DEFAULT 30000 NOT NULL,
-    group_id UUID REFERENCES public.groups(id) ON DELETE CASCADE,
+    group_id UUID REFERENCES public.groups(id) ON DELETE SET NULL,
     is_active BOOLEAN DEFAULT true NOT NULL,
     status VARCHAR(50) DEFAULT 'unknown',
     last_check TIMESTAMP WITH TIME ZONE,
@@ -146,7 +146,7 @@ ON CONFLICT (email) DO NOTHING;
 -- Inserir grupo de exemplo
 INSERT INTO public.groups (name, description)
 VALUES (
-    'Cliente Exemplo',
-    'Grupo de exemplo para demonstração'
+    'Grupo Exemplo',
+    'Grupo de exemplo para demonstração do sistema'
 )
 ON CONFLICT DO NOTHING;

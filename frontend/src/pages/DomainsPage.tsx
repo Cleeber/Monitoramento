@@ -31,8 +31,8 @@ interface Monitor {
   timeout: number
   status: 'online' | 'offline' | 'warning' | 'unknown'
   enabled: boolean
-  group_id: string
-  group_name: string
+  group_id: string | null
+  group_name: string | null
   last_check: string | null
   response_time: number | null
   created_at: string
@@ -53,7 +53,7 @@ interface MonitorFormData {
   type: 'http' | 'ping' | 'tcp'
   interval: number
   timeout: number
-  group_id: string
+  group_id: string | null
   enabled: boolean
 }
 
@@ -71,7 +71,7 @@ export function DomainsPage() {
     type: 'http',
     interval: 60,
     timeout: 30,
-    group_id: '',
+    group_id: null,
     enabled: true
   })
   const { addToast } = useToast()
@@ -189,7 +189,7 @@ export function DomainsPage() {
       type: 'http',
       interval: 60,
       timeout: 30,
-      group_id: '',
+      group_id: null,
       enabled: true
     })
   }
@@ -218,7 +218,9 @@ export function DomainsPage() {
   const filteredMonitors = monitors.filter(monitor => {
     const matchesSearch = monitor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          monitor.url.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesGroup = selectedGroup === 'all' || monitor.group_id === selectedGroup
+    const matchesGroup = selectedGroup === 'all' || 
+                        (selectedGroup === 'none' && !monitor.group_id) ||
+                        monitor.group_id === selectedGroup
     return matchesSearch && matchesGroup
   })
 
@@ -319,12 +321,13 @@ export function DomainsPage() {
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="group" className="text-white">Grupo/Cliente</Label>
-                <Select value={formData.group_id} onValueChange={(value) => setFormData({ ...formData, group_id: value })}>
+                <Label htmlFor="group" className="text-white">Grupo (opcional)</Label>
+                <Select value={formData.group_id || 'none'} onValueChange={(value) => setFormData({ ...formData, group_id: value === 'none' ? null : value })}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Selecione um grupo" />
+                    <SelectValue placeholder="Selecione um grupo (opcional)" />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="none">Nenhum grupo</SelectItem>
                     {groups.map((group) => (
                       <SelectItem key={group.id} value={group.id}>
                         {group.name}
@@ -373,6 +376,7 @@ export function DomainsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os grupos</SelectItem>
+            <SelectItem value="none">Sem grupo</SelectItem>
             {groups.map((group) => (
               <SelectItem key={group.id} value={group.id}>
                 {group.name}
@@ -431,7 +435,7 @@ export function DomainsPage() {
                       </div>
                       <p className="text-sm text-gray-300">{monitor.url}</p>
                       <div className="flex items-center space-x-4 text-xs text-gray-400">
-                        <span>{monitor.group_name}</span>
+                        <span>{monitor.group_name || 'Sem grupo'}</span>
                         <span>•</span>
                         <span>{monitor.type.toUpperCase()}</span>
                         <span>•</span>
