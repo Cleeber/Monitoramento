@@ -345,19 +345,19 @@ export function StatusPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#14161a' }}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '#1e3a8a' }}></div>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '#0282ff' }}></div>
       </div>
     )
   }
 
   if (!data) {
     return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#14161a' }}>
+      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
         <div className="text-center">
           <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2" style={{ color: '#ffffff' }}>Erro ao carregar status</h2>
-          <p className="mb-4" style={{ color: '#9ca3af' }}>Não foi possível carregar as informações de status</p>
+          <h2 className="text-xl font-semibold mb-2" style={{ color: '#1f2937' }}>Erro ao carregar status</h2>
+          <p className="mb-4" style={{ color: '#6b7280' }}>Não foi possível carregar as informações de status</p>
           <Button onClick={handleRefresh}>
             Tentar novamente
           </Button>
@@ -369,21 +369,40 @@ export function StatusPage() {
   const statusInfo = getOverallStatusInfo(data.overall_status)
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#14161a' }}>
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: '#ffffff' }}>Status dos Serviços</h1>
-          <p style={{ color: '#9ca3af' }}>Acompanhe o status em tempo real dos nossos serviços</p>
+    <div className="min-h-screen" style={{ backgroundColor: '#f8fafc' }}>
+      {/* Hero Section */}
+      <div className="w-full py-16 px-4" style={{ 
+        backgroundColor: '#0282ff',
+        backgroundImage: 'linear-gradient(135deg, #0282ff 0%, #0369a1 100%)'
+      }}>
+        <div className="max-w-4xl mx-auto text-center">
+          <h1 className="text-4xl font-bold mb-4 text-white">Status dos Serviços</h1>
+          <p className="text-xl text-white/90">Acompanhe o status em tempo real dos nossos serviços</p>
           {groupName && (
-            <p className="text-lg font-medium mt-2" style={{ color: '#1e3a8a' }}>
+            <p className="text-2xl font-medium mt-4 text-white">
               {groupName}
             </p>
           )}
         </div>
+      </div>
 
+      <div className="max-w-4xl mx-auto px-4 py-8" style={{ 
+        backgroundColor: '#ffffff', 
+        margin: '0 auto', 
+        borderRadius: '12px 12px 0 0', 
+        marginTop: '-2rem', 
+        position: 'relative', 
+        zIndex: 10, 
+        boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1)' 
+      }}>
         {/* Overall Status */}
-        <Card className="mb-8 border-2" style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+        <Card className="mb-8 border shadow-lg" style={{ 
+          backgroundColor: '#ffffff', 
+          borderColor: '#d1d5db',
+          borderWidth: '1.5px',
+          borderRadius: '12px',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+        }}>
           <CardContent className="p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
@@ -392,7 +411,7 @@ export function StatusPage() {
                   <h2 className={`text-xl font-semibold ${statusInfo.color}`}>
                     {statusInfo.text}
                   </h2>
-                  <p className="text-sm" style={{ color: '#9ca3af' }}>
+                  <p className="text-sm" style={{ color: '#6b7280' }}>
                     Última atualização: {new Date(data.last_updated).toLocaleString('pt-BR')}
                   </p>
                 </div>
@@ -402,6 +421,12 @@ export function StatusPage() {
                 size="sm" 
                 onClick={handleRefresh}
                 disabled={refreshing}
+                style={{
+                  borderColor: '#0282ff',
+                  color: '#0282ff',
+                  backgroundColor: '#ffffff'
+                }}
+                className="hover:bg-blue-50 transition-colors"
               >
                 <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
                 Atualizar
@@ -413,12 +438,18 @@ export function StatusPage() {
         {/* Information Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           {/* Uptime Médio */}
-          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Uptime Médio</CardTitle>
-              <TrendingUp className="h-4 w-4" style={{ color: '#9ca3af' }} />
+          <Card className="border shadow-md hover:shadow-lg transition-shadow duration-200" style={{ 
+            backgroundColor: '#ffffff', 
+            borderColor: '#d1d5db',
+            borderWidth: '1.5px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+          }}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2" style={{ backgroundColor: '#f8fafc', padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="text-sm font-medium" style={{ color: '#374151', marginBottom: '0.25rem' }}>Uptime Médio</CardTitle>
+              <TrendingUp className="h-4 w-4" style={{ color: '#10b981' }} />
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-4" style={{ padding: '1.25rem' }}>
               <div className={`text-2xl font-bold ${
                 data.monitors.length > 0 
                   ? getUptimeColor(data.monitors.reduce((acc, monitor) => acc + monitor.uptime_30d, 0) / data.monitors.length)
@@ -429,50 +460,68 @@ export function StatusPage() {
                   : '0.00'
                 }%
               </div>
-              <p className="text-xs" style={{ color: '#9ca3af' }}>
+              <p className="text-xs" style={{ color: '#6b7280' }}>
                 Últimos 30 dias
               </p>
             </CardContent>
           </Card>
 
           {/* Total de Serviços */}
-          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Serviços</CardTitle>
-              <Globe className="h-4 w-4" style={{ color: '#9ca3af' }} />
+          <Card className="border shadow-md hover:shadow-lg transition-shadow duration-200" style={{ 
+            backgroundColor: '#ffffff', 
+            borderColor: '#d1d5db',
+            borderWidth: '1.5px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+          }}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2" style={{ backgroundColor: '#f8fafc', padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="text-sm font-medium" style={{ color: '#374151', marginBottom: '0.25rem' }}>Serviços</CardTitle>
+              <Globe className="h-4 w-4" style={{ color: '#0282ff' }} />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{data.monitors.length}</div>
-              <p className="text-xs" style={{ color: '#9ca3af' }}>
+            <CardContent className="pt-4" style={{ padding: '1.25rem' }}>
+              <div className="text-2xl font-bold" style={{ color: '#111827' }}>{data.monitors.length}</div>
+              <p className="text-xs" style={{ color: '#6b7280' }}>
                 {data.monitors.filter(m => m.status === 'online').length} online
               </p>
             </CardContent>
           </Card>
 
           {/* Serviços Offline */}
-          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Problemas</CardTitle>
-              <AlertTriangle className="h-4 w-4" style={{ color: '#9ca3af' }} />
+          <Card className="border shadow-md hover:shadow-lg transition-shadow duration-200" style={{ 
+            backgroundColor: '#ffffff', 
+            borderColor: '#d1d5db',
+            borderWidth: '1.5px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+          }}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2" style={{ backgroundColor: '#f8fafc', padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="text-sm font-medium" style={{ color: '#374151', marginBottom: '0.25rem' }}>Problemas</CardTitle>
+              <AlertTriangle className="h-4 w-4" style={{ color: '#ef4444' }} />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
+            <CardContent className="pt-4" style={{ padding: '1.25rem' }}>
+              <div className="text-2xl font-bold" style={{ color: '#dc2626' }}>
                 {data.monitors.filter(m => m.status === 'offline' || m.status === 'warning').length}
               </div>
-              <p className="text-xs" style={{ color: '#9ca3af' }}>
+              <p className="text-xs" style={{ color: '#6b7280' }}>
                 Serviços com problemas
               </p>
             </CardContent>
           </Card>
 
           {/* Tempo de Resposta Médio */}
-          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Tempo de Resposta</CardTitle>
-              <Clock className="h-4 w-4" style={{ color: '#9ca3af' }} />
+          <Card className="border shadow-md hover:shadow-lg transition-shadow duration-200" style={{ 
+            backgroundColor: '#ffffff', 
+            borderColor: '#d1d5db',
+            borderWidth: '1.5px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+          }}>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2" style={{ backgroundColor: '#f8fafc', padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="text-sm font-medium" style={{ color: '#374151', marginBottom: '0.25rem' }}>Tempo de Resposta</CardTitle>
+              <Clock className="h-4 w-4" style={{ color: '#8b5cf6' }} />
             </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>
+            <CardContent className="pt-4" style={{ padding: '1.25rem' }}>
+              <div className="text-2xl font-bold" style={{ color: '#111827' }}>
                 {data.monitors.length > 0 && data.monitors.some(m => m.response_time)
                   ? Math.round(
                       data.monitors
@@ -483,7 +532,7 @@ export function StatusPage() {
                   : '0'
                 }ms
               </div>
-              <p className="text-xs" style={{ color: '#9ca3af' }}>
+              <p className="text-xs" style={{ color: '#6b7280' }}>
                 Tempo médio
               </p>
             </CardContent>
@@ -491,21 +540,27 @@ export function StatusPage() {
         </div>
 
         {/* Services Status */}
-        <Card className="mb-8" style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
-          <CardHeader>
-            <CardTitle style={{ color: '#ffffff' }}>Status dos Serviços</CardTitle>
-            <CardDescription style={{ color: '#9ca3af' }}>
+        <Card className="mb-8 border shadow-lg" style={{ 
+          backgroundColor: '#ffffff', 
+          borderColor: '#d1d5db',
+          borderWidth: '1.5px',
+          borderRadius: '12px',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+        }}>
+          <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+            <CardTitle style={{ color: '#111827', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>Status dos Serviços</CardTitle>
+            <CardDescription style={{ color: '#6b7280', fontSize: '0.875rem' }}>
               Status atual de todos os serviços monitorados
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent style={{ padding: '1.5rem' }}>
             {data.monitors.length === 0 ? (
               <div className="text-center py-8">
-                <Globe className="h-12 w-12 mx-auto mb-4" style={{ color: '#9ca3af' }} />
-                <h3 className="text-lg font-medium mb-2" style={{ color: '#ffffff' }}>
+                <Globe className="h-12 w-12 mx-auto mb-4" style={{ color: '#6b7280' }} />
+                <h3 className="text-lg font-medium mb-2" style={{ color: '#1f2937' }}>
                   Nenhum serviço configurado
                 </h3>
-                <p style={{ color: '#9ca3af' }}>
+                <p style={{ color: '#6b7280' }}>
                   Não há serviços sendo monitorados no momento
                 </p>
               </div>
@@ -514,19 +569,20 @@ export function StatusPage() {
                 {data.monitors.map((monitor) => (
                   <div
                     key={monitor.id}
-                    className="flex items-center justify-between p-4 rounded-lg transition-colors"
+                    className="flex items-center justify-between p-4 rounded-lg transition-all duration-200 hover:shadow-md"
                     style={{ 
-                      backgroundColor: '#2c313a', 
-                      borderColor: '#2c313a',
-                      border: '1px solid'
+                      backgroundColor: '#ffffff', 
+                      borderColor: '#d1d5db',
+                      border: '1px solid',
+                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
                     }}
                   >
                     <div className="flex items-center space-x-4">
                       {getStatusIcon(monitor.status)}
                       <div>
-                        <h4 className="font-medium" style={{ color: '#ffffff' }}>{monitor.name}</h4>
-                        <p className="text-sm" style={{ color: '#9ca3af' }}>{monitor.url}</p>
-                        <p className="text-xs" style={{ color: '#9ca3af' }}>{monitor.group_name}</p>
+                        <h4 className="font-medium" style={{ color: '#1f2937' }}>{monitor.name}</h4>
+                        <p className="text-sm" style={{ color: '#6b7280' }}>{monitor.url}</p>
+                        <p className="text-xs" style={{ color: '#6b7280' }}>{monitor.group_name}</p>
                       </div>
                     </div>
                     
@@ -535,19 +591,19 @@ export function StatusPage() {
                       <div className="text-right hidden sm:block">
                         <div className="flex space-x-4 text-xs">
                           <div>
-                            <p style={{ color: '#9ca3af' }}>24h</p>
+                            <p style={{ color: '#6b7280' }}>24h</p>
                             <p className={`font-medium ${getUptimeColor(monitor.uptime_24h)}`}>
                               {monitor.uptime_24h?.toFixed(1) || '0.0'}%
                             </p>
                           </div>
                           <div>
-                            <p style={{ color: '#9ca3af' }}>7d</p>
+                            <p style={{ color: '#6b7280' }}>7d</p>
                             <p className={`font-medium ${getUptimeColor(monitor.uptime_7d)}`}>
                               {monitor.uptime_7d?.toFixed(1) || '0.0'}%
                             </p>
                           </div>
                           <div>
-                            <p style={{ color: '#9ca3af' }}>30d</p>
+                            <p style={{ color: '#6b7280' }}>30d</p>
                             <p className={`font-medium ${getUptimeColor(monitor.uptime_30d)}`}>
                               {monitor.uptime_30d?.toFixed(1) || '0.0'}%
                             </p>
@@ -558,10 +614,10 @@ export function StatusPage() {
                       {/* Response Time */}
                       {monitor.response_time && (
                         <div className="text-right">
-                          <p className="text-sm font-medium" style={{ color: '#ffffff' }}>
+                          <p className="text-sm font-medium" style={{ color: '#1f2937' }}>
                             {formatDuration(monitor.response_time)}
                           </p>
-                          <p className="text-xs" style={{ color: '#9ca3af' }}>resposta</p>
+                          <p className="text-xs" style={{ color: '#6b7280' }}>resposta</p>
                         </div>
                       )}
                       
@@ -584,14 +640,20 @@ export function StatusPage() {
         {data.monitors.length > 0 && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Histórico de Uptime */}
-            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
+            <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
+              backgroundColor: '#ffffff', 
+              borderColor: '#d1d5db',
+              borderWidth: '1.5px',
+              borderRadius: '12px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+            }}>
+              <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+                <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                   <TrendingUp className="h-5 w-5" />
                   Histórico de Uptime
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent style={{ padding: '1.5rem' }}>
                 <div className="h-64">
                   <Bar 
                     data={generateUptimeChartData(data.monitors)} 
@@ -608,22 +670,22 @@ export function StatusPage() {
                           beginAtZero: true,
                           max: 100,
                           ticks: {
-                            color: '#9ca3af',
+                            color: '#6b7280',
                             callback: function(value) {
                               return value + '%'
                             }
                           },
                           grid: {
-                            color: '#374151'
+                            color: '#e5e7eb'
                           }
                         },
                         x: {
                           ticks: {
-                            color: '#9ca3af',
+                            color: '#6b7280',
                             maxRotation: 45,
                           },
                           grid: {
-                            color: '#374151'
+                            color: '#e5e7eb'
                           }
                         }
                       },
@@ -634,14 +696,20 @@ export function StatusPage() {
             </Card>
 
             {/* Histórico de Tempo de Resposta */}
-            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
+            <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
+              backgroundColor: '#ffffff', 
+              borderColor: '#d1d5db',
+              borderWidth: '1.5px',
+              borderRadius: '12px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+            }}>
+              <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+                <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                   <Clock className="h-5 w-5" />
                   Histórico de Tempo de Resposta
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent style={{ padding: '1.5rem' }}>
                 <div className="h-64">
                   <Line 
                     data={generateResponseTimeChartData(data.monitors)} 
@@ -657,22 +725,22 @@ export function StatusPage() {
                         y: {
                           beginAtZero: true,
                           ticks: {
-                            color: '#9ca3af',
+                            color: '#6b7280',
                             callback: function(value) {
                               return value + 'ms'
                             }
                           },
                           grid: {
-                            color: '#374151'
+                            color: '#e5e7eb'
                           }
                         },
                         x: {
                           ticks: {
-                            color: '#9ca3af',
+                            color: '#6b7280',
                             maxRotation: 45,
                           },
                           grid: {
-                            color: '#374151'
+                            color: '#e5e7eb'
                           }
                         }
                       },
@@ -683,14 +751,20 @@ export function StatusPage() {
             </Card>
 
             {/* Distribuição de Status */}
-            <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
+            <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
+              backgroundColor: '#ffffff', 
+              borderColor: '#d1d5db',
+              borderWidth: '1.5px',
+              borderRadius: '12px',
+              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+            }}>
+              <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+                <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                   <PieChart className="h-5 w-5" />
                   Distribuição de Status
                 </CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent style={{ padding: '1.5rem' }}>
                 <div className="h-64">
                   <Doughnut 
                     data={generateStatusDistributionData(data.monitors)} 
@@ -701,7 +775,7 @@ export function StatusPage() {
                         legend: {
                           position: 'bottom',
                           labels: {
-                            color: '#9ca3af',
+                            color: '#6b7280',
                             padding: 20,
                           }
                         },
@@ -714,35 +788,41 @@ export function StatusPage() {
 
             {/* Informações Detalhadas do Monitor */}
             {data.monitors.length === 1 && (
-              <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
+              <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
+                backgroundColor: '#ffffff', 
+                borderColor: '#d1d5db',
+                borderWidth: '1.5px',
+                borderRadius: '12px',
+                boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+              }}>
+                <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+                  <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                     <BarChart3 className="h-5 w-5" />
                     Informações Detalhadas do Monitor
                   </CardTitle>
-                  <CardDescription style={{ color: '#9ca3af' }}>
+                  <CardDescription style={{ color: '#6b7280', fontSize: '0.875rem' }}>
                     Estatísticas de performance do monitor selecionado
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent style={{ padding: '1.5rem' }}>
                   <div className="space-y-4">
-                    <h4 className="text-sm font-medium mb-4" style={{ color: '#ffffff' }}>Estatísticas de Performance</h4>
+                    <h4 className="text-sm font-medium mb-4" style={{ color: '#1f2937' }}>Estatísticas de Performance</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span style={{ color: '#9ca3af' }}>Uptime Geral</span>
+                          <span style={{ color: '#6b7280' }}>Uptime Geral</span>
                           <span className={`font-medium ${getUptimeColor(data.monitors[0].uptime_30d)}`}>
                             {data.monitors[0].uptime_30d?.toFixed(2) || '0.00'}%
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span style={{ color: '#9ca3af' }}>Uptime 24h</span>
+                          <span style={{ color: '#6b7280' }}>Uptime 24h</span>
                           <span className={`font-medium ${getUptimeColor(data.monitors[0].uptime_24h)}`}>
                             {data.monitors[0].uptime_24h?.toFixed(2) || '0.00'}%
                           </span>
                         </div>
                         <div className="flex justify-between">
-                          <span style={{ color: '#9ca3af' }}>Uptime 7d</span>
+                          <span style={{ color: '#6b7280' }}>Uptime 7d</span>
                           <span className={`font-medium ${getUptimeColor(data.monitors[0].uptime_7d)}`}>
                             {data.monitors[0].uptime_7d?.toFixed(2) || '0.00'}%
                           </span>
@@ -752,15 +832,15 @@ export function StatusPage() {
                       {data.monitors[0].response_time && (
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
-                            <span style={{ color: '#9ca3af' }}>Tempo Médio</span>
-                            <span style={{ color: '#ffffff' }}>{Math.round(data.monitors[0].response_time)}ms</span>
+                            <span style={{ color: '#6b7280' }}>Tempo Médio</span>
+                            <span style={{ color: '#1f2937' }}>{Math.round(data.monitors[0].response_time)}ms</span>
                           </div>
                           <div className="flex justify-between">
-                            <span style={{ color: '#9ca3af' }}>Tempo Mínimo</span>
+                            <span style={{ color: '#6b7280' }}>Tempo Mínimo</span>
                             <span className="text-green-600">71ms</span>
                           </div>
                           <div className="flex justify-between">
-                            <span style={{ color: '#9ca3af' }}>Tempo Máximo</span>
+                            <span style={{ color: '#6b7280' }}>Tempo Máximo</span>
                             <span className="text-red-600">1015ms</span>
                           </div>
                         </div>
@@ -768,15 +848,15 @@ export function StatusPage() {
                       
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
-                          <span style={{ color: '#9ca3af' }}>Total de Verificações</span>
-                          <span style={{ color: '#ffffff' }}>336</span>
+                          <span style={{ color: '#6b7280' }}>Total de Verificações</span>
+                          <span style={{ color: '#1f2937' }}>336</span>
                         </div>
                         <div className="flex justify-between">
-                          <span style={{ color: '#9ca3af' }}>Verificações Bem-sucedidas</span>
+                          <span style={{ color: '#6b7280' }}>Verificações Bem-sucedidas</span>
                           <span className="text-green-600">336</span>
                         </div>
                         <div className="flex justify-between">
-                          <span style={{ color: '#9ca3af' }}>Verificações Falhadas</span>
+                          <span style={{ color: '#6b7280' }}>Verificações Falhadas</span>
                           <span className="text-red-600">0</span>
                         </div>
                       </div>
@@ -790,17 +870,23 @@ export function StatusPage() {
 
         {/* Incident History */}
         {incidents.length > 0 && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
+          <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
+            backgroundColor: '#ffffff', 
+            borderColor: '#d1d5db',
+            borderWidth: '1.5px',
+            borderRadius: '12px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+          }}>
+            <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="flex items-center space-x-2" style={{ color: '#111827', fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                 <Calendar className="h-5 w-5" />
                 <span>Histórico de Incidentes</span>
               </CardTitle>
-              <CardDescription>
+              <CardDescription style={{ color: '#6b7280', fontSize: '0.875rem' }}>
                 Incidentes recentes e suas resoluções
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent style={{ padding: '1.5rem' }}>
               <div className="space-y-4">
                 {incidents.map((incident) => (
                   <div
@@ -810,7 +896,7 @@ export function StatusPage() {
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
-                          <h4 className="font-medium text-gray-900">{incident.title}</h4>
+                          <h4 className="font-medium" style={{ color: '#1f2937' }}>{incident.title}</h4>
                           <Badge className={getIncidentStatusColor(incident.status)}>
                             {incident.status === 'resolved' && 'Resolvido'}
                             {incident.status === 'investigating' && 'Investigando'}
