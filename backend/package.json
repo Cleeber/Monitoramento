@@ -13,6 +13,7 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.38.4",
     "@types/multer": "^2.0.0",
+    "@types/puppeteer": "^5.4.7",
     "@types/uuid": "^10.0.0",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
@@ -28,6 +29,7 @@
     "nodemailer": "^6.9.7",
     "pdfkit": "^0.14.0",
     "ping": "^0.4.4",
+    "puppeteer": "^24.17.1",
     "uuid": "^11.1.0",
     "ws": "^8.14.2",
     "zod": "^3.22.4"

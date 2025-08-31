@@ -294,7 +294,7 @@ app.post('/api/auth/verify', authenticateToken, async (req: any, res) => {
 })
 
 // Rotas do dashboard
-app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
+app.get('/api/dashboard/stats', authenticateToken, async (_, res) => {
   try {
     const monitors = monitoringService.getMonitors()
     const groups = await databaseService.getGroups()
@@ -314,13 +314,13 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   }
 })
 
-app.get('/api/dashboard/monitors', authenticateToken, (req, res) => {
+app.get('/api/dashboard/monitors', authenticateToken, (_, res) => {
   const monitors = monitoringService.getMonitors()
   res.json(monitors)
 })
 
 // Rotas de monitores
-app.get('/api/monitors', authenticateToken, async (req, res) => {
+app.get('/api/monitors', authenticateToken, async (_, res) => {
   try {
     const monitors = await databaseService.getMonitors()
     
@@ -384,7 +384,7 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
         monitor_id: newMonitor.id,
         email: report_email,
         send_day: report_send_day,
-        enabled: true
+        is_active: true
       })
     }
     
@@ -430,7 +430,7 @@ app.post('/api/upload/logo', authenticateToken, upload.single('logo'), async (re
 app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { name, url, type, interval, timeout, group_id, is_active, slug, logo_url, report_email, report_send_day } = req.body
+    const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day } = req.body
     
     if (group_id) {
       const group = await databaseService.getGroupById(group_id)
@@ -447,10 +447,7 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       timeout: timeout ? timeout * 1000 : undefined,   // Converter segundos para milissegundos
       group_id,
       is_active,
-      slug,
-      logo_url,
-      report_email,
-      report_send_day
+      slug
     })
     
     if (!updatedMonitor) {
@@ -466,7 +463,7 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
         await databaseService.updateMonthlyReportConfig(existingConfig.id, {
           email: report_email,
           send_day: report_send_day,
-          enabled: true
+          is_active: true
         })
       } else {
         // Criar nova configuração
@@ -474,7 +471,7 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
           monitor_id: id,
           email: report_email,
           send_day: report_send_day,
-          enabled: true
+          is_active: true
         })
       }
     } else if (existingConfig) {
@@ -483,7 +480,7 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
     }
     
     // Atualizar no serviço de monitoramento
-    monitoringService.updateMonitor(id, {
+    monitoringService.updateMonitor({
       ...updatedMonitor,
       enabled: updatedMonitor.is_active
     })
@@ -499,10 +496,7 @@ app.delete('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
     
-    const success = await databaseService.deleteMonitor(id)
-    if (!success) {
-      return res.status(404).json({ error: 'Monitor não encontrado' })
-    }
+    await databaseService.deleteMonitor(id)
     
     // Remover do serviço de monitoramento
     monitoringService.removeMonitor(id)
@@ -529,7 +523,7 @@ app.get('/api/monitors/:id/checks', authenticateToken, (req, res) => {
 })
 
 // Rotas de grupos
-app.get('/api/groups', authenticateToken, async (req, res) => {
+app.get('/api/groups', authenticateToken, async (_, res) => {
   try {
     const groups = await databaseService.getGroups()
     res.json(groups)
@@ -586,10 +580,7 @@ app.delete('/api/groups/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
     
-    const success = await databaseService.deleteGroup(id)
-    if (!success) {
-      return res.status(404).json({ error: 'Grupo não encontrado' })
-    }
+    await databaseService.deleteGroup(id)
     
     res.json({ message: 'Grupo removido com sucesso' })
   } catch (error) {
@@ -599,7 +590,7 @@ app.delete('/api/groups/:id', authenticateToken, async (req, res) => {
 })
 
 // Rotas de configuração de relatórios mensais
-app.get('/api/monthly-reports/configs', authenticateToken, async (req, res) => {
+app.get('/api/monthly-reports/configs', authenticateToken, async (_, res) => {
   try {
     const configs = await databaseService.getMonthlyReportConfigs()
     res.json(configs)
@@ -854,7 +845,7 @@ app.post('/api/reports/send-monthly-custom', authenticateToken, async (req, res)
 })
 
 // Rota para forçar verificação de relatórios mensais (útil para testes)
-app.post('/api/scheduler/check-monthly-reports', authenticateToken, async (req, res) => {
+app.post('/api/scheduler/check-monthly-reports', authenticateToken, async (_, res) => {
   const startTime = Date.now()
   try {
     console.log('🔄 Solicitação de verificação manual de relatórios mensais')
@@ -873,7 +864,7 @@ app.post('/api/scheduler/check-monthly-reports', authenticateToken, async (req, 
 })
 
 // Rota para listar jobs agendados
-app.get('/api/scheduler/jobs', authenticateToken, async (req, res) => {
+app.get('/api/scheduler/jobs', authenticateToken, async (_, res) => {
   try {
     console.log('📋 Solicitação de listagem de jobs agendados')
     
@@ -888,7 +879,7 @@ app.get('/api/scheduler/jobs', authenticateToken, async (req, res) => {
 })
 
 // Rotas de configuração SMTP
-app.get('/api/smtp/config', authenticateToken, async (req, res) => {
+app.get('/api/smtp/config', authenticateToken, async (_, res) => {
   try {
     const config = await databaseService.getSmtpConfig()
     if (!config) {
@@ -926,7 +917,7 @@ app.get('/api/smtp/config', authenticateToken, async (req, res) => {
 
 app.put('/api/smtp/config', authenticateToken, async (req, res) => {
   try {
-    const { host, port, username, password, from_email, from_name, use_tls, use_ssl, enabled } = req.body
+    const { host, port, username, password, from_email, from_name, use_ssl, enabled } = req.body
     
     const config = await databaseService.updateSmtpConfig({
       host,
@@ -986,7 +977,7 @@ app.post('/api/smtp/test', authenticateToken, async (req, res) => {
 })
 
 // Rotas de relatórios
-app.get('/api/reports/stats', authenticateToken, (req, res) => {
+app.get('/api/reports/stats', authenticateToken, (_, res) => {
   const monitors = monitoringService.getMonitors()
   const stats = {
     avg_uptime: Math.round(monitors.reduce((acc, m) => acc + m.uptime_30d, 0) / monitors.length * 100) / 100,
@@ -997,7 +988,7 @@ app.get('/api/reports/stats', authenticateToken, (req, res) => {
   res.json(stats)
 })
 
-app.get('/api/reports/monitors', authenticateToken, (req, res) => {
+app.get('/api/reports/monitors', authenticateToken, (_, res) => {
   const monitors = monitoringService.getMonitors()
   const detailedMonitors = monitors.map(monitor => ({
     ...monitor,
@@ -1099,7 +1090,7 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
   }
 })
 
-app.get('/api/reports/export', authenticateToken, (req, res) => {
+app.get('/api/reports/export', authenticateToken, (_, res) => {
   const monitors = monitoringService.getMonitors()
   const csvData = [
     'Monitor,URL,Status,Uptime 24h,Uptime 7d,Uptime 30d,Tempo Resposta',
@@ -1116,7 +1107,7 @@ app.get('/api/reports/export', authenticateToken, (req, res) => {
 // Rotas públicas (status page)
 
 // Rota pública para listar grupos
-app.get('/api/public/groups', async (req, res) => {
+app.get('/api/public/groups', async (_, res) => {
   try {
     const groups = await databaseService.getGroups()
     res.json(groups.map(g => ({
@@ -1132,7 +1123,7 @@ app.get('/api/public/groups', async (req, res) => {
 })
 
 // Rota pública para listar monitores
-app.get('/api/public/monitors', async (req, res) => {
+app.get('/api/public/monitors', async (_, res) => {
   try {
     const monitors = await databaseService.getMonitors()
     res.json(monitors.map(m => ({
@@ -1338,7 +1329,7 @@ app.get('/api/public/incidents', async (req, res) => {
             title: getIncidentTitle(check.status, monitor.name),
             description: getIncidentDescription(check.status, check.error_message, monitor.name),
             started_at: check.checked_at,
-            resolved_at: null
+            resolved_at: null as string | null
           }
         } else if (!isDown && currentIncident) {
           // Fim do incidente
@@ -1420,7 +1411,7 @@ function getIncidentDescription(status: string, errorMessage: string | null, mon
 }
 
 // Rota de health check
-app.get('/api/health', (req, res) => {
+app.get('/api/health', (_, res) => {
   res.json({ 
     status: 'ok', 
     timestamp: new Date().toISOString(),
@@ -1428,14 +1419,15 @@ app.get('/api/health', (req, res) => {
   })
 })
 
+
 // Middleware de tratamento de erros
-app.use((err: any, req: any, res: any, next: any) => {
+app.use((err: any, _: any, res: any, __: any) => {
   console.error('Erro:', err)
   res.status(500).json({ error: 'Erro interno do servidor' })
 })
 
 // Rota 404
-app.use('*', (req, res) => {
+app.use('*', (_, res) => {
   res.status(404).json({ error: 'Rota não encontrada' })
 })
 

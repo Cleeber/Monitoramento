@@ -80,6 +80,7 @@ interface Monitor {
   group_name: string
   report_email?: string
   report_send_day?: number
+  slug: string
 }
 
 interface ChartData {
@@ -240,243 +241,234 @@ export function ReportsPage() {
     }
   }
 
+  const captureStatusPage = async (monitorSlug: string): Promise<string | null> => {
+    try {
+      // Construir URL da página de status pública
+      const statusUrl = `${window.location.origin}/status/${monitorSlug}`
+      
+      // Criar iframe invisível para carregar a página
+      const iframe = document.createElement('iframe')
+      iframe.style.position = 'absolute'
+      iframe.style.left = '-9999px'
+      iframe.style.top = '-9999px'
+      iframe.style.width = '1920px'
+      iframe.style.height = '1080px'
+      iframe.style.border = 'none'
+      iframe.src = statusUrl
+      
+      document.body.appendChild(iframe)
+      
+      // Aguardar a página carregar completamente
+      await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          document.body.removeChild(iframe)
+          reject(new Error('Timeout ao carregar página de status'))
+        }, 15000) // 15 segundos de timeout
+        
+        iframe.onload = () => {
+          clearTimeout(timeout)
+          resolve(void 0)
+        }
+        
+        iframe.onerror = () => {
+          clearTimeout(timeout)
+          document.body.removeChild(iframe)
+          reject(new Error('Erro ao carregar página de status'))
+        }
+      })
+      
+      // Aguardar mais tempo para garantir que gráficos e componentes dinâmicos sejam renderizados
+      await new Promise(resolve => setTimeout(resolve, 3000))
+      
+      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
+      if (!iframeDoc) {
+        document.body.removeChild(iframe)
+        throw new Error('Não foi possível acessar o documento da página de status')
+      }
+      
+      // Configurações otimizadas para captura de alta qualidade
+      const captureOptions = {
+        useCORS: true,
+        allowTaint: false,
+        scale: 1.5, // Escala otimizada para qualidade vs performance
+        width: Math.max(iframeDoc.body.scrollWidth, 1920),
+        height: Math.max(iframeDoc.body.scrollHeight, 1080),
+        backgroundColor: '#ffffff',
+        removeContainer: false,
+        logging: false,
+        imageTimeout: 8000,
+        foreignObjectRendering: true,
+        onclone: (clonedDoc: Document) => {
+          // Otimizar estilos para melhor renderização
+          const clonedBody = clonedDoc.body
+          if (clonedBody) {
+            clonedBody.style.transform = 'none'
+            clonedBody.style.transformOrigin = 'top left'
+            clonedBody.style.overflow = 'visible'
+            
+            // Remover elementos desnecessários que podem causar espaços vazios
+            const elementsToHide = clonedDoc.querySelectorAll('script, noscript, .hidden, [style*="display: none"]')
+            elementsToHide.forEach(el => {
+              if (el.parentNode) {
+                el.parentNode.removeChild(el)
+              }
+            })
+          }
+        }
+      }
+      
+      // Capturar a página usando html2canvas com configurações otimizadas
+      const canvas = await html2canvas(iframeDoc.body, captureOptions)
+      
+      // Remover o iframe
+      document.body.removeChild(iframe)
+      
+      return canvas.toDataURL('image/png', 0.95) // Qualidade alta mas otimizada
+    } catch (error) {
+      console.error('Erro ao capturar página de status:', error)
+      return null
+    }
+  }
+
   const handleExport = async () => {
     setExporting(true)
     try {
-      // Criar novo documento PDF
+      // Verificar se um monitor específico foi selecionado
+      if (selectedMonitor === 'all') {
+        addToast({ 
+          title: 'Selecione um monitor específico', 
+          description: 'Para exportar a página de status, você deve selecionar um monitor específico.',
+          variant: 'destructive' 
+        })
+        return
+      }
+      
+      // Buscar o monitor selecionado para obter o slug
+      const monitor = monitors.find(m => m.id === selectedMonitor)
+      if (!monitor || !monitor.slug) {
+        addToast({ 
+          title: 'Monitor não encontrado', 
+          description: 'Não foi possível encontrar o monitor selecionado ou ele não possui uma página de status.',
+          variant: 'destructive' 
+        })
+        return
+      }
+      
+      addToast({ 
+        title: 'Gerando PDF otimizado...', 
+        description: 'Capturando e processando a página de status para um PDF profissional.',
+        variant: 'default' 
+      })
+      
+      // Capturar a página de status pública
+      const statusPageImage = await captureStatusPage(monitor.slug)
+      
+      if (!statusPageImage) {
+        addToast({ 
+          title: 'Erro ao capturar página', 
+          description: 'Não foi possível capturar a página de status. Verifique se a página está acessível.',
+          variant: 'destructive' 
+        })
+        return
+      }
+      
+      // Criar novo documento PDF otimizado
       const doc = new jsPDF('p', 'mm', 'a4')
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
-      let yPosition = 20
       
-      // Cores para o design
-      const primaryColor: [number, number, number] = [30, 58, 138] // #1e3a8a
-      const textColor: [number, number, number] = [255, 255, 255] // #ffffff
-      // Variáveis removidas: grayColor, darkBg não utilizadas
+      // Calcular dimensões da imagem para caber na página com margens mínimas
+      const img = new Image()
+      img.src = statusPageImage
       
-      // Header com fundo colorido
-      doc.setFillColor(...primaryColor)
-      doc.rect(0, 0, pageWidth, 40, 'F')
+      await new Promise((resolve) => {
+        img.onload = resolve
+      })
       
-      // Título do relatório
-      doc.setTextColor(...textColor)
-      doc.setFontSize(24)
-      doc.setFont('helvetica', 'bold')
-      doc.text('Relatório de Monitoramento', pageWidth / 2, 25, { align: 'center' })
+      const imgWidth = img.width
+      const imgHeight = img.height
       
-      yPosition = 50
+      // Definir margens mínimas para melhor aproveitamento do espaço (em mm)
+      const margin = 5
+      const availableWidth = pageWidth - (margin * 2)
+      const availableHeight = pageHeight - (margin * 2)
       
-      // Informações do período em caixa
-      doc.setFillColor(240, 240, 240)
-      doc.rect(15, yPosition - 5, pageWidth - 30, 25, 'F')
-      doc.setDrawColor(200, 200, 200)
-      doc.rect(15, yPosition - 5, pageWidth - 30, 25, 'S')
+      // Calcular a escala para maximizar o uso do espaço disponível
+      const scaleX = availableWidth / (imgWidth * 0.264583) // Converter pixels para mm
+      const scaleY = availableHeight / (imgHeight * 0.264583)
+      const scale = Math.min(scaleX, scaleY)
       
-      doc.setTextColor(0, 0, 0)
-      doc.setFontSize(12)
-      doc.setFont('helvetica', 'normal')
-      const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
-      doc.text(`Período: ${selectedRange?.label || selectedTimeRange}`, 20, yPosition + 5)
+      const scaledWidth = (imgWidth * 0.264583) * scale
+      const scaledHeight = (imgHeight * 0.264583) * scale
       
-      const selectedGroupName = selectedGroup === 'all' ? 'Todos os grupos' : 
-        groups.find(g => g.id === selectedGroup)?.name || 'Grupo selecionado'
-      doc.text(`Grupo: ${selectedGroupName}`, 20, yPosition + 12)
+      // Posicionar a imagem com margens mínimas (não centralizar para aproveitar melhor o espaço)
+      const x = margin
+      const y = margin
       
-      doc.text(`Data de geração: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, yPosition + 19)
-      
-      yPosition += 35
-      
-      // Estatísticas gerais com design melhorado
-      const overallStats = calculateOverallStats()
-      if (overallStats) {
-        doc.setFillColor(...primaryColor)
-        doc.rect(15, yPosition, pageWidth - 30, 8, 'F')
-        doc.setTextColor(...textColor)
-        doc.setFontSize(16)
-        doc.setFont('helvetica', 'bold')
-        doc.text('Resumo Geral', 20, yPosition + 6)
+      // Se a imagem for muito alta, dividir em múltiplas páginas com sobreposição mínima
+      if (scaledHeight > availableHeight) {
+        const overlap = 5 // Sobreposição mínima entre páginas em mm
+        const effectivePageHeight = availableHeight - overlap
+        const pagesNeeded = Math.ceil(scaledHeight / effectivePageHeight)
         
-        yPosition += 15
-        
-        // Cards de estatísticas
-        const stats = [
-          { label: 'Uptime Médio', value: `${overallStats.avgUptime.toFixed(2)}%`, color: (overallStats.avgUptime >= 99 ? [34, 197, 94] : overallStats.avgUptime >= 95 ? [251, 191, 36] : [239, 68, 68]) as [number, number, number] },
-          { label: 'Tempo de Resposta Médio', value: `${overallStats.avgResponseTime.toFixed(0)}ms`, color: [59, 130, 246] as [number, number, number] },
-          { label: 'Total de Verificações', value: overallStats.totalChecks.toLocaleString(), color: [107, 114, 128] as [number, number, number] },
-          { label: 'Verificações Bem-sucedidas', value: overallStats.totalSuccessful.toLocaleString(), color: [34, 197, 94] as [number, number, number] },
-          { label: 'Verificações Falhadas', value: (overallStats.totalChecks - overallStats.totalSuccessful).toLocaleString(), color: [239, 68, 68] as [number, number, number] },
-          { label: 'Total de Incidentes', value: overallStats.totalIncidents.toString(), color: [239, 68, 68] as [number, number, number] }
-        ]
-        
-        stats.forEach((stat, index) => {
-          const x = 20 + (index % 2) * 85
-          const y = yPosition + Math.floor(index / 2) * 20
+        for (let i = 0; i < pagesNeeded; i++) {
+          if (i > 0) {
+            doc.addPage()
+          }
           
-          // Card background
-          doc.setFillColor(248, 250, 252)
-          doc.rect(x - 2, y - 2, 80, 15, 'F')
-          doc.setDrawColor(...stat.color)
-          doc.setLineWidth(0.5)
-          doc.rect(x - 2, y - 2, 80, 15, 'S')
+          // Calcular a posição Y para cada página com sobreposição
+          const sourceYMm = i * effectivePageHeight
+          const sourceY = sourceYMm / (0.264583 * scale)
+          const sourceHeightMm = Math.min(availableHeight, scaledHeight - sourceYMm)
+          const sourceHeight = sourceHeightMm / (0.264583 * scale)
           
-          // Label
-          doc.setTextColor(75, 85, 99)
-          doc.setFontSize(9)
-          doc.setFont('helvetica', 'normal')
-          doc.text(stat.label, x, y + 4)
+          // Criar um canvas temporário otimizado para a seção da imagem
+          const tempCanvas = document.createElement('canvas')
+          const tempCtx = tempCanvas.getContext('2d')
           
-          // Value
-          doc.setTextColor(...stat.color)
-          doc.setFontSize(12)
-          doc.setFont('helvetica', 'bold')
-          doc.text(stat.value, x, y + 10)
-        })
-        
-        yPosition += 70
-      }
-      
-      // Capturar e incluir gráficos
-      try {
-        // Adicionar nova página para gráficos
-        doc.addPage()
-        yPosition = 20
-        
-        doc.setFillColor(...primaryColor)
-        doc.rect(0, 0, pageWidth, 15, 'F')
-        doc.setTextColor(...textColor)
-        doc.setFontSize(16)
-        doc.setFont('helvetica', 'bold')
-        doc.text('Gráficos e Análises', pageWidth / 2, 10, { align: 'center' })
-        
-        yPosition = 25
-        
-        // Tentar capturar gráficos (IDs podem variar)
-        const chartIds = ['uptime-chart', 'response-time-chart', 'status-distribution-chart']
-        const chartTitles = ['Gráfico de Uptime', 'Gráfico de Tempo de Resposta', 'Distribuição de Status']
-        
-        for (let i = 0; i < chartIds.length; i++) {
-          const chartImage = await captureChart(chartIds[i])
-          if (chartImage) {
-            if (yPosition > pageHeight - 80) {
-              doc.addPage()
-              yPosition = 20
-            }
+          if (tempCtx) {
+            tempCanvas.width = imgWidth
+            tempCanvas.height = Math.ceil(sourceHeight)
             
-            doc.setTextColor(0, 0, 0)
-            doc.setFontSize(12)
-            doc.setFont('helvetica', 'bold')
-            doc.text(chartTitles[i], 20, yPosition)
-            yPosition += 10
+            // Desenhar a seção da imagem original com qualidade otimizada
+            tempCtx.imageSmoothingEnabled = true
+            tempCtx.imageSmoothingQuality = 'high'
+            tempCtx.drawImage(img, 0, -sourceY, imgWidth, imgHeight)
             
-            // Adicionar imagem do gráfico
-            doc.addImage(chartImage, 'PNG', 20, yPosition, 170, 60)
-            yPosition += 70
+            // Adicionar a seção ao PDF com posicionamento otimizado
+            const sectionDataUrl = tempCanvas.toDataURL('image/png', 0.9)
+            doc.addImage(sectionDataUrl, 'PNG', x, y, scaledWidth, sourceHeightMm)
           }
         }
-      } catch (error) {
-        console.error('Erro ao capturar gráficos:', error)
+      } else {
+        // Adicionar a imagem completa ao PDF com posicionamento otimizado
+        doc.addImage(statusPageImage, 'PNG', x, y, scaledWidth, scaledHeight)
       }
       
-      // Detalhes por monitor em nova página
-      if (reports.length > 0) {
-        doc.addPage()
-        yPosition = 20
-        
-        doc.setFillColor(...primaryColor)
-        doc.rect(0, 0, pageWidth, 15, 'F')
-        doc.setTextColor(...textColor)
-        doc.setFontSize(16)
-        doc.setFont('helvetica', 'bold')
-        doc.text('Detalhes por Monitor', pageWidth / 2, 10, { align: 'center' })
-        
-        yPosition = 30
-        
-        reports.forEach((report, index) => {
-          // Verificar se precisa de nova página
-          if (yPosition > pageHeight - 80) {
-            doc.addPage()
-            yPosition = 20
-          }
-          
-          // Card do monitor
-          doc.setFillColor(248, 250, 252)
-          doc.rect(15, yPosition - 5, pageWidth - 30, 65, 'F')
-          doc.setDrawColor(229, 231, 235)
-          doc.rect(15, yPosition - 5, pageWidth - 30, 65, 'S')
-          
-          // Nome do monitor
-          doc.setTextColor(17, 24, 39)
-          doc.setFontSize(14)
-          doc.setFont('helvetica', 'bold')
-          doc.text(`${index + 1}. ${report.monitor_name}`, 20, yPosition + 5)
-          
-          // URL
-          doc.setTextColor(107, 114, 128)
-          doc.setFontSize(9)
-          doc.setFont('helvetica', 'normal')
-          doc.text(`URL: ${report.monitor_url}`, 20, yPosition + 12)
-          
-          // Informações em duas colunas
-          const leftColumn = [
-            `Grupo: ${report.group_name || 'Sem grupo'}`,
-            `Uptime: ${report.uptime_percentage.toFixed(2)}%`,
-            `Tempo de Resposta: ${report.avg_response_time.toFixed(0)}ms`,
-            `Verificações: ${report.successful_checks}/${report.total_checks}`
-          ]
-          
-          const rightColumn = [
-            `Incidentes: ${report.incidents}`,
-            `Resp. Mín: ${report.min_response_time}ms`,
-            `Resp. Máx: ${report.max_response_time}ms`,
-            report.last_incident ? `Último incidente: ${new Date(report.last_incident).toLocaleDateString('pt-BR')}` : 'Nenhum incidente'
-          ]
-          
-          leftColumn.forEach((text, i) => {
-            doc.setTextColor(55, 65, 81)
-            doc.setFontSize(9)
-            doc.text(text, 20, yPosition + 20 + (i * 6))
-          })
-          
-          rightColumn.forEach((text, i) => {
-            doc.setTextColor(55, 65, 81)
-            doc.setFontSize(9)
-            doc.text(text, 110, yPosition + 20 + (i * 6))
-          })
-          
-          // Status badge
-          const uptimeColor: [number, number, number] = report.uptime_percentage >= 99 ? [34, 197, 94] : 
-                             report.uptime_percentage >= 95 ? [251, 191, 36] : [239, 68, 68]
-          doc.setFillColor(...uptimeColor)
-          doc.rect(pageWidth - 45, yPosition, 25, 8, 'F')
-          doc.setTextColor(255, 255, 255)
-          doc.setFontSize(8)
-          doc.setFont('helvetica', 'bold')
-          const statusText = report.uptime_percentage >= 99 ? 'ÓTIMO' : 
-                            report.uptime_percentage >= 95 ? 'BOM' : 'RUIM'
-          doc.text(statusText, pageWidth - 32, yPosition + 5, { align: 'center' })
-          
-          yPosition += 75
-        })
-      }
+      // Adicionar cabeçalho profissional ao PDF
+      doc.setFontSize(10)
+      doc.setTextColor(100, 100, 100)
+      const headerText = `Relatório de Status - ${monitor.name}`
+      const dateText = `Gerado em: ${new Date().toLocaleDateString('pt-BR')}`
+      doc.text(headerText, margin, margin - 2)
+      doc.text(dateText, pageWidth - margin - doc.getTextWidth(dateText), margin - 2)
       
-      // Footer em todas as páginas
-      const totalPages = doc.getNumberOfPages()
-      for (let i = 1; i <= totalPages; i++) {
-        doc.setPage(i)
-        doc.setTextColor(156, 163, 175)
-        doc.setFontSize(8)
-        doc.text(`Página ${i} de ${totalPages}`, pageWidth - 20, pageHeight - 10, { align: 'right' })
-        doc.text('Gerado pelo Sistema de Monitoramento', 20, pageHeight - 10)
-      }
-      
-      // Salvar o PDF
-      const fileName = `relatorio-monitoramento-${selectedTimeRange}-${new Date().toISOString().split('T')[0]}.pdf`
+      // Salvar o PDF com nome apropriado e otimizado
+      const fileName = `status-${monitor.name.replace(/[^a-zA-Z0-9]/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`
       doc.save(fileName)
       
-      addToast({ title: 'Relatório PDF exportado com sucesso', variant: 'success' })
+      addToast({ 
+        title: 'Página de status exportada com sucesso!', 
+        description: `O PDF foi salvo como: ${fileName}`,
+        variant: 'success' 
+      })
     } catch (error) {
-      console.error('Erro ao exportar relatório:', error)
-      addToast({ title: 'Erro ao exportar relatório', variant: 'destructive' })
+      console.error('Erro ao exportar página de status:', error)
+      addToast({ 
+        title: 'Erro ao exportar página de status', 
+        description: 'Ocorreu um erro inesperado durante a exportação.',
+        variant: 'destructive' 
+      })
     } finally {
       setExporting(false)
     }

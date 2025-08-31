@@ -29,7 +29,7 @@ export class SchedulerService {
       console.log(`📋 Jobs agendados: ${this.jobs.size}`)
       
       // Listar jobs agendados
-      this.jobs.forEach((task, jobName) => {
+      this.jobs.forEach((_, jobName) => {
         console.log(`   - ${jobName}: agendado`)
       })
     } catch (error) {
@@ -210,7 +210,7 @@ export class SchedulerService {
 
       // Remover job existente se houver
       if (this.jobs.has(jobId)) {
-        this.jobs.get(jobId)?.destroy()
+        this.jobs.get(jobId)?.stop()
         this.jobs.delete(jobId)
       }
 
@@ -265,7 +265,7 @@ export class SchedulerService {
   removeScheduledJob(jobId: string): boolean {
     const job = this.jobs.get(jobId)
     if (job) {
-      job.destroy()
+      job.stop()
       this.jobs.delete(jobId)
       console.log(`📅 Job ${jobId} removido`)
       return true
@@ -281,13 +281,24 @@ export class SchedulerService {
   }
 
   /**
+   * Lista todos os jobs com detalhes
+   */
+  listJobs(): Array<{ id: string; name: string; status: string }> {
+    return Array.from(this.jobs.entries()).map(([jobId, _]) => ({
+      id: jobId,
+      name: jobId,
+      status: 'scheduled' // node-cron não possui propriedade 'running'
+    }))
+  }
+
+  /**
    * Para todos os jobs e limpa o serviço
    */
   shutdown(): void {
     console.log('📅 Parando serviço de agendamento...')
     
     for (const [jobId, job] of this.jobs) {
-      job.destroy()
+      job.stop()
       console.log(`📅 Job ${jobId} parado`)
     }
     

@@ -1,4 +1,4 @@
-import { supabase, Tables, Inserts, Updates } from '../lib/supabase.js'
+import { supabase, Updates } from '../lib/supabase.js'
 import bcrypt from 'bcryptjs'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -19,6 +19,17 @@ export class DatabaseService {
       .from('users')
       .select('*')
       .eq('email', email)
+      .single()
+    
+    if (error && error.code !== 'PGRST116') throw error
+    return data
+  }
+
+  async getUserById(id: string) {
+    const { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', id)
       .single()
     
     if (error && error.code !== 'PGRST116') throw error
@@ -263,6 +274,19 @@ export class DatabaseService {
       .eq('monitor_id', monitorId)
       .order('checked_at', { ascending: false })
       .limit(limit)
+    
+    if (error) throw error
+    return data || []
+  }
+
+  async getMonitorChecksForPeriod(monitorId: string, startDate: Date, endDate: Date) {
+    const { data, error } = await supabase
+      .from('monitor_checks')
+      .select('*')
+      .eq('monitor_id', monitorId)
+      .gte('checked_at', startDate.toISOString())
+      .lte('checked_at', endDate.toISOString())
+      .order('checked_at', { ascending: true })
     
     if (error) throw error
     return data || []
@@ -548,6 +572,27 @@ export class DatabaseService {
     
     if (error) throw error
     return data
+  }
+
+  // ===== MONITORING LOGS =====
+  async countMonitoringLogs(): Promise<number> {
+    const { count, error } = await supabase
+      .from('monitor_checks')
+      .select('*', { count: 'exact', head: true })
+    
+    if (error) throw error
+    return count || 0
+  }
+
+  async deleteOldMonitoringLogs(beforeDate: Date): Promise<number> {
+    const { data, error } = await supabase
+      .from('monitor_checks')
+      .delete()
+      .lt('checked_at', beforeDate.toISOString())
+      .select('id')
+    
+    if (error) throw error
+    return data?.length || 0
   }
 }
 

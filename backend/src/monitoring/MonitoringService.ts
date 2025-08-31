@@ -26,6 +26,8 @@ interface Monitor {
   uptime_24h: number
   uptime_7d: number
   uptime_30d: number
+  group_id?: string | null
+  group_name?: string
 }
 
 interface ContentValidationConfig {
@@ -170,7 +172,7 @@ class MonitoringService extends EventEmitter {
         
         // Atualizar o status do monitor com base na verificação mais recente
         if (recentChecks.length > 0) {
-          const latestCheck = recentChecks.sort((a, b) => 
+          const latestCheck = recentChecks.sort((a: MonitorCheck, b: MonitorCheck) => 
             new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
           )[0];
           
@@ -243,7 +245,6 @@ class MonitoringService extends EventEmitter {
 
   // Realizar verificação de um monitor
   private async performCheck(monitor: Monitor) {
-    const startTime = Date.now()
     let status: 'online' | 'offline' | 'warning' = 'offline'
     let responseTime: number | null = null
     let errorMessage: string | null = null
@@ -390,8 +391,6 @@ class MonitoringService extends EventEmitter {
         }
       }
     } catch (error) {
-      const responseTime = Date.now() - startTime
-      
       if (axios.isAxiosError(error)) {
         if (error.code === 'ECONNABORTED') {
           return { status: 'offline', responseTime: null, error: 'Timeout' }
@@ -474,4 +473,4 @@ class MonitoringService extends EventEmitter {
 }
 
 export default MonitoringService
-export { MonitorCheck, Monitor }
+export type { MonitorCheck, Monitor }

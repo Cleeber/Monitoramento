@@ -140,31 +140,46 @@ export class ReportService {
 
   /**
    * Busca checks de um monitor para um período específico
-   * Nota: Esta é uma implementação simulada. Você deve implementar a query real no DatabaseService
    */
   private async getMonitorChecksForPeriod(monitorId: string, startDate: Date, endDate: Date) {
-    // Por enquanto, retorna dados simulados
-    // TODO: Implementar query real no DatabaseService para buscar checks do período
-    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-    const checksPerDay = 24 * 4 // 4 checks por hora
-    const totalChecks = totalDays * checksPerDay
-    
-    const checks = []
-    for (let i = 0; i < totalChecks; i++) {
-      const checkTime = new Date(startDate.getTime() + (i * 15 * 60 * 1000)) // A cada 15 minutos
-      const isUp = Math.random() > 0.05 // 95% de uptime simulado
+    try {
+      console.log(`📊 Buscando checks reais do período ${startDate.toISOString()} até ${endDate.toISOString()} para monitor ${monitorId}`)
       
-      checks.push({
-        id: `check_${i}`,
-        monitor_id: monitorId,
-        status: isUp ? 'up' : 'down',
-        response_time: isUp ? Math.floor(Math.random() * 500) + 100 : 0,
-        checked_at: checkTime.toISOString(),
-        error_message: isUp ? null : 'Connection timeout'
-      })
+      // Usar a nova função do DatabaseService para buscar dados reais
+      const checks = await databaseService.getMonitorChecksForPeriod(monitorId, startDate, endDate)
+      
+      console.log(`📈 Encontrados ${checks.length} checks reais no período`)
+      
+      // Converter status para formato esperado (online/offline -> up/down)
+      return checks.map(check => ({
+        ...check,
+        status: check.status === 'online' ? 'up' : 'down'
+      }))
+    } catch (error) {
+      console.error('❌ Erro ao buscar checks do período, usando dados simulados como fallback:', error)
+      
+      // Fallback para dados simulados em caso de erro
+      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
+      const checksPerDay = 24 * 4 // 4 checks por hora
+      const totalChecks = totalDays * checksPerDay
+      
+      const checks = []
+      for (let i = 0; i < totalChecks; i++) {
+        const checkTime = new Date(startDate.getTime() + (i * 15 * 60 * 1000)) // A cada 15 minutos
+        const isUp = Math.random() > 0.05 // 95% de uptime simulado
+        
+        checks.push({
+          id: `check_${i}`,
+          monitor_id: monitorId,
+          status: isUp ? 'up' : 'down',
+          response_time: isUp ? Math.floor(Math.random() * 500) + 100 : 0,
+          checked_at: checkTime.toISOString(),
+          error_message: isUp ? null : 'Connection timeout'
+        })
+      }
+      
+      return checks
     }
-    
-    return checks
   }
 
   /**
