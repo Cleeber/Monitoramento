@@ -57,15 +57,22 @@ export class EmailService {
 
   async sendTestEmail(toEmail: string): Promise<{ success: boolean; message: string }> {
     try {
+      console.log(`📧 Iniciando envio de e-mail de teste para: ${toEmail}`)
+      
       if (!this.transporter || !this.config) {
+        console.log('🔧 Inicializando configuração SMTP...')
         const initialized = await this.initialize()
         if (!initialized) {
+          const error = 'SMTP não configurado ou configuração inválida'
+          console.error(`❌ Erro no envio de e-mail de teste: ${error}`)
           return {
             success: false,
-            message: 'SMTP não configurado ou configuração inválida'
+            message: error
           }
         }
       }
+
+      console.log(`🔧 Configuração SMTP carregada: ${this.config!.host}:${this.config!.port}`)
 
       const mailOptions = {
         from: `"${this.config!.from_name}" <${this.config!.from_email}>`,
@@ -95,14 +102,14 @@ export class EmailService {
       }
 
       const info = await this.transporter!.sendMail(mailOptions)
-      console.log('📧 E-mail de teste enviado:', info.messageId)
+      console.log(`✅ E-mail de teste enviado com sucesso para: ${toEmail}, MessageID: ${info.messageId}`)
       
       return {
         success: true,
         message: 'E-mail de teste enviado com sucesso!'
       }
     } catch (error) {
-      console.error('❌ Erro ao enviar e-mail de teste:', error)
+      console.error(`❌ Erro ao enviar e-mail de teste para ${toEmail}:`, error)
       return {
         success: false,
         message: `Erro ao enviar e-mail: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
@@ -110,19 +117,27 @@ export class EmailService {
     }
   }
 
-  async sendNotificationEmail(toEmails: string[], subject: string, content: string): Promise<{ success: boolean; message: string }> {
+  async sendNotificationEmail(toEmails: string[], subject: string, content: string, attachments?: any[]): Promise<{ success: boolean; message: string }> {
     try {
+      console.log(`📧 Iniciando envio de notificação para: ${toEmails.join(', ')}`)
+      console.log(`📋 Assunto: ${subject}`)
+      
       if (!this.transporter || !this.config) {
+        console.log('🔧 Inicializando configuração SMTP...')
         const initialized = await this.initialize()
         if (!initialized) {
+          const error = 'SMTP não configurado ou configuração inválida'
+          console.error(`❌ Erro no envio de notificação: ${error}`)
           return {
             success: false,
-            message: 'SMTP não configurado'
+            message: error
           }
         }
       }
 
-      const mailOptions = {
+      console.log(`🔧 Usando configuração SMTP: ${this.config!.host}:${this.config!.port}`)
+
+      const mailOptions: any = {
         from: `"${this.config!.from_name}" <${this.config!.from_email}>`,
         to: toEmails.join(', '),
         subject: subject,
@@ -143,15 +158,24 @@ export class EmailService {
         `
       }
 
+      // Adicionar anexos se fornecidos
+      if (attachments && attachments.length > 0) {
+        mailOptions.attachments = attachments
+        console.log(`📎 Anexos incluídos: ${attachments.length} arquivo(s)`)
+        attachments.forEach((attachment, index) => {
+          console.log(`   ${index + 1}. ${attachment.filename || 'Sem nome'} (${attachment.contentType || 'tipo desconhecido'})`)
+        })
+      }
+
       const info = await this.transporter!.sendMail(mailOptions)
-      console.log('📧 E-mail de notificação enviado:', info.messageId)
+      console.log(`✅ Notificação enviada com sucesso para: ${toEmails.join(', ')}, MessageID: ${info.messageId}`)
       
       return {
         success: true,
         message: 'E-mail de notificação enviado com sucesso!'
       }
     } catch (error) {
-      console.error('❌ Erro ao enviar e-mail de notificação:', error)
+      console.error(`❌ Erro ao enviar notificação para ${toEmails.join(', ')}:`, error)
       return {
         success: false,
         message: `Erro ao enviar e-mail: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
@@ -186,10 +210,100 @@ export class EmailService {
   }
 
   // Método para recarregar configuração após mudanças
+  async sendMonthlyReport(
+    toEmail: string, 
+    monitorName: string, 
+    reportContent: string, 
+    pdfBuffer?: Buffer,
+    fileName?: string
+  ): Promise<{ success: boolean; message: string }> {
+    try {
+      console.log(`📊 Iniciando envio de relatório mensal para: ${toEmail}`)
+      console.log(`📋 Monitor: ${monitorName}`)
+      
+      if (!this.transporter || !this.config) {
+        console.log('🔧 Inicializando configuração SMTP...')
+        const initialized = await this.initialize()
+        if (!initialized) {
+          const error = 'SMTP não configurado ou configuração inválida'
+          console.error(`❌ Erro no envio de relatório mensal: ${error}`)
+          return {
+            success: false,
+            message: error
+          }
+        }
+      }
+
+      console.log(`🔧 Usando configuração SMTP: ${this.config!.host}:${this.config!.port}`)
+
+      const currentDate = new Date()
+      const monthYear = currentDate.toLocaleDateString('pt-BR', { 
+        month: 'long', 
+        year: 'numeric' 
+      })
+
+      const mailOptions: any = {
+        from: `"${this.config!.from_name}" <${this.config!.from_email}>`,
+        to: toEmail,
+        subject: `📊 Relatório Mensal - ${monitorName} - ${monthYear}`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background-color: #2563eb; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
+              <h2 style="margin: 0;">📊 Relatório Mensal</h2>
+              <p style="margin: 10px 0 0 0; opacity: 0.9;">${monitorName} - ${monthYear}</p>
+            </div>
+            <div style="background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb;">
+              <h3 style="color: #374151; margin-top: 0;">Resumo do Período</h3>
+              <div style="background-color: white; padding: 15px; border-radius: 6px; border-left: 4px solid #2563eb;">
+                ${reportContent.replace(/\n/g, '<br>')}
+              </div>
+              
+              ${pdfBuffer ? '<p style="margin-top: 20px;"><strong>📎 Anexo:</strong> Relatório detalhado em PDF</p>' : ''}
+              
+              <div style="background-color: #eff6ff; padding: 15px; border-radius: 6px; margin-top: 20px;">
+                <p style="margin: 0; color: #1e40af;"><strong>💡 Dica:</strong> Este relatório é gerado automaticamente no dia ${currentDate.getDate()} de cada mês.</p>
+              </div>
+              
+              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
+              <p style="font-size: 12px; color: #9ca3af; text-align: center;">
+                Uptime Monitor - Sistema de Monitoramento<br>
+                Relatório gerado em ${currentDate.toLocaleString('pt-BR')}
+              </p>
+            </div>
+          </div>
+        `
+      }
+
+      // Adicionar anexo PDF se fornecido
+      if (pdfBuffer && fileName) {
+        mailOptions.attachments = [{
+          filename: fileName,
+          content: pdfBuffer,
+          contentType: 'application/pdf'
+        }]
+        console.log(`📎 Anexo PDF incluído: ${fileName} (${Math.round(pdfBuffer.length / 1024)}KB)`)
+      }
+
+      const info = await this.transporter!.sendMail(mailOptions)
+      console.log(`✅ Relatório mensal enviado com sucesso para: ${toEmail}, MessageID: ${info.messageId}`)
+      
+      return {
+        success: true,
+        message: 'Relatório mensal enviado com sucesso!'
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao enviar relatório mensal para ${toEmail}:`, error)
+      return {
+        success: false,
+        message: `Erro ao enviar relatório: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
+      }
+    }
+  }
+
   async reloadConfig() {
-    this.transporter = null
     this.config = null
-    return await this.initialize()
+    this.transporter = null
+    await this.initialize()
   }
 }
 

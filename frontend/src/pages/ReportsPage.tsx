@@ -15,7 +15,8 @@ import {
   CheckCircle,
   Globe,
   PieChart,
-  LineChart
+  LineChart,
+  Mail
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
 import { formatDuration, calculateUptime } from '../lib/utils'
@@ -81,6 +82,8 @@ interface Monitor {
   status: string
   group_id: string
   group_name: string
+  report_email?: string
+  report_send_day?: number
 }
 
 interface ChartData {
@@ -113,7 +116,8 @@ export function ReportsPage() {
   const [selectedTimeRange, setSelectedTimeRange] = useState('7d')
   const [selectedGroup, setSelectedGroup] = useState('all')
   const [exporting, setExporting] = useState(false)
-  const { addToast } = useToast()
+  const [sendingEmail, setSendingEmail] = useState(false)
+  const { addToast, success, error } = useToast()
 
   useEffect(() => {
     fetchData()
@@ -483,6 +487,63 @@ export function ReportsPage() {
     }
   }
 
+  const handleSendEmail = async () => {
+    if (selectedMonitor === 'all') {
+      error('Selecione um monitor específico para enviar o relatório por e-mail')
+      return
+    }
+
+    // Buscar o monitor selecionado e seu e-mail cadastrado
+    const monitor = monitors.find(m => m.id === selectedMonitor)
+    if (!monitor) {
+      error('Monitor não encontrado')
+      return
+    }
+
+    if (!monitor.report_email) {
+      error('E-mail não configurado para este monitor', 'Configure o e-mail do relatório nas configurações do monitor')
+      return
+    }
+
+    const email = monitor.report_email
+
+    setSendingEmail(true)
+    try {
+      const token = localStorage.getItem('auth_token')
+      const currentDate = new Date()
+      const year = currentDate.getFullYear()
+      const month = currentDate.getMonth() + 1
+      
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/reports/send-monthly`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          monitor_id: selectedMonitor,
+          email: email,
+          year: year,
+          month: month,
+          includePdf: true
+        })
+      })
+
+      const result = await response.json()
+
+      if (!response.ok) {
+        throw new Error(result.error || 'Falha ao enviar relatório por e-mail')
+      }
+
+      success('Relatório enviado por e-mail com sucesso!', `O relatório foi enviado para ${email}`)
+    } catch (error) {
+      console.error('Erro ao enviar relatório por e-mail:', error)
+      error('Erro ao enviar relatório por e-mail', error instanceof Error ? error.message : 'Erro desconhecido')
+    } finally {
+      setSendingEmail(false)
+    }
+  }
+
   const getUptimeColor = (uptime: number) => {
     if (uptime >= 99) return 'text-green-600'
     if (uptime >= 95) return 'text-yellow-600'
@@ -557,33 +618,32 @@ export function ReportsPage() {
       const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
       const hoursBack = selectedRange ? selectedRange.days * 24 : 168
       
-      // Agrupar checks por hora
-      const hourlyData: { [key: string]: { total: number, successful: number } } = {}
+      // Agrupar checks por dia
+      const dailyData: { [key: string]: { total: number, successful: number } } = {}
       
       monitorChecks.forEach(check => {
-        const hour = new Date(check.checked_at).toISOString().slice(0, 13) + ':00:00'
-        if (!hourlyData[hour]) {
-          hourlyData[hour] = { total: 0, successful: 0 }
+        const day = new Date(check.checked_at).toISOString().slice(0, 10) // YYYY-MM-DD
+        if (!dailyData[day]) {
+          dailyData[day] = { total: 0, successful: 0 }
         }
-        hourlyData[hour].total++
+        dailyData[day].total++
         if (check.status === 'online') {
-          hourlyData[hour].successful++
+          dailyData[day].successful++
         }
       })
       
       const labels: string[] = []
       const uptimeData: number[] = []
+      const daysBack = selectedRange ? selectedRange.days : 7
       
-      for (let i = hoursBack; i >= 0; i--) {
-        const date = new Date(Date.now() - i * 60 * 60 * 1000)
-        const hour = date.toISOString().slice(0, 13) + ':00:00'
-        const label = selectedRange?.days === 1 
-          ? date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-          : date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      for (let i = daysBack - 1; i >= 0; i--) {
+        const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
+        const day = date.toISOString().slice(0, 10)
+        const label = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
         
         labels.push(label)
         
-        const data = hourlyData[hour]
+        const data = dailyData[day]
         const uptime = data ? (data.successful / data.total) * 100 : 100
         uptimeData.push(uptime)
       }
@@ -745,6 +805,19 @@ export function ReportsPage() {
           <p style={{ color: '#9ca3af' }}>Análise detalhada do desempenho dos monitores</p>
         </div>
         <div className="flex items-center space-x-4">
+          <Button 
+            onClick={handleSendEmail}
+            disabled={sendingEmail || selectedMonitor === 'all'}
+            variant="outline"
+            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white border-blue-500 hover:border-blue-600 shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {sendingEmail ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+            ) : (
+              <Mail className="h-4 w-4 mr-2" />
+            )}
+            {sendingEmail ? 'Enviando...' : 'Enviar por E-mail'}
+          </Button>
           <Button 
             onClick={handleExport} 
             disabled={exporting || reports.length === 0}

@@ -60,6 +60,8 @@ interface MonitorFormData {
   enabled: boolean
   slug: string
   logo_url?: string | null
+  report_email: string
+  report_send_day: number
 }
 
 export function DomainsPage() {
@@ -79,7 +81,9 @@ export function DomainsPage() {
     group_id: null,
     enabled: true,
     slug: '',
-    logo_url: null
+    logo_url: null,
+    report_email: '',
+    report_send_day: 1
   })
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -202,7 +206,9 @@ export function DomainsPage() {
       group_id: monitor.group_id,
       enabled: monitor.enabled,
       slug: monitor.slug || '',
-      logo_url: monitor.logo_url
+      logo_url: monitor.logo_url,
+      report_email: (monitor as any).report_email || '',
+      report_send_day: (monitor as any).report_send_day || 1
     })
     
     // Se o monitor tem logo, definir como preview
@@ -226,7 +232,9 @@ export function DomainsPage() {
       group_id: null,
       enabled: true,
       slug: '',
-      logo_url: null
+      logo_url: null,
+      report_email: '',
+      report_send_day: 1
     })
     setLogoFile(null)
     setLogoPreview(null)
@@ -359,7 +367,7 @@ export function DomainsPage() {
               Adicionar Monitor
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[425px]" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
+          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <DialogHeader>
               <DialogTitle className="text-white">
                 {editingMonitor ? 'Editar Monitor' : 'Novo Monitor'}
@@ -371,156 +379,212 @@ export function DomainsPage() {
                 }
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="name" className="text-white">Nome</Label>
-                <Input
-                  id="name"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Nome do monitor"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="url" className="text-white">URL/Endereço</Label>
-                <Input
-                  id="url"
-                  value={formData.url}
-                  onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-                  placeholder="https://exemplo.com ou 192.168.1.1"
-                  required
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="type" className="text-white">Tipo de Monitor</Label>
-                <Select value={formData.type} onValueChange={(value: 'http' | 'ping' | 'tcp') => setFormData({ ...formData, type: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="http">HTTP/HTTPS</SelectItem>
-                    <SelectItem value="ping">Ping (ICMP)</SelectItem>
-                    <SelectItem value="tcp">TCP Socket</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="interval" className="text-white">Intervalo (seg)</Label>
-                  <Input
-                    id="interval"
-                    type="number"
-                    min="30"
-                    value={formData.interval}
-                    onChange={(e) => setFormData({ ...formData, interval: parseInt(e.target.value) })}
-                  />
-                </div>
-                
-                <div className="space-y-2">
-                  <Label htmlFor="timeout" className="text-white">Timeout (seg)</Label>
-                  <Input
-                    id="timeout"
-                    type="number"
-                    min="5"
-                    value={formData.timeout}
-                    onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) })}
-                  />
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="slug" className="text-white">Slug para Página de Status</Label>
-                <Input
-                  id="slug"
-                  value={formData.slug}
-                  onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
-                  placeholder="Ex: meu-dominio-1 (deixe vazio para gerar automaticamente)"
-                />
-                <p className="text-xs text-gray-400">
-                  Será usado na URL da página de status: /status/seu-slug
-                </p>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="group" className="text-white">Grupo (opcional)</Label>
-                <Select value={formData.group_id || 'none'} onValueChange={(value) => setFormData({ ...formData, group_id: value === 'none' ? null : value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione um grupo (opcional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Nenhum grupo</SelectItem>
-                    {groups.map((group) => (
-                      <SelectItem key={group.id} value={group.id}>
-                        {group.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              {/* Campo de Upload de Logo */}
-              <div className="space-y-2">
-                <Label className="text-white">Logo da Empresa (opcional)</Label>
-                <div className="space-y-3">
-                  {/* Preview da Logo */}
-                  {logoPreview && (
-                    <div className="relative inline-block">
-                      <img 
-                        src={logoPreview} 
-                        alt="Preview da logo" 
-                        className="w-20 h-20 object-contain border border-gray-600 rounded-lg bg-white p-2"
-                      />
-                      <Button
-                        type="button"
-                        variant="destructive"
-                        size="sm"
-                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
-                        onClick={removeLogo}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  )}
+            <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Grid de duas colunas */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Coluna 1 - Informações Básicas */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white border-b border-gray-600 pb-2">Informações Básicas</h3>
                   
-                  {/* Input de Upload */}
-                  <div className="flex items-center gap-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="name" className="text-white">Nome</Label>
                     <Input
-                      type="file"
-                      accept=".png,.jpg,.jpeg,.svg"
-                      onChange={handleLogoChange}
-                      className="hidden"
-                      id="logo-upload"
-                      disabled={uploadingLogo}
+                      id="name"
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      placeholder="Nome do monitor"
+                      required
                     />
-                    <Label 
-                      htmlFor="logo-upload" 
-                      className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
-                    >
-                      <Upload className="h-4 w-4" />
-                      {uploadingLogo ? 'Enviando...' : 'Escolher Arquivo'}
-                    </Label>
                   </div>
                   
-                  <p className="text-xs text-gray-400">
-                    Formatos aceitos: PNG, JPG, SVG • Tamanho máximo: 5MB
-                  </p>
+                  <div className="space-y-2">
+                    <Label htmlFor="url" className="text-white">URL/Endereço</Label>
+                    <Input
+                      id="url"
+                      value={formData.url}
+                      onChange={(e) => setFormData({ ...formData, url: e.target.value })}
+                      placeholder="https://exemplo.com ou 192.168.1.1"
+                      required
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="type" className="text-white">Tipo de Monitor</Label>
+                    <Select value={formData.type} onValueChange={(value: 'http' | 'ping' | 'tcp') => setFormData({ ...formData, type: value })}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="http">HTTP/HTTPS</SelectItem>
+                        <SelectItem value="ping">Ping (ICMP)</SelectItem>
+                        <SelectItem value="tcp">TCP Socket</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="interval" className="text-white">Intervalo (seg)</Label>
+                      <Input
+                        id="interval"
+                        type="number"
+                        min="30"
+                        value={formData.interval}
+                        onChange={(e) => setFormData({ ...formData, interval: parseInt(e.target.value) })}
+                      />
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="timeout" className="text-white">Timeout (seg)</Label>
+                      <Input
+                        id="timeout"
+                        type="number"
+                        min="5"
+                        value={formData.timeout}
+                        onChange={(e) => setFormData({ ...formData, timeout: parseInt(e.target.value) })}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="slug" className="text-white">Slug para Página de Status</Label>
+                    <Input
+                      id="slug"
+                      value={formData.slug}
+                      onChange={(e) => setFormData({ ...formData, slug: e.target.value })}
+                      placeholder="Ex: meu-dominio-1 (deixe vazio para gerar automaticamente)"
+                    />
+                    <p className="text-xs text-gray-400">
+                      Será usado na URL da página de status: /status/seu-slug
+                    </p>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="group" className="text-white">Grupo (opcional)</Label>
+                    <Select value={formData.group_id || 'none'} onValueChange={(value) => setFormData({ ...formData, group_id: value === 'none' ? null : value })}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um grupo (opcional)" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum grupo</SelectItem>
+                        {groups.map((group) => (
+                          <SelectItem key={group.id} value={group.id}>
+                            {group.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="flex items-center space-x-2">
+                    <Switch
+                      id="enabled"
+                      checked={formData.enabled}
+                      onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
+                    />
+                    <Label htmlFor="enabled" className="text-white">Monitor ativo</Label>
+                  </div>
+                </div>
+                
+                {/* Coluna 2 - Configurações Avançadas */}
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-white border-b border-gray-600 pb-2">Configurações Avançadas</h3>
+                  
+                  {/* Seção de Configuração de Relatório Mensal */}
+                  <div className="space-y-4 p-4 border border-gray-600 rounded-lg bg-gray-800/50">
+                    <h4 className="text-sm font-medium text-white mb-2">Configuração de Relatório Mensal</h4>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="report_email" className="text-white">E-mail para Relatórios *</Label>
+                      <Input
+                        id="report_email"
+                        type="email"
+                        value={formData.report_email}
+                        onChange={(e) => setFormData({ ...formData, report_email: e.target.value })}
+                        placeholder="exemplo@empresa.com"
+                        required
+                      />
+                      <p className="text-xs text-gray-400">
+                        E-mail que receberá os relatórios mensais de uptime
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="report_send_day" className="text-white">Dia do Envio</Label>
+                      <Select 
+                        value={formData.report_send_day.toString()} 
+                        onValueChange={(value) => setFormData({ ...formData, report_send_day: parseInt(value) })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o dia do mês" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Array.from({ length: 28 }, (_, i) => i + 1).map((day) => (
+                            <SelectItem key={day} value={day.toString()}>
+                              Dia {day}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-gray-400">
+                        Dia do mês em que o relatório será enviado (1-28)
+                      </p>
+                    </div>
+                  </div>
+                  
+                  {/* Campo de Upload de Logo */}
+                  <div className="space-y-2">
+                    <Label className="text-white">Logo da Empresa (opcional)</Label>
+                    <div className="space-y-3">
+                      {/* Preview da Logo */}
+                      {logoPreview && (
+                        <div className="relative inline-block">
+                          <img 
+                            src={logoPreview} 
+                            alt="Preview da logo" 
+                            className="w-20 h-20 object-contain border border-gray-600 rounded-lg bg-white p-2"
+                          />
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                            onClick={removeLogo}
+                          >
+                            <X className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      )}
+                      
+                      {/* Input de Upload */}
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="file"
+                          accept=".png,.jpg,.jpeg,.svg"
+                          onChange={handleLogoChange}
+                          className="hidden"
+                          id="logo-upload"
+                          disabled={uploadingLogo}
+                        />
+                        <Label 
+                          htmlFor="logo-upload" 
+                          className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+                        >
+                          <Upload className="h-4 w-4" />
+                          {uploadingLogo ? 'Enviando...' : 'Escolher Arquivo'}
+                        </Label>
+                      </div>
+                      
+                      <p className="text-xs text-gray-400">
+                        Formatos aceitos: PNG, JPG, SVG • Tamanho máximo: 5MB
+                      </p>
+                    </div>
+                  </div>
                 </div>
               </div>
               
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="enabled"
-                  checked={formData.enabled}
-                  onCheckedChange={(checked) => setFormData({ ...formData, enabled: checked })}
-                />
-                <Label htmlFor="enabled" className="text-white">Monitor ativo</Label>
-              </div>
-              
-              <div className="flex justify-end space-x-2">
+              {/* Botões de ação - ocupam toda a largura */}
+              <div className="flex justify-end space-x-2 pt-4 border-t border-gray-600">
                 <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                   Cancelar
                 </Button>

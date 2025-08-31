@@ -9,7 +9,11 @@ import bcrypt from 'bcryptjs'
 import multer from 'multer'
 import MonitoringService from './monitoring/MonitoringService.js'
 import { databaseService } from './services/DatabaseService.js'
+import { supabase } from './lib/supabase.js'
 import { storageService } from './services/StorageService.js'
+import { pdfService } from './services/PDFService.js'
+import { reportService } from './services/ReportService.js'
+import { schedulerService } from './services/SchedulerService.js'
 
 // Carregar variáveis de ambiente
 dotenv.config()
@@ -55,6 +59,109 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024 // 5MB
   }
 })
+
+// Inicializar serviços
+async function initializeServices() {
+  try {
+    console.log('🔧 Inicializando serviços...')
+    
+    // Criar tabelas necessárias primeiro
+    await createRequiredTables()
+    
+    // Configurar referência do database service no monitoramento
+    monitoringService.setDatabaseService(databaseService)
+    
+    // Configurar MonitoringService no ReportService
+    reportService.setMonitoringService(monitoringService)
+    
+    // Inicializar agendamento de relatórios
+    await schedulerService.initialize()
+    
+    console.log('✅ Todos os serviços inicializados com sucesso')
+  } catch (error) {
+    console.error('❌ Erro ao inicializar serviços:', error)
+    process.exit(1)
+  }
+}
+
+// Função para criar tabelas necessárias se não existirem
+async function createRequiredTables() {
+  try {
+    console.log('🔧 Verificando e criando tabelas necessárias...')
+    
+    // Verificar se as tabelas existem
+    const { data: tables, error: checkError } = await supabase
+      .from('information_schema.tables')
+      .select('table_name')
+      .eq('table_schema', 'public')
+      .in('table_name', ['monthly_report_configs', 'monthly_report_history'])
+    
+    if (checkError) {
+      console.log('⚠️ Não foi possível verificar tabelas, tentando criar...')
+    }
+    
+    const existingTables = tables?.map(t => t.table_name) || []
+    
+    // Criar monthly_report_configs se não existir
+    if (!existingTables.includes('monthly_report_configs')) {
+      console.log('📋 Criando tabela monthly_report_configs...')
+      const { error: configError } = await supabase.rpc('exec_sql', {
+        sql: `
+          CREATE TABLE IF NOT EXISTS public.monthly_report_configs (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            monitor_id UUID NOT NULL REFERENCES public.monitors(id) ON DELETE CASCADE,
+            email VARCHAR(255) NOT NULL,
+            send_day INTEGER NOT NULL CHECK (send_day >= 1 AND send_day <= 31),
+            is_active BOOLEAN DEFAULT true,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+          );
+          
+          CREATE INDEX IF NOT EXISTS idx_monthly_report_configs_monitor_id ON public.monthly_report_configs(monitor_id);
+          CREATE INDEX IF NOT EXISTS idx_monthly_report_configs_active ON public.monthly_report_configs(is_active);
+        `
+      })
+      
+      if (configError) {
+        console.log('⚠️ Tabela monthly_report_configs pode já existir ou houve erro:', configError.message)
+      } else {
+        console.log('✅ Tabela monthly_report_configs criada com sucesso!')
+      }
+    }
+    
+    // Criar monthly_report_history se não existir
+    if (!existingTables.includes('monthly_report_history')) {
+      console.log('📋 Criando tabela monthly_report_history...')
+      const { error: historyError } = await supabase.rpc('exec_sql', {
+        sql: `
+          CREATE TABLE IF NOT EXISTS public.monthly_report_history (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            monitor_id UUID NOT NULL REFERENCES public.monitors(id) ON DELETE CASCADE,
+            email VARCHAR(255) NOT NULL,
+            sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+            report_period_start DATE NOT NULL,
+            report_period_end DATE NOT NULL,
+            status VARCHAR(50) DEFAULT 'sent',
+            error_message TEXT
+          );
+          
+          CREATE INDEX IF NOT EXISTS idx_monthly_report_history_monitor_id ON public.monthly_report_history(monitor_id);
+          CREATE INDEX IF NOT EXISTS idx_monthly_report_history_sent_at ON public.monthly_report_history(sent_at);
+        `
+      })
+      
+      if (historyError) {
+        console.log('⚠️ Tabela monthly_report_history pode já existir ou houve erro:', historyError.message)
+      } else {
+        console.log('✅ Tabela monthly_report_history criada com sucesso!')
+      }
+    }
+    
+    console.log('✅ Verificação de tabelas concluída')
+  } catch (error) {
+    console.log('⚠️ Erro ao criar tabelas (podem já existir):', error)
+  }
+}
 
 // Função para inicializar dados padrão se necessário
 async function initializeDefaultData() {
@@ -103,7 +210,8 @@ async function initializeDefaultData() {
   }
 }
 
-// Inicializar dados padrão
+// Inicializar serviços e dados padrão
+initializeServices()
 initializeDefaultData()
 
 // Middleware de autenticação
@@ -217,8 +325,10 @@ app.get('/api/monitors', authenticateToken, async (req, res) => {
     const monitors = await databaseService.getMonitors()
     
     // Combinar dados do banco com dados em tempo real do MonitoringService
-    const monitorsWithRealTimeStatus = monitors.map(monitor => {
+    const monitorsWithRealTimeStatus = await Promise.all(monitors.map(async monitor => {
       const realTimeMonitor = monitoringService.getMonitor(monitor.id)
+      const reportConfig = await databaseService.getMonthlyReportConfigByMonitor(monitor.id)
+      
       return {
         ...monitor,
         status: realTimeMonitor?.status || monitor.status || 'unknown',
@@ -226,9 +336,11 @@ app.get('/api/monitors', authenticateToken, async (req, res) => {
         response_time: realTimeMonitor?.response_time || monitor.response_time,
         uptime_24h: realTimeMonitor?.uptime_24h || monitor.uptime_24h || 0,
         uptime_7d: realTimeMonitor?.uptime_7d || monitor.uptime_7d || 0,
-        uptime_30d: realTimeMonitor?.uptime_30d || monitor.uptime_30d || 0
+        uptime_30d: realTimeMonitor?.uptime_30d || monitor.uptime_30d || 0,
+        report_email: reportConfig?.email || '',
+        report_send_day: reportConfig?.send_day || 1
       }
-    })
+    }))
     
     res.json(monitorsWithRealTimeStatus)
   } catch (error) {
@@ -239,7 +351,7 @@ app.get('/api/monitors', authenticateToken, async (req, res) => {
 
 app.post('/api/monitors', authenticateToken, async (req, res) => {
   try {
-    const { name, url, type, interval, timeout, group_id, enabled = true, slug, logo_url } = req.body
+    const { name, url, type, interval, timeout, group_id, enabled = true, slug, logo_url, report_email, report_send_day } = req.body
     
     if (!name || !url || !type) {
       return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
@@ -261,8 +373,20 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       group_id,
       is_active: enabled,
       slug,
-      logo_url
+      logo_url,
+      report_email,
+      report_send_day
     })
+    
+    // Criar configuração de relatório mensal se fornecida
+    if (report_email && report_send_day) {
+      await databaseService.createMonthlyReportConfig({
+        monitor_id: newMonitor.id,
+        email: report_email,
+        send_day: report_send_day,
+        enabled: true
+      })
+    }
     
     // Adicionar ao serviço de monitoramento
     monitoringService.addMonitor({
@@ -306,7 +430,7 @@ app.post('/api/upload/logo', authenticateToken, upload.single('logo'), async (re
 app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { name, url, type, interval, timeout, group_id, is_active, slug, logo_url } = req.body
+    const { name, url, type, interval, timeout, group_id, is_active, slug, logo_url, report_email, report_send_day } = req.body
     
     if (group_id) {
       const group = await databaseService.getGroupById(group_id)
@@ -324,11 +448,38 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       group_id,
       is_active,
       slug,
-      logo_url
+      logo_url,
+      report_email,
+      report_send_day
     })
     
     if (!updatedMonitor) {
       return res.status(404).json({ error: 'Monitor não encontrado' })
+    }
+    
+    // Gerenciar configuração de relatório mensal
+    const existingConfig = await databaseService.getMonthlyReportConfigByMonitor(id)
+    
+    if (report_email && report_send_day) {
+      if (existingConfig) {
+        // Atualizar configuração existente
+        await databaseService.updateMonthlyReportConfig(existingConfig.id, {
+          email: report_email,
+          send_day: report_send_day,
+          enabled: true
+        })
+      } else {
+        // Criar nova configuração
+        await databaseService.createMonthlyReportConfig({
+          monitor_id: id,
+          email: report_email,
+          send_day: report_send_day,
+          enabled: true
+        })
+      }
+    } else if (existingConfig) {
+      // Remover configuração se não há mais dados de relatório
+      await databaseService.deleteMonthlyReportConfig(existingConfig.id)
     }
     
     // Atualizar no serviço de monitoramento
@@ -443,6 +594,295 @@ app.delete('/api/groups/:id', authenticateToken, async (req, res) => {
     res.json({ message: 'Grupo removido com sucesso' })
   } catch (error) {
     console.error('Erro ao remover grupo:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Rotas de configuração de relatórios mensais
+app.get('/api/monthly-reports/configs', authenticateToken, async (req, res) => {
+  try {
+    const configs = await databaseService.getMonthlyReportConfigs()
+    res.json(configs)
+  } catch (error) {
+    console.error('Erro ao buscar configurações de relatórios:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+app.get('/api/monthly-reports/configs/monitor/:monitorId', authenticateToken, async (req, res) => {
+  try {
+    const { monitorId } = req.params
+    const config = await databaseService.getMonthlyReportConfigByMonitor(monitorId)
+    res.json(config)
+  } catch (error) {
+    console.error('Erro ao buscar configuração de relatório:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+app.post('/api/monthly-reports/configs', authenticateToken, async (req, res) => {
+  try {
+    const { monitor_id, email, send_day, enabled } = req.body
+    
+    if (!monitor_id || !email || !send_day) {
+      return res.status(400).json({ error: 'Monitor ID, email e dia de envio são obrigatórios' })
+    }
+    
+    if (send_day < 1 || send_day > 28) {
+      return res.status(400).json({ error: 'Dia de envio deve estar entre 1 e 28' })
+    }
+    
+    const config = await databaseService.createMonthlyReportConfig({
+      monitor_id,
+      email,
+      send_day,
+      is_active: enabled ?? true
+    })
+    
+    res.status(201).json(config)
+  } catch (error) {
+    console.error('Erro ao criar configuração de relatório:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+app.put('/api/monthly-reports/configs/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    const { email, send_day, enabled } = req.body
+    
+    if (send_day && (send_day < 1 || send_day > 28)) {
+      return res.status(400).json({ error: 'Dia de envio deve estar entre 1 e 28' })
+    }
+    
+    const config = await databaseService.updateMonthlyReportConfig(id, {
+      email,
+      send_day,
+      is_active: enabled
+    })
+    
+    res.json(config)
+  } catch (error) {
+    console.error('Erro ao atualizar configuração de relatório:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+app.delete('/api/monthly-reports/configs/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    await databaseService.deleteMonthlyReportConfig(id)
+    res.json({ message: 'Configuração removida com sucesso' })
+  } catch (error) {
+    console.error('Erro ao remover configuração de relatório:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+app.get('/api/monthly-reports/history', authenticateToken, async (req, res) => {
+  try {
+    const { monitor_id, year, month, limit } = req.query
+    const history = await databaseService.getMonthlyReportHistory({
+      monitor_id: monitor_id as string,
+      year: year ? parseInt(year as string) : undefined,
+      month: month ? parseInt(month as string) : undefined,
+      limit: limit ? parseInt(limit as string) : undefined
+    })
+    res.json(history)
+  } catch (error) {
+    console.error('Erro ao buscar histórico de relatórios:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Rotas de PDF
+app.get('/api/pdf/status', authenticateToken, async (req, res) => {
+  try {
+    const { title } = req.query
+    
+    const pdfBuffer = await pdfService.generateStatusPDF({
+      title: title as string || 'Status dos Monitores'
+    })
+    
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', 'attachment; filename="status-report.pdf"')
+    res.send(pdfBuffer)
+  } catch (error) {
+    console.error('Erro ao gerar PDF de status:', error)
+    res.status(500).json({ error: 'Erro ao gerar PDF' })
+  }
+})
+
+app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res) => {
+  try {
+    const { monitorId } = req.params
+    const { year, month } = req.query
+    
+    if (!year || !month) {
+      return res.status(400).json({ error: 'Ano e mês são obrigatórios' })
+    }
+    
+    const pdfBuffer = await pdfService.generateMonthlyReportPDF(
+      monitorId,
+      Number(year),
+      Number(month)
+    )
+    
+    const filename = `relatorio-mensal-${monitorId}-${year}-${month}.pdf`
+    
+    res.setHeader('Content-Type', 'application/pdf')
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+    res.send(pdfBuffer)
+  } catch (error) {
+    console.error('Erro ao gerar PDF de relatório mensal:', error)
+    res.status(500).json({ error: 'Erro ao gerar PDF do relatório mensal' })
+  }
+})
+
+// Rota para enviar relatório mensal por e-mail
+app.post('/api/reports/send-monthly', authenticateToken, async (req, res) => {
+  const startTime = Date.now()
+  try {
+    const { monitor_id, email, year, month, includePdf = true, includeStatusPdf = false } = req.body
+    
+    console.log(`📊 Solicitação de envio de relatório mensal - Monitor: ${monitor_id}, Período: ${month}/${year}`)
+    
+    if (!monitor_id || !email || !year || !month) {
+      const error = 'Todos os campos são obrigatórios'
+      console.error(`❌ Parâmetros inválidos: ${error}`)
+      return res.status(400).json({ error })
+    }
+    
+    console.log(`📧 Enviando para: ${email}`)
+    
+    let result
+    
+    if (includeStatusPdf) {
+      // Enviar relatório completo com PDF do status geral
+      result = await reportService.sendMonthlyReportWithStatusPDF(
+        monitor_id,
+        email,
+        Number(year),
+        Number(month)
+      )
+    } else {
+      // Enviar relatório mensal padrão
+      result = await reportService.sendMonthlyReport(
+        monitor_id,
+        email,
+        Number(year),
+        Number(month),
+        includePdf
+      )
+    }
+    
+    const duration = Date.now() - startTime
+    
+    if (result.success) {
+      console.log(`✅ Relatório mensal enviado com sucesso em ${duration}ms`)
+      res.json({ message: 'Relatório enviado com sucesso' })
+    } else {
+      console.error(`❌ Falha ao enviar relatório: ${result.message}`)
+      res.status(500).json({ error: result.message })
+    }
+  } catch (error) {
+    const duration = Date.now() - startTime
+    console.error(`❌ Erro ao enviar relatório mensal após ${duration}ms:`, error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Rota para enviar relatório mensal para e-mail específico
+app.post('/api/reports/send-monthly-custom', authenticateToken, async (req, res) => {
+  const startTime = Date.now()
+  try {
+    const { monitor_id, email, year, month, includePdf = true, includeStatusPdf = false } = req.body
+    
+    console.log(`📊 Solicitação de envio customizado - Monitor: ${monitor_id}, Período: ${month}/${year}, E-mail: ${email}`)
+    
+    if (!monitor_id || !email || !year || !month) {
+      const error = 'Todos os campos são obrigatórios'
+      console.error(`❌ Parâmetros inválidos: ${error}`)
+      return res.status(400).json({ error })
+    }
+    
+    // Validar formato do e-mail
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(email)) {
+      const error = 'Formato de e-mail inválido'
+      console.error(`❌ ${error}: ${email}`)
+      return res.status(400).json({ error })
+    }
+    
+    console.log(`📧 Enviando relatório customizado para: ${email}`)
+    
+    let result
+    
+    if (includeStatusPdf) {
+      // Enviar relatório completo com PDF do status geral
+      result = await reportService.sendMonthlyReportWithStatusPDF(
+        monitor_id,
+        email,
+        Number(year),
+        Number(month)
+      )
+    } else {
+      // Enviar relatório mensal padrão
+      result = await reportService.sendMonthlyReport(
+        monitor_id,
+        email,
+        Number(year),
+        Number(month),
+        includePdf
+      )
+    }
+    
+    const duration = Date.now() - startTime
+    
+    if (result.success) {
+      console.log(`✅ Relatório customizado enviado com sucesso em ${duration}ms`)
+      res.json({ message: 'Relatório enviado com sucesso' })
+    } else {
+      console.error(`❌ Falha ao enviar relatório customizado: ${result.message}`)
+      res.status(500).json({ error: result.message })
+    }
+  } catch (error) {
+    const duration = Date.now() - startTime
+    console.error(`❌ Erro ao enviar relatório mensal customizado após ${duration}ms:`, error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Rota para forçar verificação de relatórios mensais (útil para testes)
+app.post('/api/scheduler/check-monthly-reports', authenticateToken, async (req, res) => {
+  const startTime = Date.now()
+  try {
+    console.log('🔄 Solicitação de verificação manual de relatórios mensais')
+    
+    await schedulerService.forceCheckMonthlyReports()
+    
+    const duration = Date.now() - startTime
+    console.log(`✅ Verificação manual concluída com sucesso em ${duration}ms`)
+    
+    res.json({ success: true, message: 'Verificação de relatórios mensais executada com sucesso' })
+  } catch (error) {
+    const duration = Date.now() - startTime
+    console.error(`❌ Erro ao executar verificação de relatórios após ${duration}ms:`, error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Rota para listar jobs agendados
+app.get('/api/scheduler/jobs', authenticateToken, async (req, res) => {
+  try {
+    console.log('📋 Solicitação de listagem de jobs agendados')
+    
+    const jobs = schedulerService.listJobs()
+    
+    console.log(`📊 Retornando ${jobs.length} jobs agendados`)
+    res.json({ jobs, total: jobs.length })
+  } catch (error) {
+    console.error('❌ Erro ao listar jobs:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })

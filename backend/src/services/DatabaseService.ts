@@ -193,6 +193,8 @@ export class DatabaseService {
     slug?: string
     is_active?: boolean
     logo_url?: string | null
+    report_email?: string
+    report_send_day?: number
   }) {
     const { data, error } = await supabase
       .from('monitors')
@@ -206,6 +208,8 @@ export class DatabaseService {
         group_id: monitorData.group_id,
         slug: monitorData.slug,
         logo_url: monitorData.logo_url,
+        report_email: monitorData.report_email || null,
+        report_send_day: monitorData.report_send_day || 1,
         status: 'unknown',
         uptime_24h: 0,
         uptime_7d: 0,
@@ -279,6 +283,153 @@ export class DatabaseService {
         response_time: checkData.response_time || null,
         error_message: checkData.error_message || null,
         checked_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+    
+    if (error) throw error
+    return data
+  }
+
+  // ===== MONTHLY REPORT CONFIGS =====
+  async getMonthlyReportConfigs() {
+    const { data, error } = await supabase
+      .from('monthly_report_configs')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    if (error) throw error
+    return data || []
+  }
+
+  async getMonthlyReportConfigByMonitor(monitorId: string) {
+    const { data, error } = await supabase
+      .from('monthly_report_configs')
+      .select('*')
+      .eq('monitor_id', monitorId)
+      .single()
+    
+    if (error && error.code !== 'PGRST116') throw error
+    return data
+  }
+
+  async createMonthlyReportConfig(configData: {
+    monitor_id: string
+    email: string
+    send_day: number
+    is_active?: boolean
+  }) {
+    const { data, error } = await supabase
+      .from('monthly_report_configs')
+      .insert({
+        id: uuidv4(),
+        monitor_id: configData.monitor_id,
+        email: configData.email,
+        send_day: configData.send_day,
+        is_active: configData.is_active ?? true,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      })
+      .select()
+      .single()
+    
+    if (error) throw error
+    return data
+  }
+
+  async updateMonthlyReportConfig(id: string, updates: {
+    email?: string
+    send_day?: number
+    is_active?: boolean
+  }) {
+    const { data, error } = await supabase
+      .from('monthly_report_configs')
+      .update({
+        ...updates,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return data
+  }
+
+  async deleteMonthlyReportConfig(id: string) {
+    const { error } = await supabase
+      .from('monthly_report_configs')
+      .delete()
+      .eq('id', id)
+    
+    if (error) throw error
+    return true
+  }
+
+  async getMonthlyReportHistory(filters?: {
+    monitor_id?: string
+    year?: number
+    month?: number
+    limit?: number
+  }) {
+    let query = supabase
+      .from('monthly_report_history')
+      .select('*')
+      .order('sent_at', { ascending: false })
+    
+    if (filters?.monitor_id) {
+      query = query.eq('monitor_id', filters.monitor_id)
+    }
+    if (filters?.year && filters?.month) {
+      // Filtrar por período específico
+      const startDate = new Date(filters.year, filters.month - 1, 1)
+      const endDate = new Date(filters.year, filters.month, 0)
+      query = query
+        .gte('report_period_start', startDate.toISOString().split('T')[0])
+        .lte('report_period_end', endDate.toISOString().split('T')[0])
+    } else if (filters?.year) {
+      // Filtrar apenas por ano
+      const startDate = new Date(filters.year, 0, 1)
+      const endDate = new Date(filters.year, 11, 31)
+      query = query
+        .gte('report_period_start', startDate.toISOString().split('T')[0])
+        .lte('report_period_end', endDate.toISOString().split('T')[0])
+    }
+    if (filters?.limit) {
+      query = query.limit(filters.limit)
+    }
+    
+    const { data, error } = await query
+    
+    if (error) throw error
+    return data || []
+  }
+
+  async createMonthlyReportHistory(historyData: {
+    monitor_id: string
+    email: string
+    year: number
+    month: number
+    report_data: any
+    sent_at: string
+    status: 'sent' | 'failed'
+    error_message?: string
+  }) {
+    // Calcular período do relatório
+    const startDate = new Date(historyData.year, historyData.month - 1, 1)
+    const endDate = new Date(historyData.year, historyData.month, 0)
+    
+    const { data, error } = await supabase
+      .from('monthly_report_history')
+      .insert({
+        id: uuidv4(),
+        monitor_id: historyData.monitor_id,
+        email: historyData.email,
+        report_period_start: startDate.toISOString().split('T')[0],
+        report_period_end: endDate.toISOString().split('T')[0],
+        sent_at: historyData.sent_at,
+        status: historyData.status,
+        error_message: historyData.error_message
       })
       .select()
       .single()
