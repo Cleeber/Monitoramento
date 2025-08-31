@@ -28,12 +28,23 @@ interface Monitor {
   uptime_30d: number
 }
 
+interface ContentValidationConfig {
+  minContentLength: number
+  minTextLength: number
+  enabled: boolean
+}
+
 class MonitoringService extends EventEmitter {
   private monitors: Map<string, Monitor> = new Map()
   private checks: MonitorCheck[] = []
   private intervals: Map<string, NodeJS.Timeout> = new Map()
   private isRunning = false
   private databaseService: any = null
+  private contentValidation: ContentValidationConfig = {
+    minContentLength: 100,
+    minTextLength: 50,
+    enabled: true
+  }
 
   constructor() {
     super()
@@ -43,6 +54,16 @@ class MonitoringService extends EventEmitter {
   // Definir referência ao database service
   setDatabaseService(databaseService: any) {
     this.databaseService = databaseService
+  }
+
+  // Configurar validação de conteúdo
+  setContentValidation(config: Partial<ContentValidationConfig>) {
+    this.contentValidation = { ...this.contentValidation, ...config }
+  }
+
+  // Obter configuração atual de validação de conteúdo
+  getContentValidation(): ContentValidationConfig {
+    return { ...this.contentValidation }
   }
 
   // Iniciar o serviço de monitoramento
@@ -323,6 +344,37 @@ class MonitoringService extends EventEmitter {
       const responseTime = Date.now() - startTime
       
       if (response.status >= 200 && response.status < 400) {
+        // Verificar conteúdo apenas se a validação estiver habilitada
+        if (this.contentValidation.enabled) {
+          const content = response.data || ''
+          const contentLength = typeof content === 'string' ? content.length : JSON.stringify(content).length
+          
+          // Considerar página vazia ou com menos caracteres que o mínimo como warning
+          if (contentLength < this.contentValidation.minContentLength) {
+            return { 
+              status: 'warning', 
+              responseTime, 
+              error: `Página com conteúdo insuficiente (${contentLength} caracteres, mínimo: ${this.contentValidation.minContentLength})` 
+            }
+          }
+          
+          // Verificar se é apenas HTML vazio ou com tags básicas
+          if (typeof content === 'string') {
+            const cleanContent = content
+              .replace(/<[^>]*>/g, '') // Remove tags HTML
+              .replace(/\s+/g, ' ')    // Normaliza espaços
+              .trim()
+            
+            if (cleanContent.length < this.contentValidation.minTextLength) {
+              return { 
+                status: 'warning', 
+                responseTime, 
+                error: `Página com conteúdo textual insuficiente (${cleanContent.length} caracteres de texto, mínimo: ${this.contentValidation.minTextLength})` 
+              }
+            }
+          }
+        }
+        
         return { status: 'online', responseTime, error: null }
       } else if (response.status >= 400 && response.status < 500) {
         return { 
