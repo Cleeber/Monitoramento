@@ -17,7 +17,9 @@ import {
   CheckCircle, 
   AlertTriangle, 
   Clock,
-  Activity
+  Activity,
+  Upload,
+  X
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
 import { cn } from '../lib/utils'
@@ -40,6 +42,7 @@ interface Monitor {
   uptime_7d: number
   uptime_30d: number
   slug: string
+  logo_url?: string | null
 }
 
 interface Group {
@@ -57,6 +60,7 @@ interface MonitorFormData {
   group_id: string | null
   enabled: boolean
   slug: string
+  logo_url?: string | null
 }
 
 export function DomainsPage() {
@@ -75,8 +79,12 @@ export function DomainsPage() {
     timeout: 30,
     group_id: null,
     enabled: true,
-    slug: ''
+    slug: '',
+    logo_url: null
   })
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState<string | null>(null)
+  const [uploadingLogo, setUploadingLogo] = useState(false)
   const { addToast } = useToast()
 
   useEffect(() => {
@@ -115,6 +123,16 @@ export function DomainsPage() {
     e.preventDefault()
     
     try {
+      let logoUrl = formData.logo_url
+      
+      // Fazer upload da logo se houver um novo arquivo
+      if (logoFile) {
+        logoUrl = await uploadLogo()
+        if (!logoUrl) {
+          return // Upload falhou, não continuar
+        }
+      }
+      
       const token = localStorage.getItem('auth_token')
       const url = editingMonitor 
         ? `${import.meta.env.VITE_API_URL}/monitors/${editingMonitor.id}`
@@ -128,7 +146,10 @@ export function DomainsPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify(formData)
+        body: JSON.stringify({
+          ...formData,
+          logo_url: logoUrl
+        })
       })
 
       if (response.ok) {
@@ -181,8 +202,18 @@ export function DomainsPage() {
       timeout: Math.floor(monitor.timeout / 1000),   // Converter de milissegundos para segundos
       group_id: monitor.group_id,
       enabled: monitor.enabled,
-      slug: monitor.slug || ''
+      slug: monitor.slug || '',
+      logo_url: monitor.logo_url
     })
+    
+    // Se o monitor tem logo, definir como preview
+    if (monitor.logo_url) {
+      setLogoPreview(monitor.logo_url)
+    } else {
+      setLogoPreview(null)
+    }
+    setLogoFile(null)
+    
     setIsDialogOpen(true)
   }
 
@@ -195,8 +226,85 @@ export function DomainsPage() {
       timeout: 30,
       group_id: null,
       enabled: true,
-      slug: ''
+      slug: '',
+      logo_url: null
     })
+    setLogoFile(null)
+    setLogoPreview(null)
+  }
+
+  const validateLogoFile = (file: File): boolean => {
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
+    const maxSize = 5 * 1024 * 1024 // 5MB
+
+    if (!allowedTypes.includes(file.type)) {
+      addToast('Formato de arquivo não suportado. Use PNG, JPG ou SVG.', 'error')
+      return false
+    }
+
+    if (file.size > maxSize) {
+      addToast('Arquivo muito grande. O tamanho máximo é 5MB.', 'error')
+      return false
+    }
+
+    return true
+  }
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!validateLogoFile(file)) {
+      e.target.value = ''
+      return
+    }
+
+    setLogoFile(file)
+    
+    // Criar preview
+    const reader = new FileReader()
+    reader.onload = (event) => {
+      setLogoPreview(event.target?.result as string)
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const uploadLogo = async (): Promise<string | null> => {
+    if (!logoFile) return null
+
+    setUploadingLogo(true)
+    try {
+      const formData = new FormData()
+      formData.append('logo', logoFile)
+
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/upload/logo`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`
+        },
+        body: formData
+      })
+
+      if (!response.ok) {
+        throw new Error('Erro ao fazer upload da logo')
+      }
+
+      const result = await response.json()
+      return result.url
+    } catch (error) {
+      console.error('Erro ao fazer upload da logo:', error)
+      addToast('Erro ao fazer upload da logo', 'error')
+      return null
+    } finally {
+      setUploadingLogo(false)
+    }
+  }
+
+  const removeLogo = () => {
+    setLogoFile(null)
+    setLogoPreview(null)
+    setFormData({ ...formData, logo_url: null })
   }
 
   const openCreateDialog = () => {
@@ -353,6 +461,55 @@ export function DomainsPage() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              
+              {/* Campo de Upload de Logo */}
+              <div className="space-y-2">
+                <Label className="text-white">Logo da Empresa (opcional)</Label>
+                <div className="space-y-3">
+                  {/* Preview da Logo */}
+                  {logoPreview && (
+                    <div className="relative inline-block">
+                      <img 
+                        src={logoPreview} 
+                        alt="Preview da logo" 
+                        className="w-20 h-20 object-contain border border-gray-600 rounded-lg bg-white p-2"
+                      />
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        className="absolute -top-2 -right-2 h-6 w-6 rounded-full p-0"
+                        onClick={removeLogo}
+                      >
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {/* Input de Upload */}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept=".png,.jpg,.jpeg,.svg"
+                      onChange={handleLogoChange}
+                      className="hidden"
+                      id="logo-upload"
+                      disabled={uploadingLogo}
+                    />
+                    <Label 
+                      htmlFor="logo-upload" 
+                      className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+                    >
+                      <Upload className="h-4 w-4" />
+                      {uploadingLogo ? 'Enviando...' : 'Escolher Arquivo'}
+                    </Label>
+                  </div>
+                  
+                  <p className="text-xs text-gray-400">
+                    Formatos aceitos: PNG, JPG, SVG • Tamanho máximo: 5MB
+                  </p>
+                </div>
               </div>
               
               <div className="flex items-center space-x-2">

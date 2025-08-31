@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.38.4",
+    "@types/multer": "^2.0.0",
     "@types/uuid": "^10.0.0",
     "axios": "^1.6.2",
     "bcryptjs": "^2.4.3",
@@ -22,6 +23,7 @@
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
+    "multer": "^2.0.2",
     "node-cron": "^3.0.3",
     "nodemailer": "^6.9.7",
     "pdfkit": "^0.14.0",

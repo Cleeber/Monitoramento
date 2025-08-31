@@ -24,7 +24,7 @@ function useGroups(): UseGroupsReturn {
         setLoading(true);
         setError(null);
         
-        const response = await fetch('http://localhost:8080/api/public/groups');
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/public/groups`);
         
         if (!response.ok) {
           throw new Error(`Erro ao buscar grupos: ${response.status}`);

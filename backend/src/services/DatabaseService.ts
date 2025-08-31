@@ -192,6 +192,7 @@ export class DatabaseService {
     group_id?: string | null
     slug?: string
     is_active?: boolean
+    logo_url?: string | null
   }) {
     const { data, error } = await supabase
       .from('monitors')
@@ -204,6 +205,7 @@ export class DatabaseService {
         timeout: monitorData.timeout || 30000,
         group_id: monitorData.group_id,
         slug: monitorData.slug,
+        logo_url: monitorData.logo_url,
         status: 'unknown',
         uptime_24h: 0,
         uptime_7d: 0,

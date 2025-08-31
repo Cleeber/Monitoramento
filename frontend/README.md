@@ -41,7 +41,7 @@ Interface web para o sistema de monitoramento de uptime.
    Edite o arquivo `.env` com suas configurações:
    ```env
    # API Configuration
-   VITE_API_URL=http://localhost:8080/api
+   VITE_API_URL=http://localhost:8081/api
    
    # Supabase Configuration (opcional)
    VITE_SUPABASE_URL=your_supabase_url_here

@@ -6,14 +6,16 @@ import rateLimit from 'express-rate-limit'
 import dotenv from 'dotenv'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
+import multer from 'multer'
 import MonitoringService from './monitoring/MonitoringService.js'
 import { databaseService } from './services/DatabaseService.js'
+import { storageService } from './services/StorageService.js'
 
 // Carregar variáveis de ambiente
 dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 8080
+const PORT = process.env.PORT || 8081
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
 // Inicializar serviço de monitoramento
@@ -45,6 +47,14 @@ const loginLimiter = rateLimit({
 
 // Aplicar rate limiting geral
 app.use('/api/', generalLimiter)
+
+// Configurar multer para upload de arquivos
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB
+  }
+})
 
 // Função para inicializar dados padrão se necessário
 async function initializeDefaultData() {
@@ -229,7 +239,7 @@ app.get('/api/monitors', authenticateToken, async (req, res) => {
 
 app.post('/api/monitors', authenticateToken, async (req, res) => {
   try {
-    const { name, url, type, interval, timeout, group_id, enabled = true, slug } = req.body
+    const { name, url, type, interval, timeout, group_id, enabled = true, slug, logo_url } = req.body
     
     if (!name || !url || !type) {
       return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
@@ -250,7 +260,8 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       timeout: timeout ? timeout * 1000 : 30000,   // Converter segundos para milissegundos
       group_id,
       is_active: enabled,
-      slug
+      slug,
+      logo_url
     })
     
     // Adicionar ao serviço de monitoramento
@@ -269,10 +280,33 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
   }
 })
 
+// Endpoint para upload de logo
+app.post('/api/upload/logo', authenticateToken, upload.single('logo'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nenhum arquivo foi enviado' })
+    }
+
+    // Fazer upload do arquivo
+    const uploadResult = await storageService.uploadLogo(req.file)
+    
+    res.status(200).json({
+      success: true,
+      url: uploadResult.url,
+      path: uploadResult.path
+    })
+  } catch (error) {
+    console.error('Erro ao fazer upload da logo:', error)
+    res.status(500).json({ 
+      error: error instanceof Error ? error.message : 'Erro interno do servidor' 
+    })
+  }
+})
+
 app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { name, url, type, interval, timeout, group_id, is_active, slug } = req.body
+    const { name, url, type, interval, timeout, group_id, is_active, slug, logo_url } = req.body
     
     if (group_id) {
       const group = await databaseService.getGroupById(group_id)
@@ -289,7 +323,8 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       timeout: timeout ? timeout * 1000 : undefined,   // Converter segundos para milissegundos
       group_id,
       is_active,
-      slug
+      slug,
+      logo_url
     })
     
     if (!updatedMonitor) {
@@ -745,6 +780,7 @@ app.get('/api/public/status/monitor/:slug', async (req, res) => {
         name: monitor.name,
         url: monitor.url,
         slug: monitor.slug,
+        logo_url: monitor.logo_url,
         status: monitorStatus?.status || 'unknown',
         last_check: monitorStatus?.last_check,
         response_time: monitorStatus?.response_time,
@@ -761,21 +797,146 @@ app.get('/api/public/status/monitor/:slug', async (req, res) => {
   }
 })
 
-app.get('/api/public/incidents', (req, res) => {
-  // Dados simulados de incidentes
-  const incidents = [
-    {
-      id: '1',
-      monitor_name: 'Site Principal',
-      status: 'resolved',
-      title: 'Lentidão no carregamento',
-      description: 'Site apresentou lentidão temporária devido a alta demanda',
-      started_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      resolved_at: new Date(Date.now() - 1 * 60 * 60 * 1000).toISOString()
+// Rota pública para obter histórico de checks de um monitor
+app.get('/api/public/monitors/:id/checks', async (req, res) => {
+  try {
+    const { id } = req.params
+    const { limit = 100 } = req.query
+    
+    // Verificar se o monitor existe e está ativo
+    const monitor = await databaseService.getMonitorById(id)
+    if (!monitor || !monitor.is_active) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
     }
-  ]
-  res.json(incidents)
+    
+    // Buscar checks do banco de dados
+    const checks = await databaseService.getMonitorChecks(id, Number(limit))
+    
+    // Filtrar apenas dados necessários para o público
+    const publicChecks = checks.map(check => ({
+      status: check.status,
+      response_time: check.response_time,
+      checked_at: check.checked_at
+    }))
+    
+    res.json(publicChecks)
+  } catch (error) {
+    console.error('Erro ao buscar checks públicos:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
 })
+
+app.get('/api/public/incidents', async (req, res) => {
+  try {
+    const { limit = 10, days = 7 } = req.query
+    const monitors = await databaseService.getMonitors()
+    const incidents = []
+    
+    // Analisar cada monitor para identificar incidentes reais
+    for (const monitor of monitors) {
+      const checks = await databaseService.getMonitorChecks(monitor.id, parseInt(days as string) * 24 * 2)
+      
+      if (checks.length === 0) continue
+      
+      // Ordenar checks por data (mais antigos primeiro)
+      const sortedChecks = checks.sort((a, b) => new Date(a.checked_at).getTime() - new Date(b.checked_at).getTime())
+      
+      let currentIncident = null
+      let incidentId = 1
+      
+      for (let i = 0; i < sortedChecks.length; i++) {
+        const check = sortedChecks[i]
+        const isDown = check.status !== 'online'
+        
+        if (isDown && !currentIncident) {
+          // Início de um novo incidente
+          currentIncident = {
+            id: `${monitor.id}-${incidentId++}`,
+            monitor_name: monitor.name,
+            status: 'investigating',
+            title: getIncidentTitle(check.status, monitor.name),
+            description: getIncidentDescription(check.status, check.error_message, monitor.name),
+            started_at: check.checked_at,
+            resolved_at: null
+          }
+        } else if (!isDown && currentIncident) {
+          // Fim do incidente
+          currentIncident.status = 'resolved'
+          currentIncident.resolved_at = check.checked_at
+          incidents.push(currentIncident)
+          currentIncident = null
+        }
+      }
+      
+      // Se ainda há um incidente em andamento
+      if (currentIncident) {
+        // Verificar se o monitor está atualmente online
+        const latestCheck = sortedChecks[sortedChecks.length - 1]
+        if (latestCheck.status === 'online') {
+          currentIncident.status = 'resolved'
+          currentIncident.resolved_at = latestCheck.checked_at
+        } else {
+          // Incidente ainda em andamento
+          const monitorStatus = monitoringService.getMonitor(monitor.id)
+          if (monitorStatus?.status === 'online') {
+            currentIncident.status = 'resolved'
+            currentIncident.resolved_at = new Date().toISOString()
+          }
+        }
+        incidents.push(currentIncident)
+      }
+    }
+    
+    // Ordenar incidentes por data de início (mais recentes primeiro)
+    const sortedIncidents = incidents
+      .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
+      .slice(0, parseInt(limit as string))
+    
+    res.json(sortedIncidents)
+  } catch (error) {
+    console.error('Erro ao buscar incidentes:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Funções auxiliares para gerar títulos e descrições de incidentes
+function getIncidentTitle(status: string, monitorName: string): string {
+  switch (status) {
+    case 'offline':
+      return `Interrupção do serviço - ${monitorName}`
+    case 'warning':
+      return `Degradação do serviço - ${monitorName}`
+    default:
+      return `Problema detectado - ${monitorName}`
+  }
+}
+
+function getIncidentDescription(status: string, errorMessage: string | null, monitorName: string): string {
+  let baseDescription = ''
+  
+  switch (status) {
+    case 'offline':
+      baseDescription = `O serviço ${monitorName} está temporariamente indisponível`
+      break
+    case 'warning':
+      baseDescription = `O serviço ${monitorName} apresenta degradação de performance`
+      break
+    default:
+      baseDescription = `Foi detectado um problema no serviço ${monitorName}`
+  }
+  
+  if (errorMessage) {
+    // Sanitizar mensagem de erro para exibição pública
+    const sanitizedError = errorMessage
+      .replace(/ENOTFOUND|ECONNREFUSED|ETIMEDOUT/g, 'erro de conectividade')
+      .replace(/timeout/gi, 'tempo limite excedido')
+      .replace(/connection/gi, 'conexão')
+    
+    baseDescription += `. Detalhes técnicos: ${sanitizedError}`
+  }
+  
+  return baseDescription
+}
 
 // Rota de health check
 app.get('/api/health', (req, res) => {

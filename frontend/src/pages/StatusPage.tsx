@@ -16,6 +16,7 @@ import {
 } from 'lucide-react'
 import { Button } from '../components/ui/button'
 import { formatDuration } from '../lib/utils'
+
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -46,6 +47,7 @@ interface PublicMonitor {
   id: string
   name: string
   url: string
+  logo_url?: string | null
   status: 'online' | 'offline' | 'warning' | 'unknown'
   last_check: string | null
   response_time: number | null
@@ -93,37 +95,6 @@ const generateUptimeChartData = (monitors: PublicMonitor[]) => {
         }),
         backgroundColor: '#10b981',
         borderColor: '#10b981',
-        borderWidth: 1,
-      },
-    ],
-  }
-}
-
-// Função para gerar dados do gráfico de tempo de resposta
-const generateResponseTimeChartData = (monitors: PublicMonitor[]) => {
-  const last30Days = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date()
-    date.setDate(date.getDate() - (29 - i))
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-  })
-
-  return {
-    labels: last30Days,
-    datasets: [
-      {
-        label: 'Tempo de Resposta (ms)',
-        data: last30Days.map(() => {
-          // Simular dados de tempo de resposta histórico
-          const avgResponseTime = monitors.length > 0 && monitors.some(m => m.response_time)
-            ? monitors
-                .filter(m => m.response_time)
-                .reduce((acc, m) => acc + (m.response_time || 0), 0) / 
-              monitors.filter(m => m.response_time).length
-            : 100
-          return avgResponseTime + (Math.random() - 0.5) * 50 // Variação simulada
-        }),
-        backgroundColor: '#3b82f6',
-        borderColor: '#3b82f6',
         borderWidth: 1,
       },
     ],
@@ -376,13 +347,37 @@ export function StatusPage() {
         backgroundImage: 'linear-gradient(135deg, #0282ff 0%, #0369a1 100%)'
       }}>
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-4xl font-bold mb-4 text-white">Status dos Serviços</h1>
-          <p className="text-xl text-white/90">Acompanhe o status em tempo real dos nossos serviços</p>
+          <h1 className="text-2xl font-semibold mb-6 text-white/80">Status dos Serviços</h1>
+          
           {groupName && (
-            <p className="text-2xl font-medium mt-4 text-white">
-              {groupName}
-            </p>
+            <div className="flex items-center justify-center mb-4">
+              {/* Exibir logo apenas para monitores individuais */}
+              {data?.monitors.length === 1 && data.monitors[0].logo_url && (
+                <div className="w-24 h-24 bg-white rounded-xl shadow-lg flex items-center justify-center mr-6 p-3">
+                  <img 
+                    src={data.monitors[0].logo_url} 
+                    alt={`Logo ${data.monitors[0].name}`}
+                    className="w-full h-full object-contain"
+                    style={{
+                      aspectRatio: '1/1'
+                    }}
+                    onError={(e) => {
+                      const target = e.target as HTMLImageElement;
+                      const container = target.parentElement;
+                      if (container) {
+                        container.style.display = 'none';
+                      }
+                    }}
+                  />
+                </div>
+              )}
+              <h2 className="text-4xl font-bold text-white">
+                {groupName}
+              </h2>
+            </div>
           )}
+          
+          <p className="text-lg text-white/90">Acompanhe o status em tempo real dos nossos serviços</p>
         </div>
       </div>
 
@@ -695,60 +690,7 @@ export function StatusPage() {
               </CardContent>
             </Card>
 
-            {/* Histórico de Tempo de Resposta */}
-            <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
-              backgroundColor: '#ffffff', 
-              borderColor: '#d1d5db',
-              borderWidth: '1.5px',
-              borderRadius: '12px',
-              boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-            }}>
-              <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-                <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
-                  <Clock className="h-5 w-5" />
-                  Histórico de Tempo de Resposta
-                </CardTitle>
-              </CardHeader>
-              <CardContent style={{ padding: '1.5rem' }}>
-                <div className="h-64">
-                  <Line 
-                    data={generateResponseTimeChartData(data.monitors)} 
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          display: false,
-                        },
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          ticks: {
-                            color: '#6b7280',
-                            callback: function(value) {
-                              return value + 'ms'
-                            }
-                          },
-                          grid: {
-                            color: '#e5e7eb'
-                          }
-                        },
-                        x: {
-                          ticks: {
-                            color: '#6b7280',
-                            maxRotation: 45,
-                          },
-                          grid: {
-                            color: '#e5e7eb'
-                          }
-                        }
-                      },
-                    }} 
-                  />
-                </div>
-              </CardContent>
-            </Card>
+
 
             {/* Distribuição de Status */}
             <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
@@ -788,7 +730,7 @@ export function StatusPage() {
 
             {/* Informações Detalhadas do Monitor */}
             {data.monitors.length === 1 && (
-              <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
+              <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300 lg:col-span-2" style={{ 
                 backgroundColor: '#ffffff', 
                 borderColor: '#d1d5db',
                 borderWidth: '1.5px',
@@ -897,7 +839,7 @@ export function StatusPage() {
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
                           <h4 className="font-medium" style={{ color: '#1f2937' }}>{incident.title}</h4>
-                          <Badge className={getIncidentStatusColor(incident.status)}>
+                          <Badge className={`${getIncidentStatusColor(incident.status)} ${incident.status === 'resolved' ? 'hover:bg-green-100' : ''}`}>
                             {incident.status === 'resolved' && 'Resolvido'}
                             {incident.status === 'investigating' && 'Investigando'}
                             {incident.status === 'identified' && 'Identificado'}
