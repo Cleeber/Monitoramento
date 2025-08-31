@@ -4,22 +4,18 @@ import { Button } from '../components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { Badge } from '../components/ui/badge'
 import { 
-  BarChart3, 
   Download, 
   Calendar, 
   Clock, 
   TrendingUp, 
-  TrendingDown,
   Activity,
   AlertTriangle,
-  CheckCircle,
   Globe,
   PieChart,
-  LineChart,
   Mail
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
-import { formatDuration, calculateUptime } from '../lib/utils'
+// Importações removidas: formatDuration, calculateUptime não utilizadas
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import {
@@ -117,7 +113,7 @@ export function ReportsPage() {
   const [selectedGroup, setSelectedGroup] = useState('all')
   const [exporting, setExporting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
-  const { addToast, success, error } = useToast()
+  const { addToast } = useToast()
 
   useEffect(() => {
     fetchData()
@@ -254,10 +250,9 @@ export function ReportsPage() {
       let yPosition = 20
       
       // Cores para o design
-      const primaryColor = [30, 58, 138] // #1e3a8a
-      const textColor = [255, 255, 255] // #ffffff
-      const grayColor = [156, 163, 175] // #9ca3af
-      const darkBg = [24, 27, 32] // #181b20
+      const primaryColor: [number, number, number] = [30, 58, 138] // #1e3a8a
+      const textColor: [number, number, number] = [255, 255, 255] // #ffffff
+      // Variáveis removidas: grayColor, darkBg não utilizadas
       
       // Header com fundo colorido
       doc.setFillColor(...primaryColor)
@@ -305,12 +300,12 @@ export function ReportsPage() {
         
         // Cards de estatísticas
         const stats = [
-          { label: 'Uptime Médio', value: `${overallStats.avgUptime.toFixed(2)}%`, color: overallStats.avgUptime >= 99 ? [34, 197, 94] : overallStats.avgUptime >= 95 ? [251, 191, 36] : [239, 68, 68] },
-          { label: 'Tempo de Resposta Médio', value: `${overallStats.avgResponseTime.toFixed(0)}ms`, color: [59, 130, 246] },
-          { label: 'Total de Verificações', value: overallStats.totalChecks.toLocaleString(), color: [107, 114, 128] },
-          { label: 'Verificações Bem-sucedidas', value: overallStats.totalSuccessful.toLocaleString(), color: [34, 197, 94] },
-          { label: 'Verificações Falhadas', value: (overallStats.totalChecks - overallStats.totalSuccessful).toLocaleString(), color: [239, 68, 68] },
-          { label: 'Total de Incidentes', value: overallStats.totalIncidents.toString(), color: [239, 68, 68] }
+          { label: 'Uptime Médio', value: `${overallStats.avgUptime.toFixed(2)}%`, color: (overallStats.avgUptime >= 99 ? [34, 197, 94] : overallStats.avgUptime >= 95 ? [251, 191, 36] : [239, 68, 68]) as [number, number, number] },
+          { label: 'Tempo de Resposta Médio', value: `${overallStats.avgResponseTime.toFixed(0)}ms`, color: [59, 130, 246] as [number, number, number] },
+          { label: 'Total de Verificações', value: overallStats.totalChecks.toLocaleString(), color: [107, 114, 128] as [number, number, number] },
+          { label: 'Verificações Bem-sucedidas', value: overallStats.totalSuccessful.toLocaleString(), color: [34, 197, 94] as [number, number, number] },
+          { label: 'Verificações Falhadas', value: (overallStats.totalChecks - overallStats.totalSuccessful).toLocaleString(), color: [239, 68, 68] as [number, number, number] },
+          { label: 'Total de Incidentes', value: overallStats.totalIncidents.toString(), color: [239, 68, 68] as [number, number, number] }
         ]
         
         stats.forEach((stat, index) => {
@@ -449,7 +444,7 @@ export function ReportsPage() {
           })
           
           // Status badge
-          const uptimeColor = report.uptime_percentage >= 99 ? [34, 197, 94] : 
+          const uptimeColor: [number, number, number] = report.uptime_percentage >= 99 ? [34, 197, 94] : 
                              report.uptime_percentage >= 95 ? [251, 191, 36] : [239, 68, 68]
           doc.setFillColor(...uptimeColor)
           doc.rect(pageWidth - 45, yPosition, 25, 8, 'F')
@@ -478,10 +473,10 @@ export function ReportsPage() {
       const fileName = `relatorio-monitoramento-${selectedTimeRange}-${new Date().toISOString().split('T')[0]}.pdf`
       doc.save(fileName)
       
-      addToast('Relatório PDF exportado com sucesso', 'success')
+      addToast({ title: 'Relatório PDF exportado com sucesso', variant: 'success' })
     } catch (error) {
       console.error('Erro ao exportar relatório:', error)
-      addToast('Erro ao exportar relatório', 'error')
+      addToast({ title: 'Erro ao exportar relatório', variant: 'destructive' })
     } finally {
       setExporting(false)
     }
@@ -489,19 +484,19 @@ export function ReportsPage() {
 
   const handleSendEmail = async () => {
     if (selectedMonitor === 'all') {
-      error('Selecione um monitor específico para enviar o relatório por e-mail')
+      addToast({ title: 'Selecione um monitor específico para enviar o relatório por e-mail', variant: 'destructive' })
       return
     }
 
     // Buscar o monitor selecionado e seu e-mail cadastrado
     const monitor = monitors.find(m => m.id === selectedMonitor)
     if (!monitor) {
-      error('Monitor não encontrado')
+      addToast({ title: 'Monitor não encontrado', variant: 'destructive' })
       return
     }
 
     if (!monitor.report_email) {
-      error('E-mail não configurado para este monitor', 'Configure o e-mail do relatório nas configurações do monitor')
+      addToast({ title: 'E-mail não configurado para este monitor', description: 'Configure o e-mail do relatório nas configurações do monitor', variant: 'destructive' })
       return
     }
 
@@ -535,10 +530,10 @@ export function ReportsPage() {
         throw new Error(result.error || 'Falha ao enviar relatório por e-mail')
       }
 
-      success('Relatório enviado por e-mail com sucesso!', `O relatório foi enviado para ${email}`)
+      addToast({ title: 'Relatório enviado por e-mail com sucesso!', description: `O relatório foi enviado para ${email}`, variant: 'success' })
     } catch (error) {
       console.error('Erro ao enviar relatório por e-mail:', error)
-      error('Erro ao enviar relatório por e-mail', error instanceof Error ? error.message : 'Erro desconhecido')
+      addToast({ title: 'Erro ao enviar relatório por e-mail', description: error instanceof Error ? error.message : 'Erro desconhecido', variant: 'destructive' })
     } finally {
       setSendingEmail(false)
     }
@@ -550,11 +545,7 @@ export function ReportsPage() {
     return 'text-red-600'
   }
 
-  const getUptimeBadgeColor = (uptime: number) => {
-    if (uptime >= 99) return 'bg-green-100 text-green-800'
-    if (uptime >= 95) return 'bg-yellow-100 text-yellow-800'
-    return 'bg-red-100 text-red-800'
-  }
+  // Função removida: getUptimeBadgeColor não utilizada
 
   const calculateOverallStats = () => {
     if (reports.length === 0) return null
@@ -616,7 +607,7 @@ export function ReportsPage() {
     } else {
       // Dados históricos do monitor selecionado
       const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
-      const hoursBack = selectedRange ? selectedRange.days * 24 : 168
+      // hoursBack já declarado anteriormente
       
       // Agrupar checks por dia
       const dailyData: { [key: string]: { total: number, successful: number } } = {}

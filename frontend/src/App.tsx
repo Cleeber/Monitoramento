@@ -17,7 +17,10 @@ function App() {
   return (
     <AuthProvider>
       <ToastProvider>
-        <Router>
+        <Router future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true
+        }}>
           <div className="min-h-screen bg-background">
             <Routes>
               {/* Rota pública de login */}
