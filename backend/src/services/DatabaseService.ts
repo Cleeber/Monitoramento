@@ -306,7 +306,7 @@ export class DatabaseService {
     password?: string
     from_name?: string
     from_email?: string
-    is_active?: boolean
+    is_configured?: boolean
   }) {
     // Verificar se já existe uma configuração
     const existing = await this.getSmtpConfig()
@@ -315,7 +315,14 @@ export class DatabaseService {
       const { data, error } = await supabase
         .from('smtp_config')
         .update({
-          ...config,
+          host: config.host,
+          port: config.port,
+          secure: config.secure,
+          user: config.user,
+          pass: config.password, // Note: coluna é 'pass', não 'password'
+          from_name: config.from_name,
+          from_email: config.from_email,
+          is_configured: config.is_configured,
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id)
@@ -333,10 +340,10 @@ export class DatabaseService {
           port: config.port || 587,
           secure: config.secure || false,
           user: config.user || '',
-          password: config.password || '',
+          pass: config.password || '', // Note: coluna é 'pass', não 'password'
           from_name: config.from_name || 'Uptime Monitor',
           from_email: config.from_email || '',
-          is_active: config.is_active || false,
+          is_configured: config.is_configured || false,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })

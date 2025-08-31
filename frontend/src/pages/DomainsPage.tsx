@@ -22,7 +22,6 @@ import {
   X
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
-import { cn } from '../lib/utils'
 
 interface Monitor {
   id: string
@@ -113,7 +112,7 @@ export function DomainsPage() {
       }
     } catch (error) {
       console.error('Erro ao buscar dados:', error)
-      addToast('Erro ao carregar dados', 'error')
+      addToast({ title: 'Erro ao carregar dados', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -153,10 +152,10 @@ export function DomainsPage() {
       })
 
       if (response.ok) {
-        addToast(
-          editingMonitor ? 'Monitor atualizado com sucesso' : 'Monitor criado com sucesso',
-          'success'
-        )
+        addToast({
+          title: editingMonitor ? 'Monitor atualizado com sucesso' : 'Monitor criado com sucesso',
+          variant: 'success'
+        })
         setIsDialogOpen(false)
         setEditingMonitor(null)
         resetForm()
@@ -166,7 +165,7 @@ export function DomainsPage() {
       }
     } catch (error) {
       console.error('Erro ao salvar monitor:', error)
-      addToast('Erro ao salvar monitor', 'error')
+      addToast({ title: 'Erro ao salvar monitor', variant: 'destructive' })
     }
   }
 
@@ -181,14 +180,14 @@ export function DomainsPage() {
       })
 
       if (response.ok) {
-        addToast('Monitor excluído com sucesso', 'success')
+        addToast({ title: 'Monitor excluído com sucesso', variant: 'success' })
         fetchData()
       } else {
         throw new Error('Erro ao excluir monitor')
       }
     } catch (error) {
       console.error('Erro ao excluir monitor:', error)
-      addToast('Erro ao excluir monitor', 'error')
+      addToast({ title: 'Erro ao excluir monitor', variant: 'destructive' })
     }
   }
 
@@ -238,12 +237,12 @@ export function DomainsPage() {
     const maxSize = 5 * 1024 * 1024 // 5MB
 
     if (!allowedTypes.includes(file.type)) {
-      addToast('Formato de arquivo não suportado. Use PNG, JPG ou SVG.', 'error')
+      addToast({ title: 'Formato de arquivo não suportado. Use PNG, JPG ou SVG.', variant: 'destructive' })
       return false
     }
 
     if (file.size > maxSize) {
-      addToast('Arquivo muito grande. O tamanho máximo é 5MB.', 'error')
+      addToast({ title: 'Arquivo muito grande. O tamanho máximo é 5MB.', variant: 'destructive' })
       return false
     }
 
@@ -294,7 +293,7 @@ export function DomainsPage() {
       return result.url
     } catch (error) {
       console.error('Erro ao fazer upload da logo:', error)
-      addToast('Erro ao fazer upload da logo', 'error')
+      addToast({ title: 'Erro ao fazer upload da logo', variant: 'destructive' })
       return null
     } finally {
       setUploadingLogo(false)

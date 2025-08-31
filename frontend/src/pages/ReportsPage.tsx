@@ -215,7 +215,7 @@ export function ReportsPage() {
       }
     } catch (error) {
       console.error('Erro ao buscar relatórios:', error)
-      addToast('Erro ao carregar relatórios', 'error')
+      addToast({ title: 'Erro ao carregar relatórios', variant: 'destructive' })
     } finally {
       setLoading(false)
     }

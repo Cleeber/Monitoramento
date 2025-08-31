@@ -448,24 +448,35 @@ app.delete('/api/groups/:id', authenticateToken, async (req, res) => {
 })
 
 // Rotas de configuração SMTP
-app.get('/api/smtp-config', authenticateToken, async (req, res) => {
+app.get('/api/smtp/config', authenticateToken, async (req, res) => {
   try {
     const config = await databaseService.getSmtpConfig()
     if (!config) {
       // Retornar configuração padrão das variáveis de ambiente
       return res.json({
-        host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        host: process.env.SMTP_HOST || '',
         port: parseInt(process.env.SMTP_PORT || '587'),
-        secure: process.env.SMTP_SECURE === 'true',
-        user: process.env.SMTP_USER || ''
+        username: process.env.SMTP_USER || '',
+        password: '',
+        from_email: process.env.SMTP_FROM_EMAIL || '',
+        from_name: process.env.SMTP_FROM_NAME || 'Uptime Monitor',
+        use_tls: process.env.SMTP_SECURE !== 'true',
+        use_ssl: process.env.SMTP_SECURE === 'true',
+        enabled: false
       })
     }
     
     res.json({
+      id: config.id,
       host: config.host,
       port: config.port,
-      secure: config.secure,
-      user: config.user
+      username: config.user,
+      password: config.pass, // Campo correto é 'pass'
+      from_email: config.from_email,
+      from_name: config.from_name,
+      use_tls: !config.secure,
+      use_ssl: config.secure,
+      enabled: config.is_configured // Campo correto é 'is_configured'
     })
   } catch (error) {
     console.error('Erro ao buscar configuração SMTP:', error)
@@ -473,23 +484,32 @@ app.get('/api/smtp-config', authenticateToken, async (req, res) => {
   }
 })
 
-app.put('/api/smtp-config', authenticateToken, async (req, res) => {
+app.put('/api/smtp/config', authenticateToken, async (req, res) => {
   try {
-    const { host, port, secure, user, pass } = req.body
+    const { host, port, username, password, from_email, from_name, use_tls, use_ssl, enabled } = req.body
     
     const config = await databaseService.updateSmtpConfig({
       host,
       port: parseInt(port),
-      secure,
-      user,
-      pass
+      secure: use_ssl, // SSL tem prioridade sobre TLS
+      user: username,
+      password,
+      from_email,
+      from_name,
+      is_configured: enabled // Campo correto é 'is_configured'
     })
     
     res.json({
+      id: config.id,
       host: config.host,
       port: config.port,
-      secure: config.secure,
-      user: config.user
+      username: config.user,
+      password: config.pass, // Campo correto é 'pass'
+      from_email: config.from_email,
+      from_name: config.from_name,
+      use_tls: !config.secure,
+      use_ssl: config.secure,
+      enabled: config.is_configured // Campo correto é 'is_configured'
     })
   } catch (error) {
     console.error('Erro ao atualizar configuração SMTP:', error)
@@ -497,11 +517,32 @@ app.put('/api/smtp-config', authenticateToken, async (req, res) => {
   }
 })
 
-app.post('/api/smtp-config/test', authenticateToken, (req, res) => {
-  // Simular teste de SMTP
-  setTimeout(() => {
-    res.json({ success: true, message: 'E-mail de teste enviado com sucesso!' })
-  }, 1000)
+app.post('/api/smtp/test', authenticateToken, async (req, res) => {
+  try {
+    const { email } = req.body
+    
+    if (!email) {
+      return res.status(400).json({ error: 'E-mail é obrigatório' })
+    }
+
+    // Importar o EmailService
+    const { emailService } = await import('./services/EmailService.js')
+    
+    // Recarregar configuração para garantir que está atualizada
+    await emailService.reloadConfig()
+    
+    // Enviar e-mail de teste
+    const result = await emailService.sendTestEmail(email)
+    
+    if (result.success) {
+      res.json({ success: true, message: result.message })
+    } else {
+      res.status(400).json({ error: result.message })
+    }
+  } catch (error) {
+    console.error('Erro ao testar SMTP:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
 })
 
 // Rotas de relatórios

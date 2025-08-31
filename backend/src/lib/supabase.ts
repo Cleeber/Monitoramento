@@ -173,10 +173,10 @@ export interface Database {
           port: number
           secure: boolean
           user: string
-          password: string
+          pass: string
           from_name: string
           from_email: string
-          is_active: boolean
+          is_configured: boolean
           created_at: string
           updated_at: string
         }
@@ -186,10 +186,10 @@ export interface Database {
           port?: number
           secure?: boolean
           user?: string
-          password?: string
+          pass?: string
           from_name?: string
           from_email?: string
-          is_active?: boolean
+          is_configured?: boolean
           created_at?: string
           updated_at?: string
         }
@@ -199,10 +199,10 @@ export interface Database {
           port?: number
           secure?: boolean
           user?: string
-          password?: string
+          pass?: string
           from_name?: string
           from_email?: string
-          is_active?: boolean
+          is_configured?: boolean
           updated_at?: string
         }
       }

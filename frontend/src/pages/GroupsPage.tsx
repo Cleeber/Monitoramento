@@ -79,7 +79,7 @@ export function GroupsPage() {
       }
     } catch (error) {
       console.error('Erro ao buscar grupos:', error)
-      addToast('Erro ao carregar grupos', 'error')
+      addToast({ title: 'Erro ao carregar grupos', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -122,10 +122,10 @@ export function GroupsPage() {
       })
 
       if (response.ok) {
-        addToast(
-          editingGroup ? 'Grupo atualizado com sucesso' : 'Grupo criado com sucesso',
-          'success'
-        )
+        addToast({
+          title: editingGroup ? 'Grupo atualizado com sucesso' : 'Grupo criado com sucesso',
+          variant: 'success'
+        })
         setIsDialogOpen(false)
         setEditingGroup(null)
         resetForm()
@@ -135,7 +135,7 @@ export function GroupsPage() {
       }
     } catch (error) {
       console.error('Erro ao salvar grupo:', error)
-      addToast('Erro ao salvar grupo', 'error')
+      addToast({ title: 'Erro ao salvar grupo', variant: 'destructive' })
     }
   }
 

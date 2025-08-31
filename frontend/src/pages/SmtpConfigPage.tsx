@@ -67,7 +67,7 @@ export function SmtpConfigPage() {
       }
     } catch (error) {
       console.error('Erro ao buscar configuração SMTP:', error)
-      addToast('Erro ao carregar configuração SMTP', 'error')
+      addToast({ title: 'Erro ao carregar configuração SMTP', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -80,7 +80,7 @@ export function SmtpConfigPage() {
     try {
       const token = localStorage.getItem('auth_token')
       const response = await fetch(`${import.meta.env.VITE_API_URL}/smtp/config`, {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
@@ -89,14 +89,14 @@ export function SmtpConfigPage() {
       })
 
       if (response.ok) {
-        addToast('Configuração SMTP salva com sucesso', 'success')
+        addToast({ title: 'Configuração SMTP salva com sucesso', variant: 'success' })
         fetchConfig() // Recarregar para obter o ID se foi criado
       } else {
         throw new Error('Erro ao salvar configuração')
       }
     } catch (error) {
       console.error('Erro ao salvar configuração SMTP:', error)
-      addToast('Erro ao salvar configuração SMTP', 'error')
+      addToast({ title: 'Erro ao salvar configuração SMTP', variant: 'destructive' })
     } finally {
       setSaving(false)
     }
@@ -104,7 +104,7 @@ export function SmtpConfigPage() {
 
   const handleTest = async () => {
     if (!testEmail) {
-      addToast('Digite um e-mail para teste', 'error')
+      addToast({ title: 'Digite um e-mail para teste', variant: 'destructive' })
       return
     }
 
@@ -122,14 +122,14 @@ export function SmtpConfigPage() {
       })
 
       if (response.ok) {
-        addToast('E-mail de teste enviado com sucesso', 'success')
+        addToast({ title: 'E-mail de teste enviado com sucesso', variant: 'success' })
       } else {
         const error = await response.json()
         throw new Error(error.message || 'Erro ao enviar e-mail de teste')
       }
     } catch (error) {
       console.error('Erro ao testar SMTP:', error)
-      addToast(`Erro ao enviar e-mail de teste: ${error.message}`, 'error')
+      addToast({ title: `Erro ao enviar e-mail de teste: ${error.message}`, variant: 'destructive' })
     } finally {
       setTesting(false)
     }
@@ -335,7 +335,7 @@ export function SmtpConfigPage() {
           <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2" style={{ color: '#ffffff' }}>
-                <TestTube className="h-5 w-5" style={{ color: '#ffffff' }} />
+                <Mail className="h-5 w-5" style={{ color: '#ffffff' }} />
                 <span>Teste de E-mail</span>
               </CardTitle>
               <CardDescription style={{ color: '#9ca3af' }}>
@@ -357,13 +357,13 @@ export function SmtpConfigPage() {
               <Button 
                 onClick={handleTest} 
                 disabled={testing || !config.enabled || !testEmail}
-                className="w-full"
-                variant="outline"
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white border-blue-600 hover:border-blue-700"
+                variant="default"
               >
                 {testing ? (
                   <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
                 ) : (
-                  <TestTube className="h-4 w-4 mr-2" />
+                  <Mail className="h-4 w-4 mr-2" />
                 )}
                 {testing ? 'Enviando...' : 'Enviar Teste'}
               </Button>
