@@ -222,22 +222,32 @@ export function StatusPage() {
     
     try {
       let statusUrl: string
+      let incidentsUrl: string
+      let isMonitorIndividual = false
+      let currentGroupId: string | null = null
+      let currentMonitorId: string | null = null
       
       if (!groupId || groupId === 'all') {
         statusUrl = `${import.meta.env.VITE_API_URL}/public/status/all`
+        incidentsUrl = `${import.meta.env.VITE_API_URL}/public/incidents`
       } else {
         // Primeiro, tentar buscar como slug de grupo
         statusUrl = `${import.meta.env.VITE_API_URL}/public/status/group/${groupId}`
+        incidentsUrl = `${import.meta.env.VITE_API_URL}/public/incidents`
       }
         
-      const [statusResponse, incidentsResponse] = await Promise.all([
-        fetch(statusUrl),
-        fetch(`${import.meta.env.VITE_API_URL}/public/incidents`)
-      ])
+      const statusResponse = await fetch(statusUrl)
+      let statusData = null
 
       if (statusResponse.ok) {
-        const statusData = await statusResponse.json()
+        statusData = await statusResponse.json()
         setData(statusData)
+        
+        // Se é um grupo, usar o group_id para filtrar incidentes
+        if (statusData.group && statusData.group.id) {
+          currentGroupId = statusData.group.id
+          incidentsUrl = `${import.meta.env.VITE_API_URL}/public/incidents?group_id=${currentGroupId}`
+        }
       } else if (statusResponse.status === 404 && groupId !== 'all') {
         // Se não encontrou como grupo, tentar buscar como monitor individual
         try {
@@ -255,12 +265,20 @@ export function StatusPage() {
               last_updated: monitorData.last_updated
             }
             setData(adaptedData)
+            statusData = adaptedData
+            isMonitorIndividual = true
+            currentMonitorId = monitorData.monitor.id
+            
+            // Para monitor individual, filtrar incidentes por monitor_id
+            incidentsUrl = `${import.meta.env.VITE_API_URL}/public/incidents?monitor_id=${currentMonitorId}`
           }
         } catch (monitorError) {
           console.error('Erro ao buscar monitor por slug:', monitorError)
         }
       }
 
+      // Buscar incidentes com os filtros apropriados
+      const incidentsResponse = await fetch(incidentsUrl)
       if (incidentsResponse.ok) {
         const incidentsData = await incidentsResponse.json()
         setIncidents(incidentsData)
@@ -856,7 +874,7 @@ export function StatusPage() {
                         <div className="space-y-2 text-sm">
                           <div className="flex justify-between">
                             <span style={{ color: '#6b7280' }}>Tempo Médio</span>
-                            <span style={{ color: '#1f2937' }}>{Math.round(data.monitors[0].response_time)}ms</span>
+                            <span style={{ color: '#1f2937' }}>{monitorStats?.avgResponseTime || 0}ms</span>
                           </div>
                           <div className="flex justify-between">
                             <span style={{ color: '#6b7280' }}>Tempo Mínimo</span>

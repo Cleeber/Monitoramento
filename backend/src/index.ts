@@ -1365,8 +1365,19 @@ app.get('/api/public/uptime-history', async (req, res) => {
 
 app.get('/api/public/incidents', async (req, res) => {
   try {
-    const { limit = 10, days = 7 } = req.query
-    const monitors = await databaseService.getMonitors()
+    const { limit = 10, days = 7, group_id, monitor_id } = req.query
+    let monitors = await databaseService.getMonitors()
+    
+    // Filtrar monitores por grupo se especificado
+    if (group_id && group_id !== 'all') {
+      monitors = monitors.filter(m => m.group_id === group_id)
+    }
+    
+    // Filtrar por monitor específico se especificado
+    if (monitor_id) {
+      monitors = monitors.filter(m => m.id === monitor_id)
+    }
+    
     const incidents = []
     
     // Analisar cada monitor para identificar incidentes reais
