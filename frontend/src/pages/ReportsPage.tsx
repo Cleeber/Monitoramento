@@ -10,7 +10,6 @@ import {
   TrendingUp, 
   Activity,
   AlertTriangle,
-  Globe,
   PieChart,
   Mail
 } from 'lucide-react'
@@ -66,10 +65,7 @@ interface TimeRange {
   days: number
 }
 
-interface Group {
-  id: string
-  name: string
-}
+
 
 interface Monitor {
   id: string
@@ -105,13 +101,11 @@ const timeRanges: TimeRange[] = [
 
 export function ReportsPage() {
   const [reports, setReports] = useState<ReportData[]>([])
-  const [groups, setGroups] = useState<Group[]>([])
   const [monitors, setMonitors] = useState<Monitor[]>([])
   const [selectedMonitor, setSelectedMonitor] = useState('all')
   const [monitorChecks, setMonitorChecks] = useState<MonitorCheck[]>([])
   const [loading, setLoading] = useState(true)
   const [selectedTimeRange, setSelectedTimeRange] = useState('7d')
-  const [selectedGroup, setSelectedGroup] = useState('all')
   const [exporting, setExporting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const { addToast } = useToast()
@@ -121,47 +115,17 @@ export function ReportsPage() {
     if (selectedMonitor !== 'all') {
       fetchMonitorChecks(selectedMonitor)
     }
-  }, [selectedTimeRange, selectedGroup, selectedMonitor])
+  }, [selectedTimeRange, selectedMonitor])
 
   useEffect(() => {
-    fetchGroups()
     fetchMonitors()
   }, [])
 
-  // Resetar monitor selecionado quando grupo for alterado
-  useEffect(() => {
-    if (selectedGroup !== 'all' && selectedMonitor !== 'all') {
-      const filteredMonitors = monitors.filter(monitor => monitor.group_id === selectedGroup)
-      const isMonitorInGroup = filteredMonitors.some(monitor => monitor.id === selectedMonitor)
-      if (!isMonitorInGroup) {
-        setSelectedMonitor('all')
-      }
-    }
-  }, [selectedGroup, monitors, selectedMonitor])
 
-  // Função para filtrar monitores por grupo selecionado
-  const getFilteredMonitors = () => {
-    if (selectedGroup === 'all') {
-      return monitors
-    }
-    return monitors.filter(monitor => monitor.group_id === selectedGroup)
-  }
 
-  const fetchGroups = async () => {
-    try {
-      const token = localStorage.getItem('auth_token')
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/groups`, {
-        headers: { Authorization: `Bearer ${token}` }
-      })
 
-      if (response.ok) {
-        const data = await response.json()
-        setGroups(data)
-      }
-    } catch (error) {
-      console.error('Erro ao buscar grupos:', error)
-    }
-  }
+
+
 
   const fetchMonitors = async () => {
     try {
@@ -173,6 +137,10 @@ export function ReportsPage() {
       if (response.ok) {
         const data = await response.json()
         setMonitors(data)
+        // Seleciona automaticamente o primeiro monitor da lista
+        if (data.length > 0 && selectedMonitor === 'all') {
+          setSelectedMonitor(data[0].id)
+        }
       }
     } catch (error) {
       console.error('Erro ao buscar monitores:', error)
@@ -202,8 +170,7 @@ export function ReportsPage() {
     try {
       const token = localStorage.getItem('auth_token')
       const params = new URLSearchParams({
-        period: selectedTimeRange,
-        ...(selectedGroup !== 'all' && { group_id: selectedGroup })
+        period: selectedTimeRange
       })
       
       const response = await fetch(`${import.meta.env.VITE_API_URL}/reports?${params}`, {
@@ -599,7 +566,6 @@ export function ReportsPage() {
     } else {
       // Dados históricos do monitor selecionado
       const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
-      // hoursBack já declarado anteriormente
       
       // Agrupar checks por dia
       const dailyData: { [key: string]: { total: number, successful: number } } = {}
@@ -615,21 +581,23 @@ export function ReportsPage() {
         }
       })
       
+      // Obter apenas os dias que realmente têm dados
+      const availableDays = Object.keys(dailyData).sort()
+      
       const labels: string[] = []
       const uptimeData: number[] = []
-      const daysBack = selectedRange ? selectedRange.days : 7
       
-      for (let i = daysBack - 1; i >= 0; i--) {
-        const date = new Date(Date.now() - i * 24 * 60 * 60 * 1000)
-        const day = date.toISOString().slice(0, 10)
+      // Mostrar apenas os dias com dados reais disponíveis
+      availableDays.forEach(day => {
+        const date = new Date(day + 'T00:00:00')
         const label = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
         
         labels.push(label)
         
         const data = dailyData[day]
-        const uptime = data ? (data.successful / data.total) * 100 : 100
+        const uptime = (data.successful / data.total) * 100
         uptimeData.push(uptime)
-      }
+      })
       
       return {
         labels,
@@ -682,45 +650,64 @@ export function ReportsPage() {
         ],
       }
     } else {
-      // Dados históricos do monitor selecionado
-      const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
-      const hoursBack = selectedRange ? selectedRange.days * 24 : 168
+      // Para monitor específico, usar dados reais dos monitorChecks
+      if (monitorChecks.length === 0) {
+        return { labels: [], datasets: [] }
+      }
       
+      const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
       const labels: string[] = []
       const responseTimeData: number[] = []
       
-      // Agrupar por hora e calcular média
-      const hourlyData: { [key: string]: number[] } = {}
+      // Agrupar dados por período baseado no timeRange selecionado
+      const groupedData: { [key: string]: number[] } = {}
       
       monitorChecks.forEach(check => {
-        if (check.response_time) {
-          const hour = new Date(check.checked_at).toISOString().slice(0, 13) + ':00:00'
-          if (!hourlyData[hour]) {
-            hourlyData[hour] = []
-          }
-          hourlyData[hour].push(check.response_time)
+        let groupKey: string
+        const checkDate = new Date(check.checked_at)
+        
+        if (selectedRange?.days === 1) {
+          // Para 24h, agrupar por hora
+          groupKey = checkDate.toISOString().slice(0, 13) // YYYY-MM-DDTHH
+        } else {
+          // Para outros períodos, agrupar por dia
+          groupKey = checkDate.toISOString().slice(0, 10) // YYYY-MM-DD
         }
+        
+        if (!groupedData[groupKey]) {
+          groupedData[groupKey] = []
+        }
+        groupedData[groupKey].push(check.response_time)
       })
       
-      for (let i = hoursBack; i >= 0; i--) {
-        const date = new Date(Date.now() - i * 60 * 60 * 1000)
-        const hour = date.toISOString().slice(0, 13) + ':00:00'
-        const label = selectedRange?.days === 1 
-          ? date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-          : date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      // Ordenar as chaves por data e criar labels e dados
+      const sortedKeys = Object.keys(groupedData).sort()
+      
+      sortedKeys.forEach(key => {
+        const responseTimes = groupedData[key]
+        const avgResponseTime = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
+        
+        // Formatar label baseado no período
+        let label: string
+        if (selectedRange?.days === 1) {
+          // Para 24h, mostrar hora
+          const date = new Date(key + ':00:00')
+          label = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        } else {
+          // Para outros períodos, mostrar data
+          const date = new Date(key)
+          label = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+        }
         
         labels.push(label)
-        
-        const times = hourlyData[hour] || []
-        const avgTime = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 0
-        responseTimeData.push(avgTime)
-      }
+        responseTimeData.push(Math.round(avgResponseTime))
+      })
       
       return {
         labels,
         datasets: [
           {
-            label: 'Tempo de Resposta (ms)',
+            label: 'Tempo de Resposta Médio (ms)',
             data: responseTimeData,
             borderColor: '#3b82f6',
             backgroundColor: 'rgba(59, 130, 246, 0.1)',
@@ -831,21 +818,6 @@ export function ReportsPage() {
           </SelectContent>
         </Select>
         
-        <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <Globe className="h-4 w-4" />
-            <SelectValue placeholder="Grupo" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os grupos</SelectItem>
-            {groups.map((group) => (
-              <SelectItem key={group.id} value={group.id}>
-                {group.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
         <Select value={selectedMonitor} onValueChange={setSelectedMonitor}>
           <SelectTrigger className="w-full sm:w-[200px]">
             <Activity className="h-4 w-4" />
@@ -853,7 +825,7 @@ export function ReportsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">Todos os monitores</SelectItem>
-            {getFilteredMonitors().map((monitor) => (
+            {monitors.map((monitor) => (
               <SelectItem key={monitor.id} value={monitor.id}>
                 {monitor.name}
               </SelectItem>
@@ -1108,7 +1080,7 @@ export function ReportsPage() {
                       }
                       const config = statusConfig[status as keyof typeof statusConfig] || statusConfig.unknown
                       return (
-                        <Badge className={`${config.color} text-white`}>
+                        <Badge className={`${config.color} text-white hover:${config.color} cursor-default`}>
                           {config.icon} {config.text}
                         </Badge>
                       )
