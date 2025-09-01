@@ -73,31 +73,74 @@ interface IncidentHistory {
   resolved_at: string | null
 }
 
-// Função para gerar dados do gráfico de uptime
-const generateUptimeChartData = (monitors: PublicMonitor[]) => {
-  const last30Days = Array.from({ length: 30 }, (_, i) => {
-    const date = new Date()
-    date.setDate(date.getDate() - (29 - i))
-    return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
-  })
+interface MonitorStats {
+  totalChecks: number
+  successfulChecks: number
+  failedChecks: number
+  minResponseTime: number
+  maxResponseTime: number
+  avgResponseTime: number
+}
 
-  return {
-    labels: last30Days,
-    datasets: [
-      {
-        label: 'Uptime (%)',
-        data: last30Days.map(() => {
-          // Simular dados de uptime histórico
-          const avgUptime = monitors.length > 0 
-            ? monitors.reduce((acc, m) => acc + m.uptime_30d, 0) / monitors.length
-            : 100
-          return avgUptime + (Math.random() - 0.5) * 5 // Variação simulada
-        }),
-        backgroundColor: '#10b981',
-        borderColor: '#10b981',
-        borderWidth: 1,
-      },
-    ],
+// Função para buscar dados históricos reais de uptime
+const fetchUptimeHistory = async (groupId?: string) => {
+  try {
+    const params = new URLSearchParams({
+      days: '30'
+    })
+    
+    if (groupId && groupId !== 'all') {
+      params.append('group_id', groupId)
+    }
+    
+    const response = await fetch(`/api/public/uptime-history?${params}`)
+    if (!response.ok) {
+      throw new Error('Falha ao buscar histórico de uptime')
+    }
+    
+    const uptimeData = await response.json()
+    
+    return {
+      labels: uptimeData.map((item: any) => item.date),
+      datasets: [
+        {
+          label: 'Uptime (%)',
+          data: uptimeData.map((item: any) => item.uptime),
+          backgroundColor: '#10b981',
+          borderColor: '#10b981',
+          borderWidth: 1,
+        },
+      ],
+    }
+  } catch (error) {
+    console.error('Erro ao buscar histórico de uptime:', error)
+    // Fallback para dados vazios em caso de erro
+    return {
+      labels: [],
+      datasets: [
+        {
+          label: 'Uptime (%)',
+          data: [],
+          backgroundColor: '#10b981',
+          borderColor: '#10b981',
+          borderWidth: 1,
+        },
+      ],
+    }
+  }
+}
+
+// Função para buscar estatísticas reais do monitor
+const fetchMonitorStats = async (monitorId: string): Promise<MonitorStats | null> => {
+  try {
+    const response = await fetch(`/api/public/monitor-stats/${monitorId}`)
+    if (!response.ok) {
+      throw new Error('Erro ao buscar estatísticas do monitor')
+    }
+    return await response.json()
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas do monitor:', error)
+    return null
   }
 }
 
@@ -130,17 +173,49 @@ export function StatusPage() {
   const [refreshing, setRefreshing] = useState(false)
   const [incidents, setIncidents] = useState<IncidentHistory[]>([])
   const [groupName, setGroupName] = useState<string>('')
-  const [uptimeHistory, setUptimeHistory] = useState<any[]>([])
+  const [uptimeChartData, setUptimeChartData] = useState<any>(null)
   const [responseTimeHistory, setResponseTimeHistory] = useState<any[]>([])
+  const [monitorStats, setMonitorStats] = useState<MonitorStats | null>(null)
 
   useEffect(() => {
     fetchStatusData()
     fetchGroupName()
+    loadUptimeData()
     
     // Atualizar a cada 30 segundos
-    const interval = setInterval(fetchStatusData, 30000)
+    const interval = setInterval(() => {
+      fetchStatusData()
+      loadUptimeData()
+    }, 30000)
     return () => clearInterval(interval)
   }, [groupId])
+
+  // Carregar estatísticas quando os dados do monitor estiverem disponíveis
+  useEffect(() => {
+    if (data && data.monitors.length > 0) {
+      loadMonitorStats()
+    }
+  }, [data])
+
+  const loadUptimeData = async () => {
+    try {
+      const chartData = await fetchUptimeHistory(groupId)
+      setUptimeChartData(chartData)
+    } catch (error) {
+      console.error('Erro ao carregar dados de uptime:', error)
+    }
+  }
+
+  const loadMonitorStats = async () => {
+    try {
+      if (data && data.monitors.length > 0) {
+        const stats = await fetchMonitorStats(data.monitors[0].id)
+        setMonitorStats(stats)
+      }
+    } catch (error) {
+      console.error('Erro ao carregar estatísticas do monitor:', error)
+    }
+  }
 
   const fetchStatusData = async (showRefreshing = false) => {
     if (showRefreshing) setRefreshing(true)
@@ -617,7 +692,7 @@ export function StatusPage() {
                       )}
                       
                       {/* Status Badge */}
-                      <Badge className={getStatusColor(monitor.status)}>
+                      <Badge variant="status" className={getStatusColor(monitor.status)}>
                         {monitor.status === 'online' && 'Online'}
                         {monitor.status === 'offline' && 'Offline'}
                         {monitor.status === 'warning' && 'Aviso'}
@@ -650,42 +725,48 @@ export function StatusPage() {
               </CardHeader>
               <CardContent style={{ padding: '1.5rem' }}>
                 <div className="h-64">
-                  <Bar 
-                    data={generateUptimeChartData(data.monitors)} 
-                    options={{
-                      responsive: true,
-                      maintainAspectRatio: false,
-                      plugins: {
-                        legend: {
-                          display: false,
+                  {uptimeChartData ? (
+                    <Bar 
+                      data={uptimeChartData} 
+                      options={{
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                          legend: {
+                            display: false,
+                          },
                         },
-                      },
-                      scales: {
-                        y: {
-                          beginAtZero: true,
-                          max: 100,
-                          ticks: {
-                            color: '#6b7280',
-                            callback: function(value) {
-                              return value + '%'
+                        scales: {
+                          y: {
+                            beginAtZero: true,
+                            max: 100,
+                            ticks: {
+                              color: '#6b7280',
+                              callback: function(value) {
+                                return value + '%'
+                              }
+                            },
+                            grid: {
+                              color: '#e5e7eb'
                             }
                           },
-                          grid: {
-                            color: '#e5e7eb'
+                          x: {
+                            ticks: {
+                              color: '#6b7280',
+                              maxRotation: 45,
+                            },
+                            grid: {
+                              color: '#e5e7eb'
+                            }
                           }
                         },
-                        x: {
-                          ticks: {
-                            color: '#6b7280',
-                            maxRotation: 45,
-                          },
-                          grid: {
-                            color: '#e5e7eb'
-                          }
-                        }
-                      },
-                    }} 
-                  />
+                      }} 
+                    />
+                  ) : (
+                    <div className="flex items-center justify-center h-full text-gray-500">
+                      Carregando dados de uptime...
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -779,11 +860,11 @@ export function StatusPage() {
                           </div>
                           <div className="flex justify-between">
                             <span style={{ color: '#6b7280' }}>Tempo Mínimo</span>
-                            <span className="text-green-600">71ms</span>
+                            <span className="text-green-600">{monitorStats?.minResponseTime || 0}ms</span>
                           </div>
                           <div className="flex justify-between">
                             <span style={{ color: '#6b7280' }}>Tempo Máximo</span>
-                            <span className="text-red-600">1015ms</span>
+                            <span className="text-red-600">{monitorStats?.maxResponseTime || 0}ms</span>
                           </div>
                         </div>
                       )}
@@ -791,15 +872,15 @@ export function StatusPage() {
                       <div className="space-y-2 text-sm">
                         <div className="flex justify-between">
                           <span style={{ color: '#6b7280' }}>Total de Verificações</span>
-                          <span style={{ color: '#1f2937' }}>336</span>
+                          <span style={{ color: '#1f2937' }}>{monitorStats?.totalChecks || 0}</span>
                         </div>
                         <div className="flex justify-between">
                           <span style={{ color: '#6b7280' }}>Verificações Bem-sucedidas</span>
-                          <span className="text-green-600">336</span>
+                          <span className="text-green-600">{monitorStats?.successfulChecks || 0}</span>
                         </div>
                         <div className="flex justify-between">
                           <span style={{ color: '#6b7280' }}>Verificações Falhadas</span>
-                          <span className="text-red-600">0</span>
+                          <span className="text-red-600">{monitorStats?.failedChecks || 0}</span>
                         </div>
                       </div>
                     </div>
@@ -839,7 +920,7 @@ export function StatusPage() {
                       <div className="flex-1">
                         <div className="flex items-center space-x-2 mb-1">
                           <h4 className="font-medium" style={{ color: '#1f2937' }}>{incident.title}</h4>
-                          <Badge className={`${getIncidentStatusColor(incident.status)} ${incident.status === 'resolved' ? 'hover:bg-green-100' : ''}`}>
+                          <Badge variant="status" className={getIncidentStatusColor(incident.status)}>
                             {incident.status === 'resolved' && 'Resolvido'}
                             {incident.status === 'investigating' && 'Investigando'}
                             {incident.status === 'identified' && 'Identificado'}

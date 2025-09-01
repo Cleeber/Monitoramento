@@ -1298,6 +1298,71 @@ app.get('/api/public/monitors/:id/checks', async (req, res) => {
   }
 })
 
+// Rota pública para obter dados históricos de uptime
+app.get('/api/public/uptime-history', async (req, res) => {
+  try {
+    const { days = 30, group_id } = req.query
+    const daysNumber = parseInt(days as string)
+    
+    // Calcular data de início
+    const endDate = new Date()
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - daysNumber)
+    
+    // Obter monitores
+    let monitors = await databaseService.getMonitors()
+    if (group_id && group_id !== 'all') {
+      monitors = monitors.filter(m => m.group_id === group_id)
+    }
+    
+    // Gerar dados para cada dia
+    const uptimeData = []
+    for (let i = 0; i < daysNumber; i++) {
+      const currentDate = new Date(startDate)
+      currentDate.setDate(startDate.getDate() + i)
+      
+      const dayStart = new Date(currentDate)
+      dayStart.setHours(0, 0, 0, 0)
+      
+      const dayEnd = new Date(currentDate)
+      dayEnd.setHours(23, 59, 59, 999)
+      
+      let totalUptime = 0
+      let monitorCount = 0
+      
+      // Calcular uptime para cada monitor neste dia
+      for (const monitor of monitors) {
+        if (!monitor.is_active) continue
+        
+        const checks = await databaseService.getMonitorChecksForPeriod(
+          monitor.id,
+          dayStart,
+          dayEnd
+        )
+        
+        if (checks.length > 0) {
+          const onlineChecks = checks.filter(c => c.status === 'online').length
+          const uptimePercentage = (onlineChecks / checks.length) * 100
+          totalUptime += uptimePercentage
+          monitorCount++
+        }
+      }
+      
+      const avgUptime = monitorCount > 0 ? totalUptime / monitorCount : 100
+      
+      uptimeData.push({
+        date: currentDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
+        uptime: Math.round(avgUptime * 100) / 100
+      })
+    }
+    
+    res.json(uptimeData)
+  } catch (error) {
+    console.error('Erro ao buscar histórico de uptime:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
 app.get('/api/public/incidents', async (req, res) => {
   try {
     const { limit = 10, days = 7 } = req.query
@@ -1409,6 +1474,69 @@ function getIncidentDescription(status: string, errorMessage: string | null, mon
   
   return baseDescription
 }
+
+// Endpoint para obter estatísticas detalhadas de um monitor
+app.get('/api/public/monitor-stats/:monitorId', async (req, res) => {
+  try {
+    const { monitorId } = req.params
+    
+    // Verificar se o monitor existe
+    const monitor = await databaseService.getMonitorById(monitorId)
+    if (!monitor) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
+    }
+    
+    // Buscar checks dos últimos 30 dias usando DatabaseService
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const now = new Date()
+    
+    const checks = await databaseService.getMonitorChecksForPeriod(monitorId, thirtyDaysAgo, now)
+    
+    if (!checks || checks.length === 0) {
+      return res.json({
+        totalChecks: 0,
+        successfulChecks: 0,
+        failedChecks: 0,
+        minResponseTime: 0,
+        maxResponseTime: 0,
+        avgResponseTime: 0
+      })
+    }
+    
+    // Calcular estatísticas
+    const totalChecks = checks.length
+    const successfulChecks = checks.filter(check => check.status === 'online').length
+    const failedChecks = totalChecks - successfulChecks
+    
+    // Calcular tempos de resposta (apenas para checks bem-sucedidos)
+    const responseTimes = checks
+      .filter(check => check.status === 'online' && check.response_time)
+      .map(check => check.response_time)
+    
+    let minResponseTime = 0
+    let maxResponseTime = 0
+    let avgResponseTime = 0
+    
+    if (responseTimes.length > 0) {
+      minResponseTime = Math.min(...responseTimes)
+      maxResponseTime = Math.max(...responseTimes)
+      avgResponseTime = Math.round(responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length)
+    }
+    
+    res.json({
+      totalChecks,
+      successfulChecks,
+      failedChecks,
+      minResponseTime,
+      maxResponseTime,
+      avgResponseTime
+    })
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas do monitor:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
 
 // Rota de health check
 app.get('/api/health', (_, res) => {
