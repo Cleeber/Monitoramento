@@ -43,7 +43,16 @@ export function Layout() {
         <div className="fixed inset-0 bg-gray-600 bg-opacity-75" onClick={() => setSidebarOpen(false)} />
         <div className="fixed inset-y-0 left-0 flex w-64 flex-col shadow-xl" style={{backgroundColor: '#181b20'}}>
           <div className="flex h-16 items-center justify-between px-4">
-            <h1 className="text-xl font-bold text-white">Site Monitor</h1>
+            <div className="flex items-center">
+              <div className="w-full flex items-center justify-center">
+                  <img 
+                   src="/Pag1_Principal.svg" 
+                   alt="Logo da Empresa" 
+                   className="w-full h-auto object-contain"
+                   style={{ aspectRatio: '198.43/106.36' }}
+                  />
+                </div>
+            </div>
             <Button
               variant="ghost"
               size="icon"
@@ -116,10 +125,14 @@ export function Layout() {
         <div className="flex flex-col flex-grow pt-5 pb-4 overflow-y-auto" style={{backgroundColor: '#181b20', borderRight: '1px solid #2c313a'}}>
           <div className="flex items-center flex-shrink-0 px-4 mb-8">
             <div className="flex items-center">
-              <div className="w-8 h-8 bg-blue-800 rounded-lg flex items-center justify-center mr-3">
-                <span className="text-white font-bold text-sm">SM</span>
-              </div>
-              <h1 className="text-xl font-bold text-white">Site Monitor</h1>
+              <div className="w-full flex items-center justify-center">
+                  <img 
+                   src="/Pag1_Principal.svg" 
+                   alt="Logo da Empresa" 
+                   className="w-full h-auto object-contain"
+                   style={{ aspectRatio: '198.43/106.36' }}
+                  />
+                </div>
             </div>
           </div>
           
