@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { 
   Mail, 
   Save, 
-  TestTube, 
   Eye, 
   EyeOff,
   AlertCircle,
@@ -129,7 +128,7 @@ export function SmtpConfigPage() {
       }
     } catch (error) {
       console.error('Erro ao testar SMTP:', error)
-      addToast({ title: `Erro ao enviar e-mail de teste: ${error.message}`, variant: 'destructive' })
+      addToast({ title: `Erro ao enviar e-mail de teste: ${error instanceof Error ? error.message : 'Erro desconhecido'}`, variant: 'destructive' })
     } finally {
       setTesting(false)
     }

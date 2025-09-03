@@ -25,7 +25,7 @@ const navigation = [
 ]
 
 export function Layout() {
-  const { user, logout } = useAuth()
+  const { logout } = useAuth()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 

@@ -129,7 +129,7 @@ export function DomainsPage() {
     
     // Validação do campo obrigatório
     if (!formData.report_send_time) {
-      addToast('O horário do envio é obrigatório', 'error')
+      addToast({ title: 'O horário do envio é obrigatório', variant: 'destructive' })
       return
     }
     

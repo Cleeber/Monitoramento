@@ -8,6 +8,8 @@ interface Monitor {
   group_id: string | null;
   group_name: string | null;
   status: 'online' | 'offline' | 'warning' | 'unknown';
+  // created_at é opcional, pois nem todas as APIs podem retornar
+  created_at?: string;
 }
 
 interface UseMonitorsReturn {

@@ -27,7 +27,7 @@ import {
   Legend,
   ArcElement,
 } from 'chart.js'
-import { Bar, Line, Doughnut } from 'react-chartjs-2'
+import { Bar, Doughnut } from 'react-chartjs-2'
 
 ChartJS.register(
   CategoryScale,
@@ -172,7 +172,7 @@ export function StatusPage() {
   const [incidents, setIncidents] = useState<IncidentHistory[]>([])
   const [groupName, setGroupName] = useState<string>('')
   const [uptimeChartData, setUptimeChartData] = useState<any>(null)
-  const [responseTimeHistory, setResponseTimeHistory] = useState<any[]>([])
+  // Removido: responseTimeHistory não utilizado
   const [monitorStats, setMonitorStats] = useState<MonitorStats | null>(null)
   const [uptimeData, setUptimeData] = useState<any>(null)
   const [incidentsData, setIncidentsData] = useState<any>(null)
@@ -254,7 +254,7 @@ export function StatusPage() {
     try {
       let statusUrl: string
       let incidentsUrl: string
-      let isMonitorIndividual = false
+      // Removido: isMonitorIndividual não utilizado
       let currentGroupId: string | null = null
       let currentMonitorId: string | null = null
       
@@ -297,7 +297,7 @@ export function StatusPage() {
             }
             setData(adaptedData)
             statusData = adaptedData
-            isMonitorIndividual = true
+            // Removido: isMonitorIndividual = true (não utilizado)
             currentMonitorId = monitorData.monitor.id
             
             // Para monitor individual, filtrar incidentes por monitor_id

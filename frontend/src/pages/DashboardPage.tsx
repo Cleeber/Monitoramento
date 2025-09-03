@@ -1,28 +1,23 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Button } from '../components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
 import { 
   Activity, 
   AlertTriangle, 
   CheckCircle, 
-  Clock, 
-  Globe, 
-  TrendingUp,
-  Users,
   XCircle,
   Monitor,
-  Plus,
-  Eye,
-  Zap,
+  TrendingUp,
   ArrowUpDown
 } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
-import { Link } from 'react-router-dom'
+// Removido import não utilizado: Link
+// import { Link } from 'react-router-dom'
 import { cn, formatDuration, calculateUptime } from '../lib/utils'
-import { formatDistanceToNow } from 'date-fns'
-import { ptBR } from 'date-fns/locale'
+// Removidos imports não utilizados: formatDistanceToNow, ptBR
+// import { formatDistanceToNow } from 'date-fns'
+// import { ptBR } from 'date-fns/locale'
 
 interface Monitor {
   id: string
@@ -65,6 +60,13 @@ export function DashboardPage() {
   const fetchDashboardData = async () => {
     try {
       const token = localStorage.getItem('auth_token')
+      
+      if (!token) {
+        console.log('Token não encontrado, redirecionando para login')
+        window.location.href = '/login'
+        return
+      }
+
       const [statsResponse, monitorsResponse] = await Promise.all([
         fetch(`${import.meta.env.VITE_API_URL}/dashboard/stats`, {
           headers: { Authorization: `Bearer ${token}` }
@@ -74,6 +76,15 @@ export function DashboardPage() {
         })
       ])
 
+      // Verificar se alguma resposta indica token inválido
+      if (statsResponse.status === 401 || monitorsResponse.status === 401) {
+        console.log('Token inválido, removendo do localStorage e redirecionando')
+        localStorage.removeItem('auth_token')
+        localStorage.removeItem('user_data')
+        window.location.href = '/login'
+        return
+      }
+
       if (statsResponse.ok && monitorsResponse.ok) {
         const [statsData, monitorsData] = await Promise.all([
           statsResponse.json(),
@@ -81,6 +92,12 @@ export function DashboardPage() {
         ])
         setStats(statsData)
         setMonitors(monitorsData)
+        console.log('Dados do dashboard carregados com sucesso')
+      } else {
+        console.error('Erro nas respostas da API:', {
+          stats: statsResponse.status,
+          monitors: monitorsResponse.status
+        })
       }
     } catch (error) {
       console.error('Erro ao buscar dados do dashboard:', error)

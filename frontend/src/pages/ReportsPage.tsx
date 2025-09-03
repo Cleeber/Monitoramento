@@ -189,24 +189,7 @@ export function ReportsPage() {
     }
   }
 
-  const captureChart = async (elementId: string): Promise<string | null> => {
-    try {
-      const element = document.getElementById(elementId)
-      if (!element) return null
-      
-      const canvas = await html2canvas(element, {
-        backgroundColor: '#181b20',
-        scale: 2,
-        logging: false,
-        useCORS: true
-      })
-      
-      return canvas.toDataURL('image/png')
-    } catch (error) {
-      console.error('Erro ao capturar gráfico:', error)
-      return null
-    }
-  }
+  // Função captureChart removida por não ser utilizada
 
   const captureStatusPage = async (monitorSlug: string): Promise<string | null> => {
     try {

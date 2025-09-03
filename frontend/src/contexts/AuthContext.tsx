@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react'
-import { supabase } from '../lib/supabase'
+// Removido import não utilizado: supabase
+// import { supabase } from '../lib/supabase'
 
 interface User {
   id: string
@@ -34,20 +35,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
 
+  // Função para verificar se o token é válido
+  const isTokenValid = (token: string): boolean => {
+    try {
+      const payload = JSON.parse(atob(token.split('.')[1]))
+      const now = Math.floor(Date.now() / 1000)
+      return payload.exp > now
+    } catch (error) {
+      console.error('Erro ao validar token:', error)
+      return false
+    }
+  }
+
   useEffect(() => {
     // Verificar se há um token salvo no localStorage
     const token = localStorage.getItem('auth_token')
     const userData = localStorage.getItem('user_data')
     
     if (token && userData) {
-      try {
-        const parsedUser = JSON.parse(userData)
-        setUser(parsedUser)
-      } catch (error) {
-        console.error('Erro ao parsear dados do usuário:', error)
+      // Verificar se o token ainda é válido
+      if (isTokenValid(token)) {
+        try {
+          const parsedUser = JSON.parse(userData)
+          setUser(parsedUser)
+          console.log('Token válido encontrado, usuário autenticado:', parsedUser.email)
+        } catch (error) {
+          console.error('Erro ao parsear dados do usuário:', error)
+          localStorage.removeItem('auth_token')
+          localStorage.removeItem('user_data')
+        }
+      } else {
+        console.log('Token expirado, removendo do localStorage')
         localStorage.removeItem('auth_token')
         localStorage.removeItem('user_data')
       }
+    } else {
+      console.log('Nenhum token encontrado no localStorage')
     }
     
     setLoading(false)

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
+import { Card, CardContent } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '../components/ui/dialog'
@@ -10,7 +10,6 @@ import {
   Search, 
   Edit, 
   Trash2, 
-  Users, 
   Globe,
   Building,
   ChevronDown,
@@ -177,14 +176,14 @@ export function GroupsPage() {
       })
 
       if (response.ok) {
-        addToast('Grupo excluído com sucesso', 'success')
+        addToast({ title: 'Grupo excluído com sucesso', variant: 'success' })
         fetchGroups()
       } else {
         throw new Error('Erro ao excluir grupo')
       }
     } catch (error) {
       console.error('Erro ao excluir grupo:', error)
-      addToast('Erro ao excluir grupo', 'error')
+      addToast({ title: 'Erro ao excluir grupo', variant: 'destructive' })
     }
   }
 

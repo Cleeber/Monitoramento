@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { ExternalLink, Globe, Users, Monitor, Filter, ChevronDown, ArrowUpDown } from 'lucide-react';
+import { ExternalLink, Globe, Users, Monitor, Filter, ArrowUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Button } from '../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';

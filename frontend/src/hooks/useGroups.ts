@@ -5,6 +5,8 @@ interface Group {
   name: string;
   description?: string;
   slug: string;
+  // created_at é opcional, pois pode não ser retornado por todas as APIs
+  created_at?: string;
 }
 
 interface UseGroupsReturn {

@@ -9,7 +9,6 @@ import {
   Search, 
   Edit, 
   Trash2, 
-  Users, 
   Globe,
   Building
 } from 'lucide-react'
@@ -112,14 +111,14 @@ export function ClientsPage() {
       })
 
       if (response.ok) {
-        addToast('Grupo excluído com sucesso', 'success')
+        addToast({ title: 'Grupo excluído com sucesso', variant: 'success' })
         fetchGroups()
       } else {
         throw new Error('Erro ao excluir grupo')
       }
     } catch (error) {
       console.error('Erro ao excluir grupo:', error)
-      addToast('Erro ao excluir grupo', 'error')
+      addToast({ title: 'Erro ao excluir grupo', variant: 'destructive' })
     }
   }
 
