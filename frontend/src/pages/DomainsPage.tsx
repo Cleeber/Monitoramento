@@ -62,6 +62,7 @@ interface MonitorFormData {
   logo_url?: string | null
   report_email: string
   report_send_day: number
+  report_send_time: string
 }
 
 export function DomainsPage() {
@@ -83,7 +84,8 @@ export function DomainsPage() {
     slug: '',
     logo_url: null,
     report_email: '',
-    report_send_day: 1
+    report_send_day: 1,
+    report_send_time: '09:00'
   })
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -125,6 +127,12 @@ export function DomainsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
+    // Validação do campo obrigatório
+    if (!formData.report_send_time) {
+      addToast('O horário do envio é obrigatório', 'error')
+      return
+    }
+    
     try {
       let logoUrl = formData.logo_url
       
@@ -151,6 +159,8 @@ export function DomainsPage() {
         },
         body: JSON.stringify({
           ...formData,
+          interval: formData.interval * 1000, // Converter segundos para milissegundos
+          timeout: formData.timeout * 1000,   // Converter segundos para milissegundos
           logo_url: logoUrl
         })
       })
@@ -208,7 +218,8 @@ export function DomainsPage() {
       slug: monitor.slug || '',
       logo_url: monitor.logo_url,
       report_email: (monitor as any).report_email || '',
-      report_send_day: (monitor as any).report_send_day || 1
+      report_send_day: (monitor as any).report_send_day || 1,
+      report_send_time: (monitor as any).report_send_time || '09:00'
     })
     
     // Se o monitor tem logo, definir como preview
@@ -234,7 +245,8 @@ export function DomainsPage() {
       slug: '',
       logo_url: null,
       report_email: '',
-      report_send_day: 1
+      report_send_day: 1,
+      report_send_time: '09:00'
     })
     setLogoFile(null)
     setLogoPreview(null)
@@ -528,6 +540,21 @@ export function DomainsPage() {
                       </Select>
                       <p className="text-xs text-gray-400">
                         Dia do mês em que o relatório será enviado (1-28)
+                      </p>
+                    </div>
+                    
+                    <div className="space-y-2">
+                      <Label htmlFor="report_send_time" className="text-white">Horário do Envio *</Label>
+                      <Input
+                        id="report_send_time"
+                        type="time"
+                        value={formData.report_send_time}
+                        onChange={(e) => setFormData({ ...formData, report_send_time: e.target.value })}
+                        className="bg-gray-800 border-gray-700 text-white"
+                        required
+                      />
+                      <p className="text-xs text-gray-400">
+                        Horário em que o relatório será enviado (formato 24h)
                       </p>
                     </div>
                   </div>

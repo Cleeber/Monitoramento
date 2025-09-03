@@ -18,8 +18,8 @@ export class SchedulerService {
     try {
       console.log('📅 Inicializando SchedulerService...')
       
-      // Agendar verificação diária para envio de relatórios
-      this.scheduleMonthlyReportsCheck()
+      // Agendar relatórios individuais para cada monitor
+      await this.scheduleIndividualMonitorReports()
       
       // Agendar limpeza de logs antigos (opcional)
       this.scheduleLogCleanup()
@@ -39,21 +39,56 @@ export class SchedulerService {
   }
 
   /**
-   * Agenda verificação diária para envio de relatórios mensais
-   * Executa todos os dias às 09:00
+   * Agenda relatórios individuais para cada monitor baseado no horário configurado
    */
-  private scheduleMonthlyReportsCheck(): void {
-    const task = cron.schedule('0 9 * * *', async () => {
-      console.log('⏰ Executando verificação diária de relatórios mensais...')
-      console.log('📅 Verificando relatórios mensais para envio...')
-      await this.checkAndSendMonthlyReports()
+  private async scheduleIndividualMonitorReports(): Promise<void> {
+    try {
+      // Buscar todos os monitores com configuração de relatório
+      const monitors = await databaseService.getMonitors()
+      
+      for (const monitor of monitors) {
+        if (monitor.report_email && monitor.report_send_day && monitor.report_send_time) {
+          await this.scheduleMonitorReport(monitor)
+        }
+      }
+      
+      console.log(`📅 Agendados relatórios para ${this.jobs.size - 1} monitores`) // -1 para excluir o job de limpeza
+    } catch (error) {
+      console.error('❌ Erro ao agendar relatórios individuais:', error)
+    }
+  }
+
+  /**
+   * Agenda relatório para um monitor específico
+   */
+  private async scheduleMonitorReport(monitor: any): Promise<void> {
+    const jobName = `monthly-report-${monitor.id}`
+    
+    // Remover job existente se houver
+    if (this.jobs.has(jobName)) {
+      this.jobs.get(jobName)?.stop()
+      this.jobs.delete(jobName)
+    }
+    
+    // Extrair hora e minuto do report_send_time (formato HH:MM)
+    const [hour, minute] = monitor.report_send_time.split(':')
+    const day = monitor.report_send_day
+    
+    // Criar expressão cron: minuto hora dia * *
+    const cronExpression = `${minute} ${hour} ${day} * *`
+    
+    const task = cron.schedule(cronExpression, async () => {
+      console.log(`📊 Enviando relatório mensal para monitor: ${monitor.name}`)
+      await this.sendMonthlyReportForMonitor(monitor)
     }, {
-      scheduled: true,
+      scheduled: false,
       timezone: 'America/Sao_Paulo'
     })
-
-    this.jobs.set('monthly-reports-check', task)
-    console.log('📅 Agendamento de relatórios mensais configurado (09:00 diariamente)')
+    
+    this.jobs.set(jobName, task)
+    task.start()
+    
+    console.log(`📅 Relatório agendado para monitor '${monitor.name}' - dia ${day} às ${hour}:${minute}`)
   }
 
   /**
@@ -75,90 +110,68 @@ export class SchedulerService {
   }
 
   /**
-   * Verifica e envia relatórios mensais que devem ser enviados hoje
+   * Envia relatório mensal para um monitor específico
    */
-  private async checkAndSendMonthlyReports(): Promise<void> {
+  private async sendMonthlyReportForMonitor(monitor: any): Promise<void> {
     try {
       const today = new Date()
-      const currentDay = today.getDate()
-      const currentMonth = today.getMonth() + 1
-      const currentYear = today.getFullYear()
+      const reportMonth = today.getMonth() + 1
+      const reportYear = today.getFullYear()
+      const todayStr = today.toISOString().split('T')[0] // YYYY-MM-DD
       
-      console.log(`📅 Verificando relatórios para o dia ${currentDay}...`)
+      console.log(`📧 Processando relatório para monitor ${monitor.name} (${monitor.id})`)
       
-      // Buscar todas as configurações de relatórios mensais
-      const configs = await databaseService.getMonthlyReportConfigs()
+      // Verificar se já foi enviado HOJE (não apenas este mês)
+      const history = await databaseService.getMonthlyReportHistory({
+        monitor_id: monitor.id,
+        report_year: reportYear,
+        report_month: reportMonth,
+        limit: 10 // Buscar mais registros para verificar hoje
+      })
       
-      console.log(`📋 Encontradas ${configs.length} configurações de relatórios`)
+      // Verificar se algum relatório foi enviado hoje
+      const sentToday = history.some(report => {
+        const reportDate = new Date(report.sent_at).toISOString().split('T')[0]
+        return reportDate === todayStr && report.status === 'sent'
+      })
       
-      let sentCount = 0
-      let errorCount = 0
-      let skippedCount = 0
-      
-      for (const config of configs) {
-        // Verificar se hoje é o dia de envio configurado
-        if (config.report_send_day === currentDay) {
-          console.log(`📊 Processando relatório mensal para monitor ${config.monitor_id} (${config.report_email})...`)
-          
-          try {
-            // Calcular mês anterior para o relatório
-            let reportMonth = currentMonth - 1
-            let reportYear = currentYear
-            
-            if (reportMonth === 0) {
-              reportMonth = 12
-              reportYear = currentYear - 1
-            }
-            
-            console.log(`📆 Período do relatório: ${reportMonth}/${reportYear}`)
-            
-            // Verificar se já foi enviado este mês
-            const history = await databaseService.getMonthlyReportHistory({
-              monitor_id: config.monitor_id,
-              year: reportYear,
-              month: reportMonth
-            })
-            const alreadySent = history.some(h => 
-              h.monitor_id === config.monitor_id &&
-              h.email === config.report_email
-            )
-            
-            if (alreadySent) {
-              console.log(`⏭️ Relatório já enviado para monitor ${config.monitor_id} em ${reportMonth}/${reportYear}`)
-              skippedCount++
-              continue
-            }
-            
-            // Enviar relatório
-            const result = await reportService.sendMonthlyReport(
-              config.monitor_id,
-              config.report_email,
-              reportYear,
-              reportMonth,
-              true // incluir PDF
-            )
-            
-            if (result.success) {
-              console.log(`✅ Relatório enviado com sucesso para ${config.report_email}`)
-              sentCount++
-            } else {
-              console.error(`❌ Falha ao enviar relatório para ${config.report_email}: ${result.message}`)
-              errorCount++
-            }
-            
-          } catch (error) {
-            console.error(`❌ Erro ao processar relatório para monitor ${config.monitor_id}:`, error)
-            errorCount++
-          }
-        } else {
-          console.log(`⏭️ Monitor ${config.monitor_id}: agendado para o dia ${config.report_send_day} (hoje é ${currentDay})`)
-        }
+      if (sentToday) {
+        console.log(`⏭️ Relatório já enviado hoje para monitor ${monitor.name} (${todayStr})`)
+        return
       }
       
-      console.log(`📊 Resumo da verificação: ${sentCount} enviados, ${errorCount} erros, ${skippedCount} já enviados, ${configs.length - sentCount - errorCount - skippedCount} não agendados para hoje`)
-      
+      try {
+        // Gerar e enviar relatório dinamicamente com dados dos últimos 30 dias
+        await reportService.sendMonthlyReportDynamic(monitor.id, monitor.report_email)
+        
+        // Registrar no histórico
+        await databaseService.createMonthlyReportHistory({
+          monitor_id: monitor.id,
+          email_sent_to: monitor.report_email,
+          report_year: reportYear,
+          report_month: reportMonth,
+          report_data: { success: true, sent_at: new Date().toISOString() },
+          sent_at: new Date().toISOString(),
+          status: 'sent'
+        })
+        
+        console.log(`✅ Relatório enviado com sucesso para ${monitor.report_email}`)
+      } catch (error) {
+        console.error(`❌ Erro ao enviar relatório para ${monitor.report_email}:`, error)
+        
+        // Registrar erro no histórico
+        await databaseService.createMonthlyReportHistory({
+          monitor_id: monitor.id,
+          email_sent_to: monitor.report_email,
+          report_year: reportYear,
+          report_month: reportMonth,
+          report_data: { success: false, error: error instanceof Error ? error.message : 'Erro desconhecido' },
+          sent_at: new Date().toISOString(),
+          status: 'failed'
+        })
+      }
     } catch (error) {
-      console.error('❌ Erro ao verificar relatórios mensais:', error)
+      console.error('❌ Erro ao processar relatório mensal:', error)
     }
   }
 
@@ -292,6 +305,42 @@ export class SchedulerService {
   }
 
   /**
+   * Reagenda relatório para um monitor específico (usado quando configurações são alteradas)
+   */
+  async rescheduleMonitorReport(monitorId: string): Promise<void> {
+    try {
+      const monitor = await databaseService.getMonitorById(monitorId)
+
+      const jobName = `monthly-report-${monitorId}`
+
+      // Se não existir monitor, apenas remove o job (se houver)
+      if (!monitor) {
+        if (this.jobs.has(jobName)) {
+          this.jobs.get(jobName)?.stop()
+          this.jobs.delete(jobName)
+          console.log(`📅 Job removido para monitor inexistente ${monitorId}`)
+        }
+        return
+      }
+
+      // Se configuração estiver completa, reagendar
+      if (monitor.report_email && monitor.report_send_day && monitor.report_send_time) {
+        await this.scheduleMonitorReport(monitor)
+        return
+      }
+
+      // Caso contrário, remover job existente
+      if (this.jobs.has(jobName)) {
+        this.jobs.get(jobName)?.stop()
+        this.jobs.delete(jobName)
+        console.log(`📅 Job removido para monitor ${monitor.name} (${monitorId}) por ausência de configuração`)
+      }
+    } catch (error) {
+      console.error(`❌ Erro ao reagendar job do monitor ${monitorId}:`, error)
+    }
+  }
+
+  /**
    * Para todos os jobs e limpa o serviço
    */
   shutdown(): void {
@@ -313,7 +362,8 @@ export class SchedulerService {
    */
   async triggerMonthlyReportsCheck(): Promise<void> {
     console.log('🚀 Executando verificação de relatórios mensais manualmente...')
-    await this.checkAndSendMonthlyReports()
+    // Método não implementado - usar scheduleIndividualMonitorReports
+    await this.scheduleIndividualMonitorReports()
   }
 
   /**
@@ -324,7 +374,8 @@ export class SchedulerService {
     const startTime = Date.now()
     
     try {
-      await this.checkAndSendMonthlyReports()
+      // Usar método existente para verificar relatórios individuais
+      await this.scheduleIndividualMonitorReports()
       const duration = Date.now() - startTime
       console.log(`✅ Verificação manual concluída em ${duration}ms`)
     } catch (error) {

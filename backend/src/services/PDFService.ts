@@ -37,15 +37,18 @@ export class PDFService {
       const page = await browser.newPage()
       
       // Configurar viewport otimizado
+      // Ajuste fino para PDFs: reduzimos a largura (para cortar espaços laterais)
+      // e aumentamos a densidade (deviceScaleFactor) para manter nitidez ao ampliar no PDF
       await page.setViewport({
-        width: 1920,
-        height: 1080,
-        deviceScaleFactor: 1.5 // Mesma escala do frontend
+        width: 1200,      // antes: 1920. Largura menor reduz o espaço vazio nas laterais
+        height: 1600,     // altura maior para caber mais conteúdo vertical
+        deviceScaleFactor: 2.5 // antes: 1.5. Aumenta a definição/legibilidade
       })
       
       // Obter URL base do frontend das variáveis de ambiente
       const frontendBaseUrl = process.env.FRONTEND_BASE_URL || baseUrl
-      const statusUrl = `${frontendBaseUrl}/status/${monitorSlug}`
+      // Forçar modo monitor na renderização da página de Status para evitar relatório geral
+      const statusUrl = `${frontendBaseUrl}/status/${encodeURIComponent(monitorSlug)}?forceMonitor=1`
       console.log(`🌐 Navegando para: ${statusUrl}`)
       
       // Navegar para a página com timeout otimizado
@@ -80,7 +83,7 @@ export class PDFService {
         fullPage: true
       })
       
-      console.log(`✅ Captura concluída (${Math.round(screenshot.length / 1024)}KB)`)
+      console.log(`✅ Captura concluída (${Math.round(screenshot.length / 1024)}KB)`)!
       return screenshot
       
     } catch (error) {
@@ -93,6 +96,65 @@ export class PDFService {
     }
   }
   
+  /**
+   * Gera PDF dinâmico da página de status com dados dos últimos 30 dias
+   */
+  async generateDynamicStatusPDF(monitorSlug: string, monitorName: string, baseUrl?: string): Promise<Buffer> {
+    try {
+      console.log(`📊 Gerando PDF dinâmico para monitor: ${monitorName} (${monitorSlug})`);
+      
+      // Capturar a página de status com dados atualizados
+      const screenshot = await this.captureStatusPage(monitorSlug, baseUrl);
+      
+      // Criar PDF com a captura
+      const doc = new PDFDocument({
+        size: 'A4',
+        margins: { top: 50, bottom: 50, left: 50, right: 50 }
+      });
+      
+      const chunks: Buffer[] = [];
+      doc.on('data', chunk => chunks.push(chunk));
+      
+      return new Promise((resolve, reject) => {
+        doc.on('end', () => {
+          const pdfBuffer = Buffer.concat(chunks);
+          console.log(`✅ PDF dinâmico gerado (${Math.round(pdfBuffer.length / 1024)}KB)`);
+          resolve(pdfBuffer);
+        });
+        
+        doc.on('error', reject);
+        
+        // Adicionar cabeçalho
+        this.addHeader(doc, `Relatório Dinâmico - ${monitorName}`, 'Últimos 30 dias');
+        
+        // Adicionar timestamp
+        doc.fontSize(10)
+           .fillColor('#666666')
+           .text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 50, doc.y + 10);
+        
+        // Adicionar a captura da página de status
+        try {
+          doc.image(screenshot, 50, doc.y + 20, {
+            fit: [495, 700], // Ajustar para caber na página A4
+            align: 'center'
+          });
+        } catch (imageError) {
+          console.error('Erro ao adicionar imagem ao PDF:', imageError);
+          doc.fontSize(12)
+             .fillColor('#ff0000')
+             .text('Erro ao carregar captura da página de status', 50, doc.y + 20);
+        }
+        
+        // Finalizar o documento
+        doc.end();
+      });
+      
+    } catch (error) {
+      console.error('❌ Erro ao gerar PDF dinâmico:', error);
+      throw error;
+    }
+  }
+
   /**
    * Gera PDF otimizado a partir de captura de página de status
    */
@@ -564,7 +626,7 @@ export class PDFService {
     let chartLine = ''
     
     for (let i = 0; i < days; i++) {
-      const uptime = Math.random() > 0.05 ? '█' : '▁' // 95% de chance de estar online
+      const uptime = Math.random() > 0.05 ? '█' : ' ' // 95% de chance de estar online
       chartLine += uptime
     }
     
@@ -576,7 +638,7 @@ export class PDFService {
     doc.fontSize(9)
        .font('Helvetica')
        .fillColor('#6b7280')
-       .text('█ Online  ▁ Offline', 50, doc.y + 15)
+       .text('█ Online    Offline', 50, doc.y + 15)
        .text('(Últimos 30 dias)', 50, doc.y + 30)
     
     doc.moveDown(3)

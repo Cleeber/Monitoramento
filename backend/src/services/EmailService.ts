@@ -215,7 +215,8 @@ export class EmailService {
     monitorName: string, 
     reportContent: string, 
     pdfBuffer?: Buffer,
-    fileName?: string
+    fileName?: string,
+    statusLink?: string
   ): Promise<{ success: boolean; message: string }> {
     try {
       console.log(`📊 Iniciando envio de relatório mensal para: ${toEmail}`)
@@ -259,6 +260,13 @@ export class EmailService {
               </div>
               
               ${pdfBuffer ? '<p style="margin-top: 20px;"><strong>📎 Anexo:</strong> Relatório detalhado em PDF</p>' : ''}
+              
+              ${statusLink ? `
+              <div style="background-color: #ecfeff; padding: 15px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #06b6d4;">
+                <p style="margin: 0; color: #0e7490;"><strong>🔗 Acompanhe o status em tempo real:</strong><br>
+                  <a href="${statusLink}" target="_blank" style="color: #0369a1; text-decoration: none;">${statusLink}</a>
+                </p>
+              </div>` : ''}
               
               <div style="background-color: #eff6ff; padding: 15px; border-radius: 6px; margin-top: 20px;">
                 <p style="margin: 0; color: #1e40af;"><strong>💡 Dica:</strong> Este relatório é gerado automaticamente no dia ${currentDate.getDate()} de cada mês.</p>

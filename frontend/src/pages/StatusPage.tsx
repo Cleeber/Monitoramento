@@ -8,13 +8,11 @@ import {
   Clock, 
   Activity,
   Globe,
-  RefreshCw,
   Calendar,
   TrendingUp,
   BarChart3,
   PieChart
 } from 'lucide-react'
-import { Button } from '../components/ui/button'
 import { formatDuration } from '../lib/utils'
 
 import {
@@ -170,22 +168,30 @@ export function StatusPage() {
   const { groupId } = useParams<{ groupId: string }>()
   const [data, setData] = useState<StatusPageData | null>(null)
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
+  // const [refreshing, setRefreshing] = useState(false)
   const [incidents, setIncidents] = useState<IncidentHistory[]>([])
   const [groupName, setGroupName] = useState<string>('')
   const [uptimeChartData, setUptimeChartData] = useState<any>(null)
   const [responseTimeHistory, setResponseTimeHistory] = useState<any[]>([])
   const [monitorStats, setMonitorStats] = useState<MonitorStats | null>(null)
+  const [uptimeData, setUptimeData] = useState<any>(null)
+  const [incidentsData, setIncidentsData] = useState<any>(null)
+  const [responseTimeData, setResponseTimeData] = useState<any>(null)
+  
+  // Calcular totalServices baseado nos dados
+  const totalServices = data ? data.monitors.length : 0
 
   useEffect(() => {
     fetchStatusData()
     fetchGroupName()
     loadUptimeData()
+    loadIncidentsData()
     
     // Atualizar a cada 30 segundos
     const interval = setInterval(() => {
       fetchStatusData()
       loadUptimeData()
+      loadIncidentsData()
     }, 30000)
     return () => clearInterval(interval)
   }, [groupId])
@@ -194,6 +200,8 @@ export function StatusPage() {
   useEffect(() => {
     if (data && data.monitors.length > 0) {
       loadMonitorStats()
+      loadUptimeData() // Recalcular uptime com os novos dados
+      loadIncidentsData() // Atualizar dados de incidentes
     }
   }, [data])
 
@@ -201,6 +209,20 @@ export function StatusPage() {
     try {
       const chartData = await fetchUptimeHistory(groupId)
       setUptimeChartData(chartData)
+      
+      // Calcular dados de uptime para os cards de métricas
+      if (data && data.monitors.length > 0) {
+        const totalUptime = data.monitors.reduce((sum, monitor) => sum + monitor.uptime_30d, 0)
+        const avgUptime = totalUptime / data.monitors.length
+        setUptimeData({ uptime_percentage: avgUptime })
+        
+        // Calcular tempo de resposta médio
+        const validResponseTimes = data.monitors.filter(m => m.response_time !== null)
+        if (validResponseTimes.length > 0) {
+          const avgResponseTime = validResponseTimes.reduce((sum, m) => sum + (m.response_time || 0), 0) / validResponseTimes.length
+          setResponseTimeData({ avg_response_time: Math.round(avgResponseTime) })
+        }
+      }
     } catch (error) {
       console.error('Erro ao carregar dados de uptime:', error)
     }
@@ -217,8 +239,17 @@ export function StatusPage() {
     }
   }
 
-  const fetchStatusData = async (showRefreshing = false) => {
-    if (showRefreshing) setRefreshing(true)
+  const loadIncidentsData = async () => {
+    try {
+      // Simular dados de incidentes para os cards de métricas
+      // Em um ambiente real, isso viria de uma API
+      setIncidentsData({ total_incidents: incidents.length })
+    } catch (error) {
+      console.error('Erro ao carregar dados de incidentes:', error)
+    }
+  }
+
+  const fetchStatusData = async () => {
     
     try {
       let statusUrl: string
@@ -287,7 +318,7 @@ export function StatusPage() {
       console.error('Erro ao buscar dados de status:', error)
     } finally {
       setLoading(false)
-      setRefreshing(false)
+      // refreshing removido conforme solicitação
     }
   }
 
@@ -325,9 +356,7 @@ export function StatusPage() {
     }
   }
 
-  const handleRefresh = () => {
-    fetchStatusData(true)
-  }
+  // handleRefresh removido conforme solicitação
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -422,9 +451,7 @@ export function StatusPage() {
           <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
           <h2 className="text-xl font-semibold mb-2" style={{ color: '#1f2937' }}>Erro ao carregar status</h2>
           <p className="mb-4" style={{ color: '#6b7280' }}>Não foi possível carregar as informações de status</p>
-          <Button onClick={handleRefresh}>
-            Tentar novamente
-          </Button>
+          {/* Botão de tentar novamente removido conforme solicitação */}
         </div>
       </div>
     )
@@ -484,10 +511,10 @@ export function StatusPage() {
         boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1)' 
       }}>
         {/* Overall Status */}
-        <Card className="mb-8 border shadow-lg" style={{ 
+        <Card className="mb-8 border shadow-lg text-gray-900" style={{ 
           backgroundColor: '#ffffff', 
-          borderColor: '#d1d5db',
-          borderWidth: '1.5px',
+          borderColor: '#e5e7eb',
+          borderWidth: '1px',
           borderRadius: '12px',
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
         }}>
@@ -504,134 +531,72 @@ export function StatusPage() {
                   </p>
                 </div>
               </div>
-              <Button 
-                variant="outline" 
-                size="sm" 
-                onClick={handleRefresh}
-                disabled={refreshing}
-                style={{
-                  borderColor: '#0282ff',
-                  color: '#0282ff',
-                  backgroundColor: '#ffffff'
-                }}
-                className="hover:bg-blue-50 transition-colors"
-              >
-                <RefreshCw className={`h-4 w-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
-                Atualizar
-              </Button>
+              {/* Botão de atualização removido conforme solicitação */}
             </div>
           </CardContent>
         </Card>
 
-        {/* Information Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Uptime Médio */}
-          <Card className="border shadow-md hover:shadow-lg transition-shadow duration-200" style={{ 
-            backgroundColor: '#ffffff', 
-            borderColor: '#d1d5db',
-            borderWidth: '1.5px',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-          }}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2" style={{ backgroundColor: '#f8fafc', padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-              <CardTitle className="text-sm font-medium" style={{ color: '#374151', marginBottom: '0.25rem' }}>Uptime Médio</CardTitle>
-              <TrendingUp className="h-4 w-4" style={{ color: '#10b981' }} />
+        {/* Key Metrics */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <Card className="border shadow-sm text-gray-900 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
+            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827' }}><TrendingUp className="h-4 w-4 mr-2 text-gray-600" />Disponibilidade 30 dias</CardTitle>
             </CardHeader>
-            <CardContent className="pt-4" style={{ padding: '1.25rem' }}>
-              <div className={`text-2xl font-bold ${
-                data.monitors.length > 0 
-                  ? getUptimeColor(data.monitors.reduce((acc, monitor) => acc + monitor.uptime_30d, 0) / data.monitors.length)
-                  : 'text-gray-600'
-              }`}>
-                {data.monitors.length > 0 
-                  ? (data.monitors.reduce((acc, monitor) => acc + monitor.uptime_30d, 0) / data.monitors.length).toFixed(2)
-                  : '0.00'
-                }%
+            <CardContent className="pt-6">
+              <CardTitle className={`text-2xl font-bold mb-3 ${uptimeData ? (uptimeData.uptime_percentage >= 90 ? 'text-green-600' : 'text-red-600') : 'text-gray-900'}`}>
+                {uptimeData ? `${uptimeData.uptime_percentage.toFixed(2)}%` : 'Carregando...'}
+              </CardTitle>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className={`${uptimeData ? (uptimeData.uptime_percentage >= 90 ? 'bg-green-500' : 'bg-red-500') : 'bg-gray-300'} h-2 rounded-full`} 
+                  style={{ width: uptimeData ? `${uptimeData.uptime_percentage}%` : '0%' }}
+                ></div>
               </div>
-              <p className="text-xs" style={{ color: '#6b7280' }}>
-                Últimos 30 dias
-              </p>
             </CardContent>
           </Card>
 
-          {/* Total de Serviços */}
-          <Card className="border shadow-md hover:shadow-lg transition-shadow duration-200" style={{ 
-            backgroundColor: '#ffffff', 
-            borderColor: '#d1d5db',
-            borderWidth: '1.5px',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-          }}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2" style={{ backgroundColor: '#f8fafc', padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-              <CardTitle className="text-sm font-medium" style={{ color: '#374151', marginBottom: '0.25rem' }}>Serviços</CardTitle>
-              <Globe className="h-4 w-4" style={{ color: '#0282ff' }} />
+          <Card className="border shadow-sm text-gray-900 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
+            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827' }}><Globe className="h-4 w-4 mr-2 text-gray-600" />Total de Serviços</CardTitle>
             </CardHeader>
-            <CardContent className="pt-4" style={{ padding: '1.25rem' }}>
-              <div className="text-2xl font-bold" style={{ color: '#111827' }}>{data.monitors.length}</div>
-              <p className="text-xs" style={{ color: '#6b7280' }}>
-                {data.monitors.filter(m => m.status === 'online').length} online
-              </p>
+            <CardContent className="pt-6">
+              <CardTitle className="text-2xl font-bold text-gray-900 mb-3">
+                {totalServices}
+              </CardTitle>
+              <p className="text-sm text-gray-600">Serviços monitorados neste grupo</p>
             </CardContent>
           </Card>
 
-          {/* Serviços Offline */}
-          <Card className="border shadow-md hover:shadow-lg transition-shadow duration-200" style={{ 
-            backgroundColor: '#ffffff', 
-            borderColor: '#d1d5db',
-            borderWidth: '1.5px',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-          }}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2" style={{ backgroundColor: '#f8fafc', padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-              <CardTitle className="text-sm font-medium" style={{ color: '#374151', marginBottom: '0.25rem' }}>Problemas</CardTitle>
-              <AlertTriangle className="h-4 w-4" style={{ color: '#ef4444' }} />
+          <Card className="border shadow-sm text-gray-900 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
+            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827' }}><AlertTriangle className="h-4 w-4 mr-2 text-gray-600" />Problemas 24h</CardTitle>
             </CardHeader>
-            <CardContent className="pt-4" style={{ padding: '1.25rem' }}>
-              <div className="text-2xl font-bold" style={{ color: '#dc2626' }}>
-                {data.monitors.filter(m => m.status === 'offline' || m.status === 'warning').length}
-              </div>
-              <p className="text-xs" style={{ color: '#6b7280' }}>
-                Serviços com problemas
-              </p>
+            <CardContent className="pt-6">
+              <CardTitle className="text-2xl font-bold text-gray-900 mb-3">
+                {incidentsData ? incidentsData.total_incidents : 'Carregando...'}
+              </CardTitle>
+              <p className="text-sm text-gray-600">Incidentes nas últimas 24 horas</p>
             </CardContent>
           </Card>
 
-          {/* Tempo de Resposta Médio */}
-          <Card className="border shadow-md hover:shadow-lg transition-shadow duration-200" style={{ 
-            backgroundColor: '#ffffff', 
-            borderColor: '#d1d5db',
-            borderWidth: '1.5px',
-            borderRadius: '12px',
-            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-          }}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2" style={{ backgroundColor: '#f8fafc', padding: '1.25rem 1.25rem 0.75rem 1.25rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-              <CardTitle className="text-sm font-medium" style={{ color: '#374151', marginBottom: '0.25rem' }}>Tempo de Resposta</CardTitle>
-              <Clock className="h-4 w-4" style={{ color: '#8b5cf6' }} />
+          <Card className="border shadow-sm text-gray-900 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
+            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827' }}><BarChart3 className="h-4 w-4 mr-2 text-gray-600" />Tempo de Resposta</CardTitle>
             </CardHeader>
-            <CardContent className="pt-4" style={{ padding: '1.25rem' }}>
-              <div className="text-2xl font-bold" style={{ color: '#111827' }}>
-                {data.monitors.length > 0 && data.monitors.some(m => m.response_time)
-                  ? Math.round(
-                      data.monitors
-                        .filter(m => m.response_time)
-                        .reduce((acc, monitor) => acc + (monitor.response_time || 0), 0) / 
-                      data.monitors.filter(m => m.response_time).length
-                    )
-                  : '0'
-                }ms
-              </div>
-              <p className="text-xs" style={{ color: '#6b7280' }}>
-                Tempo médio
-              </p>
+            <CardContent className="pt-6">
+              <CardTitle className="text-2xl font-bold text-gray-900 mb-3">
+                {responseTimeData ? `${responseTimeData.avg_response_time}ms` : 'Carregando...'}
+              </CardTitle>
+              <p className="text-sm text-gray-600">Última medição</p>
             </CardContent>
           </Card>
         </div>
 
         {/* Services Status */}
-        <Card className="mb-8 border shadow-lg" style={{ 
+        <Card className="mb-8 border shadow-lg text-gray-900" style={{ 
           backgroundColor: '#ffffff', 
-          borderColor: '#d1d5db',
-          borderWidth: '1.5px',
+          borderColor: '#e5e7eb',
+          borderWidth: '1px',
           borderRadius: '12px',
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
         }}>
@@ -657,12 +622,11 @@ export function StatusPage() {
                 {data.monitors.map((monitor) => (
                   <div
                     key={monitor.id}
-                    className="flex items-center justify-between p-4 rounded-lg transition-all duration-200 hover:shadow-md"
+                    className="flex items-center justify-between p-4 rounded-lg transition-all duration-200 hover:shadow-sm"
                     style={{ 
                       backgroundColor: '#ffffff', 
-                      borderColor: '#d1d5db',
-                      border: '1px solid',
-                      boxShadow: '0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06)'
+                      border: '1px solid #f3f4f6',
+                      borderColor: '#f3f4f6'
                     }}
                   >
                     <div className="flex items-center space-x-4">
@@ -730,8 +694,8 @@ export function StatusPage() {
             {/* Histórico de Uptime */}
             <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
               backgroundColor: '#ffffff', 
-              borderColor: '#d1d5db',
-              borderWidth: '1.5px',
+              borderColor: '#e5e7eb',
+              borderWidth: '1px',
               borderRadius: '12px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
             }}>
@@ -794,8 +758,8 @@ export function StatusPage() {
             {/* Distribuição de Status */}
             <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
               backgroundColor: '#ffffff', 
-              borderColor: '#d1d5db',
-              borderWidth: '1.5px',
+              borderColor: '#e5e7eb',
+              borderWidth: '1px',
               borderRadius: '12px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
             }}>
@@ -831,8 +795,8 @@ export function StatusPage() {
             {data.monitors.length === 1 && (
               <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300 lg:col-span-2" style={{ 
                 backgroundColor: '#ffffff', 
-                borderColor: '#d1d5db',
-                borderWidth: '1.5px',
+                borderColor: '#e5e7eb',
+                borderWidth: '1px',
                 borderRadius: '12px',
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
               }}>
@@ -913,8 +877,8 @@ export function StatusPage() {
         {incidents.length > 0 && (
           <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
             backgroundColor: '#ffffff', 
-            borderColor: '#d1d5db',
-            borderWidth: '1.5px',
+            borderColor: '#e5e7eb',
+            borderWidth: '1px',
             borderRadius: '12px',
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
           }}>

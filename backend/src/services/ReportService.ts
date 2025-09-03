@@ -83,6 +83,9 @@ export class ReportService {
     }
   }
 
+
+
+
   /**
    * Coleta estatísticas de um monitor para um período específico
    */
@@ -230,6 +233,42 @@ export class ReportService {
   }
 
   /**
+   * Gera conteúdo textual do relatório dinâmico
+   */
+  private generateDynamicReportContent(
+    stats: any,
+    monitor: any,
+    startDate: Date,
+    endDate: Date
+  ): string {
+    return `
+📊 RELATÓRIO DINÂMICO - ÚLTIMOS 30 DIAS
+
+🔍 Monitor: ${monitor.name}
+🌐 URL: ${monitor.url}
+📅 Período: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}
+
+📈 ESTATÍSTICAS DO PERÍODO:
+• Total de verificações: ${stats.total_checks?.toLocaleString() || 'N/A'}
+• Verificações bem-sucedidas: ${stats.successful_checks?.toLocaleString() || 'N/A'}
+• Verificações com falha: ${stats.failed_checks?.toLocaleString() || 'N/A'}
+• Uptime: ${stats.uptime_30d?.toFixed(2) || '0.00'}%
+• Tempo de resposta médio: ${stats.avg_response_time || 0}ms
+
+🚨 INCIDENTES (${stats.incidents?.length || 0}):
+${stats.incidents && stats.incidents.length > 0 
+  ? stats.incidents.map((incident: any, index: number) => 
+      `${index + 1}. ${new Date(incident.startTime).toLocaleString('pt-BR')} - ${new Date(incident.endTime).toLocaleString('pt-BR')} (${incident.duration || 'N/A'})`
+    ).join('\n')
+  : '• Nenhum incidente registrado no período'
+}
+
+---
+Relatório gerado automaticamente em ${new Date().toLocaleString('pt-BR')}
+    `.trim()
+  }
+
+  /**
    * Gera o conteúdo em texto do relatório
    */
   private generateTextContent(monitor: any, stats: MonitorStats, period: string): string {
@@ -363,6 +402,129 @@ ${this.generateAnalysis(stats)}
   }
 
   /**
+   * Envia relatório mensal dinâmico com dados dos últimos 30 dias
+   */
+  async sendMonthlyReportDynamic(
+    monitorId: string,
+    email: string
+  ): Promise<void> {
+    try {
+      console.log(`📧 Enviando relatório mensal dinâmico para ${email}...`)
+      
+      // Buscar dados do monitor
+      const monitors = await databaseService.getMonitors()
+      const monitor = monitors.find(m => m.id === monitorId)
+      if (!monitor) {
+        throw new Error('Monitor não encontrado')
+      }
+      
+      // Calcular período dos últimos 30 dias
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - 30)
+      
+      // Coletar estatísticas dos últimos 30 dias
+      const stats = await this.collectMonitorStats(monitorId, startDate, endDate)
+      
+      if (!stats) {
+        throw new Error('Não foi possível coletar estatísticas do monitor')
+      }
+      
+      // Gerar conteúdo do relatório dinâmico
+      const content = this.generateDynamicReportContent(
+        stats,
+        monitor,
+        startDate,
+        endDate
+      )
+      
+      let pdfBuffer: Buffer | undefined
+      
+      try {
+        if (monitor.slug) {
+          // Tentar gerar PDF como captura da página de status do monitor
+          const candidateBaseUrls: string[] = []
+          if (process.env.FRONTEND_BASE_URL) candidateBaseUrls.push(process.env.FRONTEND_BASE_URL)
+          candidateBaseUrls.push('http://localhost:3000', 'http://localhost:3001')
+          
+          let success = false
+          for (const baseUrl of candidateBaseUrls) {
+            if (success) break
+            try {
+              console.log(`🖼️ Tentando captura via generateOptimizedStatusPDF usando baseUrl: ${baseUrl}`)
+              pdfBuffer = await pdfService.generateOptimizedStatusPDF(
+                monitor.slug,
+                monitor.name,
+                baseUrl
+              )
+              console.log('✅ Captura otimizada bem-sucedida')
+              success = true
+              break
+            } catch (optErr) {
+              console.warn('⚠️ Falha na captura otimizada, tentando dinâmica...', optErr)
+              try {
+                console.log(`🖼️ Tentando captura via generateDynamicStatusPDF usando baseUrl: ${baseUrl}`)
+                pdfBuffer = await pdfService.generateDynamicStatusPDF(
+                  monitor.slug,
+                  monitor.name,
+                  baseUrl
+                )
+                console.log('✅ Captura dinâmica bem-sucedida')
+                success = true
+                break
+              } catch (dynErr) {
+                console.warn('⚠️ Falha na captura dinâmica com esta baseUrl, tentando próxima...', dynErr)
+              }
+            }
+          }
+          
+          if (!success) {
+            console.warn('⚠️ Não foi possível capturar a página de status após todas as tentativas. Será aplicado fallback para PDF geral.')
+            pdfBuffer = await pdfService.generateStatusPDF({ title: `Status - ${monitor.name}`, period: 'Últimos 30 dias' })
+          }
+        } else {
+          // Fallback se o monitor não possuir slug
+          pdfBuffer = await pdfService.generateStatusPDF({ title: `Status - ${monitor.name}`, period: 'Últimos 30 dias' })
+        }
+        console.log('📄 Processo de geração de PDF concluído')
+      } catch (pdfError) {
+        console.warn('⚠️ Erro inesperado na geração do PDF. O e-mail poderá ser enviado sem anexo:', pdfError)
+      }
+      
+      // Montar link da página de status (se disponível)
+      const statusLink = monitor.slug && process.env.FRONTEND_BASE_URL
+        ? `${process.env.FRONTEND_BASE_URL}/status/${monitor.slug}`
+        : undefined
+      
+      // Nome amigável do arquivo: "Relatório Mensal - Nome do monitor - mês de ano"
+      const now = new Date()
+      const monthName = now.toLocaleDateString('pt-BR', { month: 'long' })
+      const yearNum = now.getFullYear()
+      const friendlyFileName = `Relatório Mensal - ${monitor.name} - ${monthName} de ${yearNum}.pdf`
+      
+      // Enviar email
+      const result = await emailService.sendMonthlyReport(
+        email,
+        monitor.name,
+        content,
+        pdfBuffer,
+        pdfBuffer ? friendlyFileName : undefined,
+        statusLink
+      )
+      
+      if (!result.success) {
+        throw new Error(result.message)
+      }
+      
+      console.log(`✅ Relatório mensal dinâmico enviado com sucesso para ${email}`)
+      
+    } catch (error) {
+      console.error('❌ Erro ao enviar relatório mensal dinâmico:', error)
+      throw error
+    }
+  }
+
+  /**
    * Envia relatório mensal por e-mail
    */
   async sendMonthlyReport(
@@ -409,13 +571,18 @@ ${this.generateAnalysis(stats)}
           console.log(`📄 Gerando PDF do relatório mensal...`)
           pdfBuffer = await pdfService.generateMonthlyReportPDF(monitorId, year, month)
           fileName = `relatorio-mensal-${monitor.name.replace(/[^a-zA-Z0-9]/g, '-')}-${month}-${year}.pdf`
-          console.log(`✅ PDF do relatório gerado (${Math.round(pdfBuffer.length / 1024)}KB)`)
+          console.log(`✅ PDF do relatório gerado (${Math.round(pdfBuffer.length / 1024)}KB)`) 
         } catch (pdfError) {
           console.warn('⚠️ Erro ao gerar PDF, enviando apenas texto:', pdfError)
         }
       }
       
       console.log(`📧 Enviando relatório para: ${toEmail}`)
+
+      // Montar link da página de status (se disponível)
+      const statusLink = monitor.slug && process.env.FRONTEND_BASE_URL
+        ? `${process.env.FRONTEND_BASE_URL}/status/${monitor.slug}`
+        : undefined
       
       // Enviar e-mail usando o método específico para relatórios mensais
       const result = await emailService.sendMonthlyReport(
@@ -423,7 +590,8 @@ ${this.generateAnalysis(stats)}
         monitor.name,
         reportContent,
         pdfBuffer,
-        fileName
+        fileName,
+        statusLink
       )
       
       if (result.success) {
@@ -526,6 +694,10 @@ ${this.generateAnalysis(stats)}
       }
       
       console.log(`📧 Enviando relatório com ${attachments.length} anexos PDF para: ${toEmail}`)
+
+      const statusLink = monitor.slug && process.env.FRONTEND_BASE_URL
+        ? `${process.env.FRONTEND_BASE_URL}/status/${monitor.slug}`
+        : undefined
       
       // Enviar e-mail com anexos
       const result = await emailService.sendNotificationEmail(
@@ -541,6 +713,12 @@ ${this.generateAnalysis(stats)}
           </div>
           
           ${attachments.length > 0 ? '<p><strong>📎 Anexos:</strong> Relatório mensal e status geral em PDF</p>' : ''}
+          ${statusLink ? `
+          <div style="background-color: #ecfeff; padding: 15px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #06b6d4;">
+            <p style="margin: 0; color: #0e7490;"><strong>🔗 Acompanhe o status em tempo real:</strong><br>
+              <a href="${statusLink}" target="_blank" style="color: #0369a1; text-decoration: none;">${statusLink}</a>
+            </p>
+          </div>` : ''}
         `,
         attachments
       )

@@ -351,7 +351,7 @@ app.get('/api/monitors', authenticateToken, async (_, res) => {
 
 app.post('/api/monitors', authenticateToken, async (req, res) => {
   try {
-    const { name, url, type, interval, timeout, group_id, enabled = true, slug, logo_url, report_email, report_send_day } = req.body
+    const { name, url, type, interval, timeout, group_id, enabled = true, slug, logo_url, report_email, report_send_day, report_send_time } = req.body
     
     if (!name || !url || !type) {
       return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
@@ -368,14 +368,15 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       name,
       url,
       type,
-      interval: interval ? interval * 1000 : 60000, // Converter segundos para milissegundos
-      timeout: timeout ? timeout * 1000 : 30000,   // Converter segundos para milissegundos
+      interval: interval || 60000, // Valor já em milissegundos do frontend
+      timeout: timeout || 30000,   // Valor já em milissegundos do frontend
       group_id,
       is_active: enabled,
       slug,
       logo_url,
       report_email,
-      report_send_day
+      report_send_day,
+      report_send_time
     })
     
     // Criar configuração de relatório mensal se fornecida
@@ -396,6 +397,9 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       uptime_7d: 0,
       uptime_30d: 0
     })
+    
+    // Reagendar job de relatório mensal para o novo monitor
+    await schedulerService.rescheduleMonitorReport(newMonitor.id)
     
     res.status(201).json(newMonitor)
   } catch (error) {
@@ -430,7 +434,7 @@ app.post('/api/upload/logo', authenticateToken, upload.single('logo'), async (re
 app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day } = req.body
+    const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time } = req.body
     
     if (group_id) {
       const group = await databaseService.getGroupById(group_id)
@@ -443,11 +447,14 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       name,
       url,
       type,
-      interval: interval ? interval * 1000 : undefined, // Converter segundos para milissegundos
-      timeout: timeout ? timeout * 1000 : undefined,   // Converter segundos para milissegundos
+      interval: interval, // Valor já em milissegundos do frontend
+      timeout: timeout,   // Valor já em milissegundos do frontend
       group_id,
       is_active,
-      slug
+      slug,
+      report_email,
+      report_send_day,
+      report_send_time
     })
     
     if (!updatedMonitor) {
@@ -485,6 +492,9 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       enabled: updatedMonitor.is_active
     })
     
+    // Reagendar job de relatório mensal após atualização do monitor
+    await schedulerService.rescheduleMonitorReport(id)
+    
     res.json(updatedMonitor)
   } catch (error) {
     console.error('Erro ao atualizar monitor:', error)
@@ -500,6 +510,9 @@ app.delete('/api/monitors/:id', authenticateToken, async (req, res) => {
     
     // Remover do serviço de monitoramento
     monitoringService.removeMonitor(id)
+    
+    // Remover job agendado (se existir) para este monitor
+    await schedulerService.rescheduleMonitorReport(id)
     
     res.status(204).send()
   } catch (error) {
@@ -652,6 +665,17 @@ app.put('/api/monthly-reports/configs/:id', authenticateToken, async (req, res) 
       is_active: enabled
     })
     
+    // Reagendar job do monitor
+    if (config?.monitor_id) {
+      await schedulerService.rescheduleMonitorReport(config.monitor_id)
+    } else {
+      // Buscar monitor_id caso não venha na resposta (fallback)
+      const existing = await databaseService.getMonthlyReportConfigById(id)
+      if (existing?.monitor_id) {
+        await schedulerService.rescheduleMonitorReport(existing.monitor_id)
+      }
+    }
+    
     res.json(config)
   } catch (error) {
     console.error('Erro ao atualizar configuração de relatório:', error)
@@ -662,7 +686,16 @@ app.put('/api/monthly-reports/configs/:id', authenticateToken, async (req, res) 
 app.delete('/api/monthly-reports/configs/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
+
+    // Buscar antes de deletar para obter o monitor_id
+    const existing = await databaseService.getMonthlyReportConfigById(id)
     await databaseService.deleteMonthlyReportConfig(id)
+    
+    // Reagendar/remover job do monitor
+    if (existing?.monitor_id) {
+      await schedulerService.rescheduleMonitorReport(existing.monitor_id)
+    }
+    
     res.json({ message: 'Configuração removida com sucesso' })
   } catch (error) {
     console.error('Erro ao remover configuração de relatório:', error)

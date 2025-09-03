@@ -206,6 +206,7 @@ export class DatabaseService {
     logo_url?: string | null
     report_email?: string
     report_send_day?: number
+    report_send_time?: string
   }) {
     const { data, error } = await supabase
       .from('monitors')
@@ -221,6 +222,7 @@ export class DatabaseService {
         logo_url: monitorData.logo_url,
         report_email: monitorData.report_email || null,
         report_send_day: monitorData.report_send_day || 1,
+        report_send_time: monitorData.report_send_time || '09:00',
         status: 'unknown',
         uptime_24h: 0,
         uptime_7d: 0,
@@ -324,6 +326,18 @@ export class DatabaseService {
     
     if (error) throw error
     return data || []
+  }
+
+  // Adicionado: buscar configuração de relatório mensal por ID (necessário para reagendamento após delete/update)
+  async getMonthlyReportConfigById(id: string) {
+    const { data, error } = await supabase
+      .from('monthly_report_configs')
+      .select('*')
+      .eq('id', id)
+      .single()
+    
+    if (error && error.code !== 'PGRST116') throw error
+    return data
   }
 
   async getMonthlyReportConfigByMonitor(monitorId: string) {

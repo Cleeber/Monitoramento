@@ -50,7 +50,7 @@ export class StorageService {
     const filePath = `monitors/${fileName}`
 
     // Fazer upload para o Supabase Storage
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from(this.BUCKET_NAME)
       .upload(filePath, file.buffer, {
         contentType: file.mimetype,
