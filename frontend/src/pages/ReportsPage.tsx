@@ -191,11 +191,11 @@ export function ReportsPage() {
 
   // Função captureChart removida por não ser utilizada
 
-  const captureStatusPage = async (monitorSlug: string): Promise<string | null> => {
+  const captureStatusPage = async (monitorSlug: string): Promise<string[] | null> => {
     try {
       // Construir URL da página de status pública
-      const statusUrl = `${window.location.origin}/status/${monitorSlug}`
-      
+      const statusUrl = `${window.location.origin}/status/${monitorSlug}?forceMonitor=1`
+
       // Criar iframe invisível para carregar a página
       const iframe = document.createElement('iframe')
       iframe.style.position = 'absolute'
@@ -235,45 +235,174 @@ export function ReportsPage() {
         document.body.removeChild(iframe)
         throw new Error('Não foi possível acessar o documento da página de status')
       }
-      
-      // Configurações otimizadas para captura de alta qualidade
-      const captureOptions = {
+
+      // Aguardar todas as imagens carregarem no documento do iframe (inclui a logo)
+      const waitForAllImages = async (doc: Document, timeoutMs = 15000) => {
+        const imgs = Array.from(doc.images) as HTMLImageElement[]
+        if (imgs.length === 0) return
+        await Promise.all(
+          imgs.map((img) =>
+            new Promise<void>((resolve) => {
+              try {
+                // Garantir CORS anônimo quando aplicável
+                if (!img.crossOrigin) img.crossOrigin = 'anonymous'
+              } catch {}
+              if (img.complete && img.naturalWidth > 0) return resolve()
+              const to = setTimeout(() => resolve(), timeoutMs)
+              const done = () => {
+                clearTimeout(to)
+                resolve()
+              }
+              img.addEventListener('load', done, { once: true })
+              img.addEventListener('error', done, { once: true })
+            })
+          )
+        )
+      }
+      await waitForAllImages(iframeDoc, 15000)
+
+      // Determinar dimensões completas da página dentro do iframe (sem recorte)
+      const docEl = iframeDoc.documentElement
+      const bodyEl = iframeDoc.body
+      const fullWidth = Math.ceil(Math.max(
+        docEl?.scrollWidth || 0,
+        bodyEl?.scrollWidth || 0,
+        docEl?.clientWidth || 0,
+        1920
+      ))
+      const fullHeight = Math.ceil(Math.max(
+        docEl?.scrollHeight || 0,
+        bodyEl?.scrollHeight || 0,
+        docEl?.clientHeight || 0,
+        1080
+      ))
+
+      // Ajustar o tamanho do iframe para abranger todo o conteúdo antes da captura
+      iframe.style.width = `${fullWidth}px`
+      iframe.style.height = `${fullHeight}px`
+
+      // Configurações base de captura; os offsets/alturas serão ajustados por fatia
+      const baseOptions = {
         useCORS: true,
         allowTaint: false,
-        scale: 1.5, // Escala otimizada para qualidade vs performance
-        width: Math.max(iframeDoc.body.scrollWidth, 1920),
-        height: Math.max(iframeDoc.body.scrollHeight, 1080),
+        scale: 1.5, // Qualidade alta
+        width: fullWidth,
+        height: fullHeight, // será sobrescrito por fatia
+        windowWidth: fullWidth,
+        windowHeight: fullHeight, // será sobrescrito por fatia
+        x: 0,
+        y: 0, // será sobrescrito por fatia
+        scrollX: 0,
+        scrollY: 0,
         backgroundColor: '#ffffff',
         removeContainer: false,
         logging: false,
-        imageTimeout: 8000,
-        foreignObjectRendering: true,
+        imageTimeout: 15000,
+        cacheBust: true,
+        foreignObjectRendering: false, // Alterado para evitar problemas de imagem quebrada em alguns navegadores
         onclone: (clonedDoc: Document) => {
-          // Otimizar estilos para melhor renderização
           const clonedBody = clonedDoc.body
           if (clonedBody) {
             clonedBody.style.transform = 'none'
             clonedBody.style.transformOrigin = 'top left'
             clonedBody.style.overflow = 'visible'
-            
-            // Remover elementos desnecessários que podem causar espaços vazios
-            const elementsToHide = clonedDoc.querySelectorAll('script, noscript, .hidden, [style*="display: none"]')
-            elementsToHide.forEach(el => {
-              if (el.parentNode) {
-                el.parentNode.removeChild(el)
-              }
-            })
+            clonedBody.style.height = 'auto'
+            clonedBody.style.minHeight = 'auto'
           }
+          const clonedHtml = clonedDoc.documentElement as HTMLElement
+          if (clonedHtml) {
+            clonedHtml.style.overflow = 'visible'
+            clonedHtml.style.height = 'auto'
+            clonedHtml.style.minHeight = 'auto'
+            clonedHtml.style.width = 'auto'
+          }
+          const rootEl = clonedDoc.getElementById('root') as HTMLElement | null
+          if (rootEl) {
+            rootEl.style.overflow = 'visible'
+            rootEl.style.height = 'auto'
+            rootEl.style.minHeight = 'auto'
+            rootEl.style.transform = 'none'
+          }
+          const styleEl = clonedDoc.createElement('style')
+          styleEl.textContent = `
+            *, *::before, *::after { overflow: visible !important; }
+            html, body { height: auto !important; min-height: auto !important; margin: 0 !important; padding: 0 !important; }
+            #root { margin: 0 !important; padding: 0 !important; }
+            [style*="overflow"] { overflow: visible !important; }
+            section, div { max-height: none !important; }
+          `
+          clonedDoc.head.appendChild(styleEl)
+ 
+          // Garantir atributos CORS nas imagens do DOM clonado
+          try {
+            const imgs = Array.from(clonedDoc.images) as HTMLImageElement[]
+            const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+            const appOrigin = window.location.origin
+            const apiIsAbsolute = /^https?:\/\//i.test(apiBase)
+            imgs.forEach((img) => {
+              // Forçar atributos seguros
+              img.referrerPolicy = 'no-referrer'
+
+              const currentSrc = img.getAttribute('src') || img.src
+              if (!currentSrc || currentSrc.startsWith('data:')) return
+
+              const isAbsolute = /^https?:\/\//i.test(currentSrc)
+              const isSameOrigin = isAbsolute ? currentSrc.startsWith(appOrigin) : true
+
+              // 1) Qualquer imagem absoluta de outra origem -> proxy do backend
+              if (isAbsolute && !isSameOrigin) {
+                const proxied = `/api/proxy/html2canvas?url=${encodeURIComponent(currentSrc)}&cb=${Date.now()}`
+                img.removeAttribute('crossorigin')
+                img.setAttribute('src', proxied)
+                return
+              }
+
+              // 2) Imagens apontando para a API base (quando relativo, ex.: /api/...)
+              if (apiBase && currentSrc.startsWith(apiBase)) {
+                let rewritten: string
+                if (apiIsAbsolute) {
+                  // Se for absoluto e chegou aqui, é mesma origem; mantém apenas o caminho
+                  const apiPath = new URL(apiBase).pathname || ''
+                  const rest = currentSrc.substring(apiBase.length)
+                  rewritten = appOrigin + apiPath + rest
+                } else {
+                  // apiBase relativo (ex.: "/api") -> mantém o prefixo /api
+                  rewritten = appOrigin + currentSrc
+                }
+                img.removeAttribute('crossorigin')
+                const withBust = rewritten + (rewritten.includes('?') ? '&' : '?') + 'cb=' + Date.now()
+                img.setAttribute('src', withBust)
+                return
+              }
+
+              // 3) Demais casos (relativas da própria aplicação)
+              if (!img.crossOrigin) img.crossOrigin = 'anonymous'
+            })
+          } catch {}
         }
       }
-      
-      // Capturar a página usando html2canvas com configurações otimizadas
-      const canvas = await html2canvas(iframeDoc.body, captureOptions)
+
+      // Substituição: captura única para seguir o padrão do PDF do backend (modo contain, sem fatias)
+      // Ajuste dinâmico de escala para não exceder limites de canvas do navegador
+      const MAX_DIMENSION = 12000
+      const adaptiveScale = Math.min(1, MAX_DIMENSION / fullWidth, MAX_DIMENSION / fullHeight)
+      const singleOptions = {
+        ...baseOptions,
+        scale: adaptiveScale,
+        width: fullWidth,
+        height: fullHeight,
+        windowWidth: fullWidth,
+        windowHeight: fullHeight,
+        y: 0,
+      } as any
+
+      const canvas = await html2canvas(iframeDoc.documentElement, singleOptions)
+      const images: string[] = [canvas.toDataURL('image/png')]
       
       // Remover o iframe
       document.body.removeChild(iframe)
       
-      return canvas.toDataURL('image/png', 0.95) // Qualidade alta mas otimizada
+      return images
     } catch (error) {
       console.error('Erro ao capturar página de status:', error)
       return null
@@ -310,10 +439,10 @@ export function ReportsPage() {
         variant: 'default' 
       })
       
-      // Capturar a página de status pública
-      const statusPageImage = await captureStatusPage(monitor.slug)
+      // Capturar a página de status pública (captura única, sem fatias) para seguir o mesmo padrão do backend
+      const statusPageImages = await captureStatusPage(monitor.slug)
       
-      if (!statusPageImage) {
+      if (!statusPageImages || statusPageImages.length === 0) {
         addToast({ 
           title: 'Erro ao capturar página', 
           description: 'Não foi possível capturar a página de status. Verifique se a página está acessível.',
@@ -327,81 +456,39 @@ export function ReportsPage() {
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
       
-      // Calcular dimensões da imagem para caber na página com margens mínimas
-      const img = new Image()
-      img.src = statusPageImage
-      
-      await new Promise((resolve) => {
-        img.onload = resolve
-      })
-      
-      const imgWidth = img.width
-      const imgHeight = img.height
-      
-      // Definir margens mínimas para melhor aproveitamento do espaço (em mm)
-      const margin = 5
+      const margin = 0 // sem margens para usar 100% da página
       const availableWidth = pageWidth - (margin * 2)
       const availableHeight = pageHeight - (margin * 2)
-      
-      // Calcular a escala para maximizar o uso do espaço disponível
-      const scaleX = availableWidth / (imgWidth * 0.264583) // Converter pixels para mm
-      const scaleY = availableHeight / (imgHeight * 0.264583)
-      const scale = Math.min(scaleX, scaleY)
-      
-      const scaledWidth = (imgWidth * 0.264583) * scale
-      const scaledHeight = (imgHeight * 0.264583) * scale
-      
-      // Posicionar a imagem com margens mínimas (não centralizar para aproveitar melhor o espaço)
-      const x = margin
-      const y = margin
-      
-      // Se a imagem for muito alta, dividir em múltiplas páginas com sobreposição mínima
-      if (scaledHeight > availableHeight) {
-        const overlap = 5 // Sobreposição mínima entre páginas em mm
-        const effectivePageHeight = availableHeight - overlap
-        const pagesNeeded = Math.ceil(scaledHeight / effectivePageHeight)
-        
-        for (let i = 0; i < pagesNeeded; i++) {
-          if (i > 0) {
-            doc.addPage()
-          }
-          
-          // Calcular a posição Y para cada página com sobreposição
-          const sourceYMm = i * effectivePageHeight
-          const sourceY = sourceYMm / (0.264583 * scale)
-          const sourceHeightMm = Math.min(availableHeight, scaledHeight - sourceYMm)
-          const sourceHeight = sourceHeightMm / (0.264583 * scale)
-          
-          // Criar um canvas temporário otimizado para a seção da imagem
-          const tempCanvas = document.createElement('canvas')
-          const tempCtx = tempCanvas.getContext('2d')
-          
-          if (tempCtx) {
-            tempCanvas.width = imgWidth
-            tempCanvas.height = Math.ceil(sourceHeight)
-            
-            // Desenhar a seção da imagem original com qualidade otimizada
-            tempCtx.imageSmoothingEnabled = true
-            tempCtx.imageSmoothingQuality = 'high'
-            tempCtx.drawImage(img, 0, -sourceY, imgWidth, imgHeight)
-            
-            // Adicionar a seção ao PDF com posicionamento otimizado
-            const sectionDataUrl = tempCanvas.toDataURL('image/png', 0.9)
-            doc.addImage(sectionDataUrl, 'PNG', x, y, scaledWidth, sourceHeightMm)
-          }
+
+      // Adicionar cada imagem (fatia) como uma página sem qualquer corte, modo contain centralizado
+      for (let i = 0; i < statusPageImages.length; i++) {
+        const statusPageImage = statusPageImages[i]
+        if (i > 0) doc.addPage('a4', 'p')
+
+        const img = new Image()
+        img.src = statusPageImage
+        await new Promise((resolve) => (img.onload = resolve))
+        const imgWidth = (img as HTMLImageElement).naturalWidth || img.width
+        const imgHeight = (img as HTMLImageElement).naturalHeight || img.height
+
+        const imgRatio = imgWidth / imgHeight
+        const targetRatio = availableWidth / availableHeight
+        let renderWidth = 0
+        let renderHeight = 0
+        if (imgRatio > targetRatio) {
+          renderWidth = availableWidth
+          renderHeight = renderWidth / imgRatio
+        } else {
+          renderHeight = availableHeight
+          renderWidth = renderHeight * imgRatio
         }
-      } else {
-        // Adicionar a imagem completa ao PDF com posicionamento otimizado
-        doc.addImage(statusPageImage, 'PNG', x, y, scaledWidth, scaledHeight)
+
+        const posX = margin + (availableWidth - renderWidth) / 2
+        const posY = margin // alinhar ao topo para evitar faixa branca superior
+
+        // Inserir fatia sem recorte, centralizada
+        doc.addImage(statusPageImage, 'PNG', Number(posX.toFixed(2)), Number(posY.toFixed(2)), Number(renderWidth.toFixed(2)), Number(renderHeight.toFixed(2)))
       }
-      
-      // Adicionar cabeçalho profissional ao PDF
-      doc.setFontSize(10)
-      doc.setTextColor(100, 100, 100)
-      const headerText = `Relatório de Status - ${monitor.name}`
-      const dateText = `Gerado em: ${new Date().toLocaleDateString('pt-BR')}`
-      doc.text(headerText, margin, margin - 2)
-      doc.text(dateText, pageWidth - margin - doc.getTextWidth(dateText), margin - 2)
       
       // Salvar o PDF com nome apropriado e otimizado
       const fileName = `status-${monitor.name.replace(/[^a-zA-Z0-9]/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`

@@ -1,0 +1,445 @@
+[
+  {
+    "id": "TC001",
+    "title": "Login success with valid credentials",
+    "description": "Verify that a user can log in successfully using correct email and password, receiving a valid JWT token.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter a registered email and correct password"
+      },
+      {
+        "type": "action",
+        "description": "Click the login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify login is successful and a valid JWT token is returned"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify user is redirected to dashboard page"
+      }
+    ]
+  },
+  {
+    "id": "TC002",
+    "title": "Login failure with invalid credentials",
+    "description": "Verify that login fails with incorrect email or password and appropriate error message is shown.",
+    "category": "error handling",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Navigate to login page"
+      },
+      {
+        "type": "action",
+        "description": "Enter an unregistered email or incorrect password"
+      },
+      {
+        "type": "action",
+        "description": "Click the login button"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify login is denied with an invalid credentials error message"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that no JWT token is issued"
+      }
+    ]
+  },
+  {
+    "id": "TC003",
+    "title": "Access protected route without JWT token",
+    "description": "Verify that accessing protected API routes without a valid JWT token is denied with an appropriate error.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send an API request to a protected route without including JWT token"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response status is 401 Unauthorized"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify response contains an error message about missing or invalid token"
+      }
+    ]
+  },
+  {
+    "id": "TC004",
+    "title": "Dashboard displays real-time status updates",
+    "description": "Verify that the dashboard shows live uptime and performance data refreshed via polling or websocket in real time.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login and access the dashboard page"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that initial status and KPIs of all monitors are displayed"
+      },
+      {
+        "type": "action",
+        "description": "Simulate a monitor status change on backend"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify that the updated status is reflected in the dashboard within a verification cycle"
+      }
+    ]
+  },
+  {
+    "id": "TC005",
+    "title": "Create, edit, and delete monitor",
+    "description": "Verify the full CRUD lifecycle of a monitor with configuration of type, interval, timeout and group association.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login and navigate to monitors page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new monitor with valid HTTP type, URL, interval, timeout, and assign to an existing group"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the monitor is created and visible in the list"
+      },
+      {
+        "type": "action",
+        "description": "Edit the monitor to change its configuration fields"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the changes are saved and reflected in monitor details"
+      },
+      {
+        "type": "action",
+        "description": "Delete the monitor"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the monitor is removed from the list"
+      }
+    ]
+  },
+  {
+    "id": "TC006",
+    "title": "Create, edit, and delete group",
+    "description": "Verify full CRUD of groups to organize monitors, including validation of group name uniqueness and display filtering.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login and navigate to groups page"
+      },
+      {
+        "type": "action",
+        "description": "Create a new group with a valid unique name"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the new group is listed and selectable"
+      },
+      {
+        "type": "action",
+        "description": "Attempt to create a group with an existing name"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify validation error prevents duplicate group creation"
+      },
+      {
+        "type": "action",
+        "description": "Edit an existing group name and save changes"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify updated group name is saved and displayed"
+      },
+      {
+        "type": "action",
+        "description": "Delete a group"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify group is removed and monitors are no longer associated"
+      }
+    ]
+  },
+  {
+    "id": "TC007",
+    "title": "Send email notifications on monitor failure and recovery",
+    "description": "Verify that notifications are sent via configured SMTP when a monitor transitions from up to down and from down to up.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Configure SMTP settings with valid server and credentials"
+      },
+      {
+        "type": "action",
+        "description": "Enable email notifications for a monitor"
+      },
+      {
+        "type": "action",
+        "description": "Simulate the monitor failing (status down)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an email notification is sent indicating failure with incident details"
+      },
+      {
+        "type": "action",
+        "description": "Simulate the monitor recovering (status up)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify an email notification is sent indicating recovery with incident summary"
+      }
+    ]
+  },
+  {
+    "id": "TC008",
+    "title": "Handling SMTP failures and retries",
+    "description": "Verify the system records SMTP send attempt failures and retries sending emails according to configured policies.",
+    "category": "error handling",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Set SMTP settings with invalid credentials or unreachable server"
+      },
+      {
+        "type": "action",
+        "description": "Trigger an email notification by simulating a monitor status change"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify notification attempt fails and error is logged"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify system retries sending the notification as per retry policy"
+      }
+    ]
+  },
+  {
+    "id": "TC009",
+    "title": "Generate and download monthly PDF reports",
+    "description": "Verify the generation of accurate monthly uptime reports in PDF format including KPIs, incidents and that reports are downloadable.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Login and navigate to reports page"
+      },
+      {
+        "type": "action",
+        "description": "Generate monthly report for monitored services"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify report contains correct uptime percentages, response times, and incident details"
+      },
+      {
+        "type": "action",
+        "description": "Download the generated PDF report"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify PDF file downloads successfully and contents match displayed report"
+      }
+    ]
+  },
+  {
+    "id": "TC010",
+    "title": "Schedule automatic generation and email delivery of reports",
+    "description": "Verify scheduled jobs generate reports automatically on configured dates and send them via email to stakeholders.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Schedule monthly report generation and configure recipients"
+      },
+      {
+        "type": "action",
+        "description": "Trigger or wait for scheduled job execution"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify report PDF is generated and stored"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify reports are sent via email to configured recipients"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the scheduler recovers jobs successfully after server restart"
+      }
+    ]
+  },
+  {
+    "id": "TC011",
+    "title": "Monitor agendamento e execução com node-cron",
+    "description": "Verifique se os jobs agendados são executados nos horários corretos conforme a configuração, incluindo após reinício do sistema.",
+    "category": "functional",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Configure uma tarefa agendada usando node-cron para execução periódica"
+      },
+      {
+        "type": "assertion",
+        "description": "Verifique que a tarefa é executada corretamente no horário definido"
+      },
+      {
+        "type": "action",
+        "description": "Reinicie o backend/server"
+      },
+      {
+        "type": "assertion",
+        "description": "Verifique que a tarefa agendada é restabelecida e continua funcionando conforme esperado"
+      }
+    ]
+  },
+  {
+    "id": "TC012",
+    "title": "Public status page accessibility and accuracy",
+    "description": "Verify that the public status page is accessible without authentication and correctly displays the current status of monitored services.",
+    "category": "functional",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Access the public status page URL without logging in"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the page loads successfully and shows monitor statuses"
+      },
+      {
+        "type": "action",
+        "description": "Simulate status changes of monitored services"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify the public status page updates to reflect current service statuses"
+      }
+    ]
+  },
+  {
+    "id": "TC013",
+    "title": "Validate protection against CORS, rate limiting and input sanitization",
+    "description": "Verify backend rejects unauthorized origins, limits request rate, and sanitizes inputs to prevent attacks and security vulnerabilities.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Send API requests from unauthorized origins"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify requests are rejected with appropriate CORS errors"
+      },
+      {
+        "type": "action",
+        "description": "Send a high rate of requests in short time to trigger rate limiting"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify server responds with rate limit exceeded status"
+      },
+      {
+        "type": "action",
+        "description": "Send requests with malicious input payloads (XSS, SQL injection patterns)"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify inputs are sanitized and server prevents injections or scripts"
+      }
+    ]
+  },
+  {
+    "id": "TC014",
+    "title": "Password storage and authentication security",
+    "description": "Verify that user passwords are stored securely (hashed) and authentication endpoints properly validate credentials without exposing sensitive data.",
+    "category": "security",
+    "priority": "High",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Register a new user or check existing user data in database"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify password is stored hashed and never logged or sent in plain text"
+      },
+      {
+        "type": "action",
+        "description": "Attempt authentication with valid and invalid passwords"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify valid passwords succeed and invalid passwords fail without leaking info"
+      }
+    ]
+  },
+  {
+    "id": "TC015",
+    "title": "User interface responsiveness and error feedback",
+    "description": "Verify the UI is responsive on different screen sizes and provides clear feedback messages during loading and error states.",
+    "category": "ui",
+    "priority": "Medium",
+    "steps": [
+      {
+        "type": "action",
+        "description": "Access the frontend on desktop, tablet and mobile viewports"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify layout and controls adapt correctly without overflow or clipping"
+      },
+      {
+        "type": "action",
+        "description": "Trigger errors by submitting invalid forms or simulating backend failures"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify meaningful error messages and toasts are shown"
+      },
+      {
+        "type": "action",
+        "description": "Initiate actions that load data"
+      },
+      {
+        "type": "assertion",
+        "description": "Verify loading spinners or progress indicators are visible"
+      }
+    ]
+  }
+]

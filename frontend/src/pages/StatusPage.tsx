@@ -459,6 +459,18 @@ export function StatusPage() {
 
   const statusInfo = getOverallStatusInfo(data.overall_status)
 
+  // URL absoluta e segura para a logo (evita path relativo quebrado)
+  const rawLogoUrl = data?.monitors.length === 1 ? data.monitors[0].logo_url : null
+  const logoSrc = rawLogoUrl
+    ? (
+        rawLogoUrl.startsWith('http://') ||
+        rawLogoUrl.startsWith('https://') ||
+        rawLogoUrl.startsWith('data:')
+          ? rawLogoUrl
+          : `${import.meta.env.VITE_API_URL}${rawLogoUrl.startsWith('/') ? '' : '/'}${rawLogoUrl}`
+      )
+    : null
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#f8fafc' }}>
       {/* Hero Section */}
@@ -472,15 +484,17 @@ export function StatusPage() {
           {groupName && (
             <div className="flex items-center justify-center mb-4">
               {/* Exibir logo apenas para monitores individuais */}
-              {data?.monitors.length === 1 && data.monitors[0].logo_url && (
+              {data?.monitors.length === 1 && logoSrc && (
                 <div className="w-24 h-24 bg-white rounded-xl shadow-lg flex items-center justify-center mr-6 p-3">
                   <img 
-                    src={data.monitors[0].logo_url} 
+                    src={logoSrc}
                     alt={`Logo ${data.monitors[0].name}`}
                     className="w-full h-full object-contain"
                     style={{
                       aspectRatio: '1/1'
                     }}
+                    crossOrigin="anonymous"
+                    referrerPolicy="no-referrer"
                     onError={(e) => {
                       const target = e.target as HTMLImageElement;
                       const container = target.parentElement;

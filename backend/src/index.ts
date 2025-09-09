@@ -14,6 +14,7 @@ import { storageService } from './services/StorageService.js'
 import { pdfService } from './services/PDFService.js'
 import { reportService } from './services/ReportService.js'
 import { schedulerService } from './services/SchedulerService.js'
+import axios from 'axios'
 
 // Carregar variáveis de ambiente
 dotenv.config()
@@ -319,6 +320,11 @@ app.get('/api/dashboard/monitors', authenticateToken, (_, res) => {
   res.json(monitors)
 })
 
+// Rota protegida de verificação (sentinel para testes)
+app.get('/api/protected-route', authenticateToken, (_, res) => {
+  res.json({ message: 'Acesso autorizado' })
+})
+
 // Rotas de monitores
 app.get('/api/monitors', authenticateToken, async (_, res) => {
   try {
@@ -434,7 +440,7 @@ app.post('/api/upload/logo', authenticateToken, upload.single('logo'), async (re
 app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time } = req.body
+    const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time, logo_url } = req.body
     
     if (group_id) {
       const group = await databaseService.getGroupById(group_id)
@@ -454,7 +460,9 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       slug,
       report_email,
       report_send_day,
-      report_send_time
+      report_send_time,
+      // Adicionado: permitir atualização do campo de logo
+      logo_url
     })
     
     if (!updatedMonitor) {
@@ -486,9 +494,17 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       await databaseService.deleteMonthlyReportConfig(existingConfig.id)
     }
     
-    // Atualizar no serviço de monitoramento
+    // Atualizar no serviço de monitoramento preservando o status em memória
+    const currentMonitor = monitoringService.getMonitor(id)
     monitoringService.updateMonitor({
       ...updatedMonitor,
+      // Preserva campos de status já calculados em memória para evitar ficar 'unknown' após updates não relacionados
+      status: currentMonitor?.status ?? updatedMonitor.status ?? 'unknown',
+      last_check: currentMonitor?.last_check ?? updatedMonitor.last_check ?? null,
+      response_time: currentMonitor?.response_time ?? updatedMonitor.response_time ?? null,
+      uptime_24h: currentMonitor?.uptime_24h ?? updatedMonitor.uptime_24h ?? 0,
+      uptime_7d: currentMonitor?.uptime_7d ?? updatedMonitor.uptime_7d ?? 0,
+      uptime_30d: currentMonitor?.uptime_30d ?? updatedMonitor.uptime_30d ?? 0,
       enabled: updatedMonitor.is_active
     })
     
@@ -1617,3 +1633,53 @@ app.listen(PORT, () => {
 })
 
 export default app
+
+
+// Rota de proxy para html2canvas (sem autenticação para permitir carregamento de imagens públicas)
+app.get('/api/proxy/html2canvas', async (req, res) => {
+  try {
+    const { url } = req.query as { url?: string }
+
+    if (!url || typeof url !== 'string') {
+      return res.status(400).json({ error: 'Parâmetro "url" é obrigatório' })
+    }
+
+    // Validar URL e protocolo
+    let parsed: URL
+    try {
+      parsed = new URL(url)
+      if (!/^https?:$/.test(parsed.protocol)) {
+        return res.status(400).json({ error: 'URL inválida' })
+      }
+    } catch {
+      return res.status(400).json({ error: 'URL inválida' })
+    }
+
+    // Buscar como binário
+    const response = await axios.get(url, {
+      responseType: 'arraybuffer',
+      timeout: 15000,
+      headers: {
+        Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
+        'User-Agent': 'UptimeMonitorHtml2CanvasProxy/1.0',
+        Referer: req.headers.referer || ''
+      },
+      validateStatus: (status) => status >= 200 && status < 400
+    })
+
+    const contentType = response.headers['content-type'] || 'application/octet-stream'
+    if (!/^image\//i.test(contentType)) {
+      return res.status(415).json({ error: 'Tipo de conteúdo não suportado pelo proxy' })
+    }
+
+    res.setHeader('Content-Type', contentType)
+    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300')
+    res.setHeader('Access-Control-Allow-Origin', '*')
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Cache-Control')
+
+    return res.status(200).send(Buffer.from(response.data))
+  } catch (err: any) {
+    console.error('Erro no proxy html2canvas:', err?.message || err)
+    return res.status(502).json({ error: 'Falha ao obter recurso de imagem' })
+  }
+})

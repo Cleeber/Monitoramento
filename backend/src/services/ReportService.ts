@@ -479,12 +479,16 @@ ${this.generateAnalysis(stats)}
           }
           
           if (!success) {
-            console.warn('⚠️ Não foi possível capturar a página de status após todas as tentativas. Será aplicado fallback para PDF geral.')
-            pdfBuffer = await pdfService.generateStatusPDF({ title: `Status - ${monitor.name}`, period: 'Últimos 30 dias' })
+            // ALTERAÇÃO: Removido fallback para PDF geral conforme solicitação do usuário.
+            // O relatório deve ser exclusivamente a cópia/print da página de status do monitor.
+            console.warn('⚠️ Não foi possível capturar a página de status após todas as tentativas. Enviaremos o e-mail sem anexo de PDF, conforme especificação.')
+            pdfBuffer = undefined
           }
         } else {
           // Fallback se o monitor não possuir slug
-          pdfBuffer = await pdfService.generateStatusPDF({ title: `Status - ${monitor.name}`, period: 'Últimos 30 dias' })
+          // ALTERAÇÃO: Evitar envio do PDF geral de 5KB. Sem slug, não é possível capturar a página de status.
+          console.warn('⚠️ Monitor sem slug de status. Enviaremos o e-mail sem anexo de PDF para evitar o relatório geral.')
+          pdfBuffer = undefined
         }
         console.log('📄 Processo de geração de PDF concluído')
       } catch (pdfError) {

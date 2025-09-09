@@ -1,0 +1,18 @@
+{
+  "status": "commited",
+  "type": "frontend",
+  "scope": "codebase",
+  "localEndpoint": "http://localhost:3001",
+  "loginUser": "admin@agencia.com",
+  "loginPassword": "admin123",
+  "executionArgs": {
+    "projectName": "uptime-monitor",
+    "projectPath": "d:\\uptime-monitor",
+    "testIds": [],
+    "additionalInstruction": "Use credenciais de login padrão se necessário e espere pelo carregamento inicial do app antes de interagir. Garantir que as rotas protegidas exijam login e que a rota pública /status/:groupId carregue sem autenticação.",
+    "envs": {
+      "API_KEY": "sk-user-sdNRWjiawJ49mwLi1PY7z_ah4rQ-tRj3hPAaTooWpKuWTTdynjuPdiT4en4O4xYk5ckLX-zgKGK3NOsziGBzHpJkeVTie9h2qpSHJVrcwYqdUdHPqUvDAewXII3Gy3og1Ug"
+    }
+  },
+  "proxy": "http://dabde431-c958-4ffa-b853-be5d3a4cdb13:oFLjs4FsT9UwgCuCOPbXOpppYLGN7YyW@tun.testsprite.com:8080"
+}

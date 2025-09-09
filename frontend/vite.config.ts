@@ -11,7 +11,8 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
+    port: 3001, // Alterado de 3000 para 3001 para alinhar com o ambiente de testes
+    strictPort: true, // Garante falha caso a porta 3001 esteja ocupada, evitando mudança automática para 3002/3003
     host: true,
     proxy: {
       '/api': {

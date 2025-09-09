@@ -254,24 +254,18 @@ export class EmailService {
               <p style="margin: 10px 0 0 0; opacity: 0.9;">${monitorName} - ${monthYear}</p>
             </div>
             <div style="background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb;">
-              <h3 style="color: #374151; margin-top: 0;">Resumo do Período</h3>
-              <div style="background-color: white; padding: 15px; border-radius: 6px; border-left: 4px solid #2563eb;">
-                ${reportContent.replace(/\n/g, '<br>')}
-              </div>
-              
-              ${pdfBuffer ? '<p style="margin-top: 20px;"><strong>📎 Anexo:</strong> Relatório detalhado em PDF</p>' : ''}
-              
               ${statusLink ? `
-              <div style="background-color: #ecfeff; padding: 15px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #06b6d4;">
+              <div style="background-color: #ecfeff; padding: 15px; border-radius: 6px; border-left: 4px solid #06b6d4;">
                 <p style="margin: 0; color: #0e7490;"><strong>🔗 Acompanhe o status em tempo real:</strong><br>
                   <a href="${statusLink}" target="_blank" style="color: #0369a1; text-decoration: none;">${statusLink}</a>
                 </p>
               </div>` : ''}
-              
-              <div style="background-color: #eff6ff; padding: 15px; border-radius: 6px; margin-top: 20px;">
-                <p style="margin: 0; color: #1e40af;"><strong>💡 Dica:</strong> Este relatório é gerado automaticamente no dia ${currentDate.getDate()} de cada mês.</p>
-              </div>
-              
+
+              ${pdfBuffer ? `
+              <p style="margin-top: 16px; color: #374151;">Caso não consiga abrir o link acima, enviamos uma versão em PDF em anexo.</p>` : ''}
+
+              ${pdfBuffer ? '<p style="margin-top: 8px;"><strong>📎 Anexo:</strong> Relatório detalhado em PDF</p>' : ''}
+
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
               <p style="font-size: 12px; color: #9ca3af; text-align: center;">
                 Uptime Monitor - Sistema de Monitoramento<br>

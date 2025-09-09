@@ -45,8 +45,8 @@ export class PDFService {
         deviceScaleFactor: 2.5 // antes: 1.5. Aumenta a definição/legibilidade
       })
       
-      // Obter URL base do frontend das variáveis de ambiente
-      const frontendBaseUrl = process.env.FRONTEND_BASE_URL || baseUrl
+      // Obter URL base do frontend
+      const frontendBaseUrl = baseUrl || process.env.FRONTEND_BASE_URL || 'http://localhost:3001'
       // Forçar modo monitor na renderização da página de Status para evitar relatório geral
       const statusUrl = `${frontendBaseUrl}/status/${encodeURIComponent(monitorSlug)}?forceMonitor=1`
       console.log(`🌐 Navegando para: ${statusUrl}`)
@@ -83,7 +83,7 @@ export class PDFService {
         fullPage: true
       })
       
-      console.log(`✅ Captura concluída (${Math.round(screenshot.length / 1024)}KB)`)!
+      console.log(`✅ Captura concluída (${Math.round(screenshot.length / 1024)}KB)`)
       return screenshot
       
     } catch (error) {
@@ -107,9 +107,10 @@ export class PDFService {
       const screenshot = await this.captureStatusPage(monitorSlug, baseUrl);
       
       // Criar PDF com a captura
+      // ALTERAÇÃO: remover margens para a imagem preencher todo o espaço
       const doc = new PDFDocument({
         size: 'A4',
-        margins: { top: 50, bottom: 50, left: 50, right: 50 }
+        margin: 0
       });
       
       const chunks: Buffer[] = [];
@@ -124,25 +125,22 @@ export class PDFService {
         
         doc.on('error', reject);
         
-        // Adicionar cabeçalho
-        this.addHeader(doc, `Relatório Dinâmico - ${monitorName}`, 'Últimos 30 dias');
-        
-        // Adicionar timestamp
-        doc.fontSize(10)
-           .fillColor('#666666')
-           .text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 50, doc.y + 10);
-        
-        // Adicionar a captura da página de status
+        // ALTERAÇÃO: Remover textos/cabeçalhos do topo e preencher a página com a imagem
         try {
-          doc.image(screenshot, 50, doc.y + 20, {
-            fit: [495, 700], // Ajustar para caber na página A4
-            align: 'center'
-          });
+          const pageWidth = doc.page.width
+          const pageHeight = doc.page.height
+          // Ajuste: manter proporção (contain) e centralizar, sem esticar
+          doc.image(screenshot, 0, 0, {
+            fit: [pageWidth, pageHeight],
+            align: 'center',
+            valign: 'center'
+          })
         } catch (imageError) {
           console.error('Erro ao adicionar imagem ao PDF:', imageError);
+          // Mensagem de fallback mínima, sem cabeçalhos adicionais
           doc.fontSize(12)
              .fillColor('#ff0000')
-             .text('Erro ao carregar captura da página de status', 50, doc.y + 20);
+             .text('Erro ao carregar captura da página de status', 20, 20);
         }
         
         // Finalizar o documento
@@ -167,92 +165,42 @@ export class PDFService {
       
       // Criar PDF otimizado usando a mesma lógica do frontend
       return new Promise((resolve, reject) => {
-        const doc = new PDFDocument({ margin: 14.17 }) // 5mm em pontos
-        const chunks: Buffer[] = []
+        // ALTERAÇÃO: Remover margens e qualquer texto adicional para preencher a página
+        const doc = new PDFDocument({ margin: 0 })
+         const chunks: Buffer[] = []
+         
+         doc.on('data', chunk => chunks.push(chunk))
+         doc.on('end', () => resolve(Buffer.concat(chunks)))
+         doc.on('error', reject)
+         
+         const pageWidth = doc.page.width
+         const pageHeight = doc.page.height
+         
+         // Sem margens para a imagem ocupar toda a página
+         const margin = 0
+         const availableWidth = pageWidth
+         const availableHeight = pageHeight
+         
+         // ALTERAÇÃO: Removido qualquer cabeçalho/texto do topo
         
-        doc.on('data', chunk => chunks.push(chunk))
-        doc.on('end', () => resolve(Buffer.concat(chunks)))
-        doc.on('error', reject)
-        
-        const pageWidth = doc.page.width
-        const pageHeight = doc.page.height
-        
-        // Definir margens mínimas (5mm convertido para pontos)
-        const margin = 14.17
-        const availableWidth = pageWidth - (margin * 2)
-        const availableHeight = pageHeight - (margin * 2)
-        
-        // Adicionar cabeçalho profissional
-        doc.fontSize(10)
-           .fillColor('#666666')
-        
-        const headerText = `Relatório de Status - ${monitorName}`
-        const dateText = `Gerado em: ${new Date().toLocaleDateString('pt-BR')}`
-        
-        doc.text(headerText, margin, margin - 8)
-        doc.text(dateText, pageWidth - margin - doc.widthOfString(dateText), margin - 8)
-        
-        // Adicionar imagem otimizada
-        try {
-          // Calcular dimensões para maximizar uso do espaço
-          const imgInfo = doc.openImage(imageBuffer)
-          const imgWidth = imgInfo.width
-          const imgHeight = imgInfo.height
-          
-          // Converter pixels para pontos (mesma lógica do frontend)
-          const scaleX = availableWidth / (imgWidth * 0.75) // 0.75 = conversão pixel para ponto
-          const scaleY = availableHeight / (imgHeight * 0.75)
-          const scale = Math.min(scaleX, scaleY)
-          
-          const scaledWidth = (imgWidth * 0.75) * scale
-          const scaledHeight = (imgHeight * 0.75) * scale
-          
-          // Posicionar com margens mínimas
-          const x = margin
-          const y = margin
-          
-          // Se a imagem for muito alta, dividir em múltiplas páginas
-          if (scaledHeight > availableHeight) {
-            const overlap = 14.17 // 5mm de sobreposição
-            const effectivePageHeight = availableHeight - overlap
-            const pagesNeeded = Math.ceil(scaledHeight / effectivePageHeight)
-            
-            for (let i = 0; i < pagesNeeded; i++) {
-              if (i > 0) {
-                doc.addPage()
-                // Repetir cabeçalho nas páginas seguintes
-                doc.fontSize(10).fillColor('#666666')
-                doc.text(headerText, margin, margin - 8)
-                doc.text(`${dateText} - Página ${i + 1}`, pageWidth - margin - doc.widthOfString(`${dateText} - Página ${i + 1}`), margin - 8)
-              }
-              
-              const sourceY = i * effectivePageHeight
-              const sourceHeight = Math.min(availableHeight, scaledHeight - sourceY)
-              
-              // Adicionar seção da imagem
-              doc.image(imageBuffer, x, y, {
-                width: scaledWidth,
-                height: sourceHeight
-              })
-            }
-          } else {
-            // Adicionar imagem completa
-            doc.image(imageBuffer, x, y, {
-              width: scaledWidth,
-              height: scaledHeight
-            })
+         try {
+           // Ajuste: manter proporção (contain) e centralizar, sem esticar
+           doc.image(imageBuffer, 0, 0, {
+             fit: [availableWidth, availableHeight],
+             align: 'center',
+             valign: 'center'
+           })
+           
+         } catch (imgError) {
+           console.error('Erro ao processar imagem:', imgError)
+           // Fallback: adicionar texto explicativo
+           doc.fontSize(12)
+              .fillColor('#dc2626')
+              .text('Erro ao carregar imagem da página de status', margin + 20, margin + 20)
           }
           
-        } catch (imgError) {
-          console.error('Erro ao processar imagem:', imgError)
-          // Fallback: adicionar texto explicativo
-          doc.fontSize(12)
-             .fillColor('#dc2626')
-             .text('Erro ao carregar imagem da página de status', margin, margin + 50)
-        }
-        
-        doc.end()
-      })
+          doc.end()
+       })
       
     } catch (error) {
       console.error('❌ Erro ao gerar PDF otimizado:', error)

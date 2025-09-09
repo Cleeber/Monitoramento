@@ -1,0 +1,95 @@
+{
+  "tech_stack": [
+    "TypeScript",
+    "React (Vite)",
+    "TailwindCSS",
+    "Express",
+    "Node.js",
+    "Supabase (Postgres, Storage, Auth)",
+    "Zod",
+    "JWT",
+    "Node-cron",
+    "Nodemailer",
+    "PDFKit",
+    "Puppeteer",
+    "WS (WebSocket)"
+  ],
+  "features": [
+    {
+      "name": "Frontend - Roteamento e Proteção de Rotas",
+      "description": "Roteamento com react-router-dom e guarda de rotas com ProtectedRoute, incluindo páginas públicas e privadas.",
+      "files": [
+        "frontend/src/App.tsx",
+        "frontend/src/components/ProtectedRoute.tsx",
+        "frontend/src/components/Layout.tsx",
+        "frontend/src/pages/LoginPage.tsx",
+        "frontend/src/pages/DashboardPage.tsx",
+        "frontend/src/pages/DomainsPage.tsx",
+        "frontend/src/pages/GroupsPage.tsx",
+        "frontend/src/pages/StatusPage.tsx",
+        "frontend/src/pages/SmtpConfigPage.tsx",
+        "frontend/src/pages/ReportsPage.tsx",
+        "frontend/src/pages/StatusPagesPage.tsx"
+      ]
+    },
+    {
+      "name": "Frontend - Contextos de Autenticação e Toasts",
+      "description": "Contexto para autenticação de usuário e exibição de toasts globais.",
+      "files": [
+        "frontend/src/contexts/AuthContext.tsx",
+        "frontend/src/contexts/ToastContext.tsx",
+        "frontend/src/components/ui/toaster.tsx"
+      ]
+    },
+    {
+      "name": "Frontend - Configuração de Vite e Proxy",
+      "description": "Vite configurado para rodar em porta 3000 (auto fallback para 3001) com proxy para backend em http://localhost:8081.",
+      "files": [
+        "frontend/vite.config.ts",
+        "frontend/index.html"
+      ]
+    },
+    {
+      "name": "Backend - API Express com Segurança e Rate Limit",
+      "description": "Servidor Express com Helmet, CORS, Compression e rate limiting. Autenticação JWT, middlewares e rotas privadas/públicas.",
+      "files": [
+        "backend/src/index.ts",
+        "backend/src/services/DatabaseService.ts",
+        "backend/src/lib/supabase.ts"
+      ]
+    },
+    {
+      "name": "Backend - Monitoramento e Scheduler",
+      "description": "Serviço de monitoramento de uptime e agendamento de tarefas com node-cron.",
+      "files": [
+        "backend/src/monitoring/MonitoringService.ts",
+        "backend/src/services/SchedulerService.ts"
+      ]
+    },
+    {
+      "name": "Backend - Relatórios e PDF",
+      "description": "Geração de relatórios e PDFs, inclusive histórico mensal e exportação.",
+      "files": [
+        "backend/src/services/PDFService.ts",
+        "backend/src/services/ReportService.ts"
+      ]
+    },
+    {
+      "name": "Backend - SMTP e Envio de Emails",
+      "description": "Configuração, teste e envio de emails usando Nodemailer.",
+      "files": [
+        "backend/src/services/EmailService.ts",
+        "backend/src/services/StorageService.ts"
+      ]
+    },
+    {
+      "name": "Banco de Dados - Migrações e Esquema",
+      "description": "Scripts de migração e schema base usando Supabase Postgres.",
+      "files": [
+        "backend/database/schema.sql",
+        "backend/database/migration-add-slugs.sql",
+        "backend/database/migration-grupos.sql"
+      ]
+    }
+  ]
+}
