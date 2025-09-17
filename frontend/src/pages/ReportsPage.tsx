@@ -635,7 +635,7 @@ export function ReportsPage() {
       }
     } else {
       // Dados históricos do monitor selecionado
-      const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
+      // const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
       
       // Agrupar checks por dia
       const dailyData: { [key: string]: { total: number, successful: number } } = {}

@@ -14,7 +14,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 // Removido import não utilizado: Link
 // import { Link } from 'react-router-dom'
-import { cn, formatDuration, calculateUptime } from '../lib/utils'
+// Removidos imports não utilizados: cn, formatDuration, calculateUptime
+// import { cn, formatDuration, calculateUptime } from '../lib/utils'
 // Removidos imports não utilizados: formatDistanceToNow, ptBR
 // import { formatDistanceToNow } from 'date-fns'
 // import { ptBR } from 'date-fns/locale'

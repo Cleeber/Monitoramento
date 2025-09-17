@@ -25,8 +25,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     sourcemap: true,
-  },
-  define: {
-    global: 'globalThis',
+    rollupOptions: {
+      external: [],
+      output: {
+        globals: {}
+      }
+    }
   },
 })

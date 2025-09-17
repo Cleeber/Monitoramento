@@ -5,17 +5,18 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files for workspace setup
 COPY package*.json ./
+COPY frontend/package*.json ./frontend/
 
-# Install dependencies
+# Install dependencies for the workspace and frontend
 RUN npm ci && npm cache clean --force
 
 # Copy source code and config files
 COPY . .
 
-# Build the application
-RUN npm run build
+# Build only the frontend application
+RUN cd frontend && npm run build
 
 # Production stage
 FROM nginx:alpine AS production
@@ -63,7 +64,7 @@ server {
 EOF
 
 # Copy built application from builder stage
-COPY --from=builder /app/dist /usr/share/nginx/html
+COPY --from=builder /app/frontend/dist /usr/share/nginx/html
 
 # Create nginx user
 RUN addgroup -g 1001 -S nginx && adduser -S nginx -u 1001 -G nginx
