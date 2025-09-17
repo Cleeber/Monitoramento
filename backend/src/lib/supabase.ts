@@ -83,7 +83,6 @@ export interface Database {
         Row: {
           id: string
           group_id: string
-          group_id: string
           url: string
           slug: string | null
           type: 'http' | 'ping' | 'tcp'
@@ -99,6 +98,12 @@ export interface Database {
           created_at: string
           is_active: boolean
           updated_at: string
+          // Adicionados para alinhar com uso no DatabaseService
+          name: string
+          logo_url: string | null
+          report_email: string | null
+          report_send_day: number
+          report_send_time: string
         }
         Insert: {
           id?: string
@@ -107,7 +112,8 @@ export interface Database {
           url: string
           slug?: string | null
           type: 'http' | 'ping' | 'tcp'
-          group_id: string
+          // Adicionado para permitir definir o intervalo na criação
+          interval?: number
           timeout?: number
           status?: 'online' | 'offline' | 'warning' | 'unknown'
           last_check?: string | null
@@ -119,6 +125,11 @@ export interface Database {
           created_at?: string
           is_active?: boolean
           updated_at?: string
+          // Adicionados para alinhar com criação em DatabaseService.createMonitor
+          logo_url?: string | null
+          report_email?: string | null
+          report_send_day?: number
+          report_send_time?: string
         }
         Update: {
           id?: string
@@ -131,13 +142,17 @@ export interface Database {
           timeout?: number
           status?: 'online' | 'offline' | 'warning' | 'unknown'
           last_check?: string | null
-          group_id?: string
           uptime_24h?: number
           uptime_7d?: number
           uptime_30d?: number
           error_message?: string | null
           is_active?: boolean
           updated_at?: string
+          // Adicionados para suportar atualizações via rota PUT /api/monitors/:id
+          logo_url?: string | null
+          report_email?: string | null
+          report_send_day?: number
+          report_send_time?: string
         }
       }
       monitor_checks: {

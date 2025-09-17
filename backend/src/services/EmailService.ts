@@ -213,7 +213,7 @@ export class EmailService {
   async sendMonthlyReport(
     toEmail: string, 
     monitorName: string, 
-    reportContent: string, 
+    content: string,
     pdfBuffer?: Buffer,
     fileName?: string,
     statusLink?: string
@@ -260,6 +260,10 @@ export class EmailService {
                   <a href="${statusLink}" target="_blank" style="color: #0369a1; text-decoration: none;">${statusLink}</a>
                 </p>
               </div>` : ''}
+
+              <div style="background-color: white; padding: 15px; border-radius: 6px; border-left: 4px solid #2563eb; margin-top: 16px;">
+                ${content.replace(/\n/g, '<br>')}
+              </div>
 
               ${pdfBuffer ? `
               <p style="margin-top: 16px; color: #374151;">Caso não consiga abrir o link acima, enviamos uma versão em PDF em anexo.</p>` : ''}

@@ -29,17 +29,20 @@ const monitoringService = new MonitoringService()
 // Middlewares
 app.use(helmet())
 app.use(compression())
+// Definir origins permitidos com type guard para CORS
+const allowedOrigins = [
+  'http://localhost:3000', 
+  'http://127.0.0.1:3000', 
+  'http://localhost:3001', 
+  'http://127.0.0.1:3001', 
+  'http://localhost:3002', 
+  'http://127.0.0.1:3002',
+  process.env.FRONTEND_BASE_URL,
+  process.env.CORS_ORIGIN
+].filter((o): o is string => Boolean(o))
+
 app.use(cors({
-  origin: [
-    'http://localhost:3000', 
-    'http://127.0.0.1:3000', 
-    'http://localhost:3001', 
-    'http://127.0.0.1:3001', 
-    'http://localhost:3002', 
-    'http://127.0.0.1:3002',
-    process.env.FRONTEND_BASE_URL,
-    process.env.CORS_ORIGIN
-  ].filter(Boolean),
+  origin: allowedOrigins,
   credentials: true
 }))
 app.use(express.json({ limit: '10mb' }))
@@ -1363,7 +1366,7 @@ app.get('/api/public/uptime-history', async (req, res) => {
     const daysNumber = parseInt(days as string)
     
     // Calcular data de início
-    const endDate = new Date()
+    // Removido endDate não utilizado para conformidade com noUnusedLocals
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - daysNumber)
     

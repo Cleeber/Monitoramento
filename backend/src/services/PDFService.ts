@@ -22,7 +22,7 @@ export class PDFService {
       
       // Configurar puppeteer com otimizações
       browser = await puppeteer.launch({
-        headless: 'new',
+        headless: true, // antes: 'new' — ajustado para compatibilidade de tipos
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -83,8 +83,11 @@ export class PDFService {
         fullPage: true
       })
       
-      console.log(`✅ Captura concluída (${Math.round(screenshot.length / 1024)}KB)`)
-      return screenshot
+      // Converter para Buffer para compatibilidade com o restante do sistema
+      const screenshotBuffer = Buffer.from(screenshot as Uint8Array)
+      
+      console.log(`✅ Captura concluída (${Math.round(screenshotBuffer.length / 1024)}KB)`) 
+      return screenshotBuffer
       
     } catch (error) {
       console.error('❌ Erro ao capturar página de status:', error)
