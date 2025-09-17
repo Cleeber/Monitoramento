@@ -1642,6 +1642,11 @@ app.listen(PORT, () => {
   // Iniciar o serviço de monitoramento
   monitoringService.start()
   console.log(`🔍 Serviço de monitoramento iniciado`)
+
+  // Garantir bucket de logos no Supabase
+  storageService.ensureBucketExists().catch((e) => {
+    console.warn('Aviso: não foi possível garantir o bucket de logos no startup:', e)
+  })
 })
 
 export default app

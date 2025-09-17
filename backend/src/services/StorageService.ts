@@ -8,7 +8,9 @@ export class StorageService {
     'image/png',
     'image/jpeg', 
     'image/jpg',
-    'image/svg+xml'
+    'image/svg+xml',
+    // Adicionado para suportar logos em WEBP
+    'image/webp'
   ]
 
   /**
@@ -27,7 +29,7 @@ export class StorageService {
     if (!this.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       return {
         valid: false,
-        error: 'Formato de arquivo não suportado. Formatos aceitos: PNG, JPG, JPEG, SVG'
+        error: 'Formato de arquivo não suportado. Formatos aceitos: PNG, JPG, JPEG, SVG, WEBP'
       }
     }
 
@@ -86,31 +88,41 @@ export class StorageService {
   }
 
   /**
-   * Extrai a extensão do arquivo
+   * Garante que o bucket de logos exista e esteja público.
+   * Evita erros 500 em ambientes onde o bucket ainda não foi criado.
    */
-  private getFileExtension(filename: string): string {
-    const lastDotIndex = filename.lastIndexOf('.')
-    return lastDotIndex !== -1 ? filename.substring(lastDotIndex) : ''
+  async ensureBucketExists(): Promise<void> {
+    try {
+      const { data: buckets, error: listError } = await supabase.storage.listBuckets()
+      if (listError) {
+        console.warn('Não foi possível listar buckets do Supabase Storage:', listError.message)
+        return
+      }
+
+      const exists = (buckets || []).some(b => b.name === this.BUCKET_NAME)
+      if (!exists) {
+        const { error: createError } = await supabase.storage.createBucket(this.BUCKET_NAME, {
+          public: true,
+          // Limite de tamanho coerente com validação local
+          fileSizeLimit: `${this.MAX_FILE_SIZE}`,
+        })
+        if (createError) {
+          console.warn(`Falha ao criar bucket ${this.BUCKET_NAME}:`, createError.message)
+        } else {
+          console.log(`✅ Bucket '${this.BUCKET_NAME}' criado no Supabase Storage`)
+        }
+      }
+    } catch (e) {
+      console.warn('Não foi possível garantir a existência do bucket de logos:', e)
+    }
   }
 
-  /**
-   * Extrai o caminho do arquivo a partir da URL
-   */
-  extractFilePathFromUrl(url: string): string | null {
-    try {
-      const urlObj = new URL(url)
-      const pathParts = urlObj.pathname.split('/')
-      const bucketIndex = pathParts.findIndex(part => part === this.BUCKET_NAME)
-      
-      if (bucketIndex !== -1 && bucketIndex < pathParts.length - 1) {
-        return pathParts.slice(bucketIndex + 1).join('/')
-      }
-      
-      return null
-    } catch {
-      return null
-    }
+  // ===== Helpers =====
+  private getFileExtension(filename: string): string {
+    const dotIndex = filename.lastIndexOf('.')
+    return dotIndex !== -1 ? filename.slice(dotIndex) : ''
   }
 }
 
+// Mantém export existente
 export const storageService = new StorageService()
