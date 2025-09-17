@@ -4,7 +4,7 @@ import dotenv from 'dotenv'
 // Carregar variáveis de ambiente
 dotenv.config()
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (!supabaseUrl || !supabaseServiceKey) {
@@ -83,7 +83,7 @@ export interface Database {
         Row: {
           id: string
           group_id: string
-          name: string
+          group_id: string
           url: string
           slug: string | null
           type: 'http' | 'ping' | 'tcp'
@@ -107,7 +107,7 @@ export interface Database {
           url: string
           slug?: string | null
           type: 'http' | 'ping' | 'tcp'
-          interval?: number
+          group_id: string
           timeout?: number
           status?: 'online' | 'offline' | 'warning' | 'unknown'
           last_check?: string | null
@@ -131,7 +131,7 @@ export interface Database {
           timeout?: number
           status?: 'online' | 'offline' | 'warning' | 'unknown'
           last_check?: string | null
-          response_time?: number | null
+          group_id?: string
           uptime_24h?: number
           uptime_7d?: number
           uptime_30d?: number
