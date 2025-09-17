@@ -375,10 +375,28 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
     }
     
-    if (group_id) {
-      const group = await databaseService.getGroupById(group_id)
+    // Normalizar group_id vazio para null e validar grupo (alteração isolada)
+    const safeGroupId = group_id && String(group_id).trim() !== '' ? group_id : null
+    if (safeGroupId) {
+      const group = await databaseService.getGroupById(safeGroupId)
       if (!group) {
         return res.status(400).json({ error: 'Grupo não encontrado' })
+      }
+    }
+
+    // Normalizar/validar campos de relatório mensal (alteração isolada)
+    let normalizedReportSendDay
+    if (report_send_day !== undefined && report_send_day !== null) {
+      const n = Number(report_send_day)
+      if (!Number.isNaN(n)) {
+        normalizedReportSendDay = Math.min(28, Math.max(1, Math.trunc(n)))
+      }
+    }
+    if (report_send_time !== undefined && report_send_time !== null) {
+      const timeStr = String(report_send_time).trim()
+      const isValidTime = /^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)
+      if (!isValidTime) {
+        return res.status(400).json({ error: 'Horário inválido em report_send_time. Use HH:MM (00:00 a 23:59)' })
       }
     }
     
@@ -388,21 +406,21 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       type,
       interval: interval || 60000, // Valor já em milissegundos do frontend
       timeout: timeout || 30000,   // Valor já em milissegundos do frontend
-      group_id,
+      group_id: safeGroupId,
       is_active: enabled,
       slug,
       logo_url,
       report_email,
-      report_send_day,
+      report_send_day: normalizedReportSendDay,
       report_send_time
     })
     
     // Criar configuração de relatório mensal se fornecida
-    if (report_email && report_send_day) {
+    if (report_email && normalizedReportSendDay) {
       await databaseService.createMonthlyReportConfig({
         monitor_id: newMonitor.id,
         email: report_email,
-        send_day: report_send_day,
+        send_day: normalizedReportSendDay,
         is_active: true
       })
     }
@@ -422,7 +440,17 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
     res.status(201).json(newMonitor)
   } catch (error) {
     console.error('Erro ao criar monitor:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
+    // Mensagens amigáveis para erros de banco (alteração isolada)
+    if (error?.code === '23514') {
+      return res.status(400).json({ error: 'Dia de envio do relatório deve estar entre 1 e 28' })
+    }
+    if (error?.code === '23505') {
+      const msg = String(error?.message || '')
+      if (msg.includes('slug')) {
+        return res.status(400).json({ error: 'Slug já está em uso. Escolha outro.' })
+      }
+    }
+    res.status(500).json({ error: 'Erro ao salvar monitor' })
   }
 })
 
@@ -460,6 +488,22 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
         return res.status(400).json({ error: 'Grupo não encontrado' })
       }
     }
+
+    // Normalizar/validar campos de relatório mensal (alteração isolada)
+    let normalizedReportSendDay
+    if (report_send_day !== undefined && report_send_day !== null) {
+      const n = Number(report_send_day)
+      if (!Number.isNaN(n)) {
+        normalizedReportSendDay = Math.min(28, Math.max(1, Math.trunc(n)))
+      }
+    }
+    if (report_send_time !== undefined && report_send_time !== null) {
+      const timeStr = String(report_send_time).trim()
+      const isValidTime = /^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)
+      if (!isValidTime) {
+        return res.status(400).json({ error: 'Horário inválido em report_send_time. Use HH:MM (00:00 a 23:59)' })
+      }
+    }
     
     const updatedMonitor = await databaseService.updateMonitor(id, {
       name,
@@ -471,7 +515,7 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       is_active,
       slug,
       report_email,
-      report_send_day,
+      report_send_day: normalizedReportSendDay,
       report_send_time,
       // Adicionado: permitir atualização do campo de logo
       logo_url
@@ -484,12 +528,12 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
     // Gerenciar configuração de relatório mensal
     const existingConfig = await databaseService.getMonthlyReportConfigByMonitor(id)
     
-    if (report_email && report_send_day) {
+    if (report_email && normalizedReportSendDay) {
       if (existingConfig) {
         // Atualizar configuração existente
         await databaseService.updateMonthlyReportConfig(existingConfig.id, {
           email: report_email,
-          send_day: report_send_day,
+          send_day: normalizedReportSendDay,
           is_active: true
         })
       } else {
@@ -497,7 +541,7 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
         await databaseService.createMonthlyReportConfig({
           monitor_id: id,
           email: report_email,
-          send_day: report_send_day,
+          send_day: normalizedReportSendDay,
           is_active: true
         })
       }
@@ -526,6 +570,16 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
     res.json(updatedMonitor)
   } catch (error) {
     console.error('Erro ao atualizar monitor:', error)
+    // Mensagens amigáveis para erros de banco (alteração isolada)
+    if (error?.code === '23514') {
+      return res.status(400).json({ error: 'Dia de envio do relatório deve estar entre 1 e 28' })
+    }
+    if (error?.code === '23505') {
+      const msg = String(error?.message || '')
+      if (msg.includes('slug')) {
+        return res.status(400).json({ error: 'Slug já está em uso. Escolha outro.' })
+      }
+    }
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
