@@ -440,12 +440,14 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
     res.status(201).json(newMonitor)
   } catch (error) {
     console.error('Erro ao criar monitor:', error)
+    // Narrowing do erro para compatibilidade com TypeScript (alteração isolada)
+    const errAny = error as any
     // Mensagens amigáveis para erros de banco (alteração isolada)
-    if (error?.code === '23514') {
+    if (errAny?.code === '23514') {
       return res.status(400).json({ error: 'Dia de envio do relatório deve estar entre 1 e 28' })
     }
-    if (error?.code === '23505') {
-      const msg = String(error?.message || '')
+    if (errAny?.code === '23505') {
+      const msg = String(errAny?.message || '')
       if (msg.includes('slug')) {
         return res.status(400).json({ error: 'Slug já está em uso. Escolha outro.' })
       }
@@ -570,12 +572,14 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
     res.json(updatedMonitor)
   } catch (error) {
     console.error('Erro ao atualizar monitor:', error)
+    // Narrowing do erro para compatibilidade com TypeScript (alteração isolada)
+    const errAny = error as any
     // Mensagens amigáveis para erros de banco (alteração isolada)
-    if (error?.code === '23514') {
+    if (errAny?.code === '23514') {
       return res.status(400).json({ error: 'Dia de envio do relatório deve estar entre 1 e 28' })
     }
-    if (error?.code === '23505') {
-      const msg = String(error?.message || '')
+    if (errAny?.code === '23505') {
+      const msg = String(errAny?.message || '')
       if (msg.includes('slug')) {
         return res.status(400).json({ error: 'Slug já está em uso. Escolha outro.' })
       }
