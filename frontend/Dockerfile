@@ -66,8 +66,8 @@ EOF
 # Copy built application from builder stage
 COPY --from=builder /app/frontend/dist /usr/share/nginx/html
 
-# Create nginx user
-RUN addgroup -g 1001 -S nginx && adduser -S nginx -u 1001 -G nginx
+# Create nginx user (idempotent: ignore if already exists)
+RUN addgroup -g 1001 -S nginx || true && adduser -S -u 1001 -G nginx nginx || true
 
 # Set proper permissions
 RUN chown -R nginx:nginx /usr/share/nginx/html && \
