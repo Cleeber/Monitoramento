@@ -230,17 +230,21 @@ initializeDefaultData()
 
 // Middleware de autenticação
 const authenticateToken = (req: any, res: any, next: any) => {
+  console.log(`🔐 [AUTH] ${req.method} ${req.path} - Verificando autenticação...`)
   const authHeader = req.headers['authorization']
   const token = authHeader && authHeader.split(' ')[1]
 
   if (!token) {
+    console.log('❌ [AUTH] Token não fornecido')
     return res.status(401).json({ error: 'Token de acesso requerido' })
   }
 
   jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
     if (err) {
+      console.log('❌ [AUTH] Token inválido:', err.message)
       return res.status(403).json({ error: 'Token inválido' })
     }
+    console.log(`✅ [AUTH] Token válido para usuário: ${user.email}`)
     req.user = user
     next()
   })
@@ -370,8 +374,10 @@ app.get('/api/monitors', authenticateToken, async (_, res) => {
 
 app.post('/api/monitors', authenticateToken, async (req, res) => {
   try {
-    console.log('🔍 Iniciando criação de monitor...')
-    console.log('📋 Dados recebidos:', JSON.stringify(req.body, null, 2))
+    console.log('🔍 [MONITOR] Iniciando criação de monitor...')
+    console.log('👤 [MONITOR] Usuário autenticado:', req.user?.email)
+    console.log('📋 [MONITOR] Headers:', JSON.stringify(req.headers, null, 2))
+    console.log('📋 [MONITOR] Dados recebidos:', JSON.stringify(req.body, null, 2))
     
     const { name, url, type, interval, timeout, group_id, enabled = true, slug, report_email, report_send_day, report_send_time } = req.body
     
