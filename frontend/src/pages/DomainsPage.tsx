@@ -127,10 +127,49 @@ export function DomainsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    // Validação do campo obrigatório
-    if (!formData.report_send_time) {
-      addToast({ title: 'O horário do envio é obrigatório', variant: 'destructive' })
+    // Validações de formulário (obrigatórias e consistência)
+    const name = formData.name?.trim()
+    const url = formData.url?.trim()
+    const type = formData.type
+
+    if (!name) {
+      addToast({ title: 'O nome do monitor é obrigatório', variant: 'destructive' })
       return
+    }
+    if (!url) {
+      addToast({ title: 'A URL monitorada é obrigatória', variant: 'destructive' })
+      return
+    }
+    if (type === 'http') {
+      const hasProtocol = /^https?:\/\/.+/i.test(url)
+      if (!hasProtocol) {
+        addToast({ title: 'Informe uma URL válida iniciando com http:// ou https://', variant: 'destructive' })
+        return
+      }
+    }
+    if (!['http', 'ping', 'tcp'].includes(type)) {
+      addToast({ title: 'Tipo de monitor inválido. Valores aceitos: HTTP, PING ou TCP', variant: 'destructive' })
+      return
+    }
+    if (!Number.isFinite(formData.interval) || formData.interval <= 0) {
+      addToast({ title: 'Intervalo deve ser maior que 0', variant: 'destructive' })
+      return
+    }
+    if (!Number.isFinite(formData.timeout) || formData.timeout <= 0) {
+      addToast({ title: 'Tempo de resposta (timeout) deve ser maior que 0', variant: 'destructive' })
+      return
+    }
+    // Validar configuração de relatório apenas se e-mail for informado
+    if (formData.report_email?.trim()) {
+      if (!formData.report_send_time) {
+        addToast({ title: 'Informe o horário do envio dos relatórios (HH:MM)', variant: 'destructive' })
+        return
+      }
+      const isValidTime = /^([01]\d|2[0-3]):([0-5]\d)$/.test(formData.report_send_time)
+      if (!isValidTime) {
+        addToast({ title: 'Horário inválido para envio de relatórios. Use o formato HH:MM', variant: 'destructive' })
+        return
+      }
     }
     
     try {
@@ -145,13 +184,13 @@ export function DomainsPage() {
       }
       
       const token = localStorage.getItem('auth_token')
-      const url = editingMonitor 
+      const urlApi = editingMonitor 
         ? `${import.meta.env.VITE_API_URL}/monitors/${editingMonitor.id}`
         : `${import.meta.env.VITE_API_URL}/monitors`
       
       const method = editingMonitor ? 'PUT' : 'POST'
       
-      const response = await fetch(url, {
+      const response = await fetch(urlApi, {
         method,
         headers: {
           'Content-Type': 'application/json',
