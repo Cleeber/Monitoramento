@@ -22,7 +22,7 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 8081
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
-const DEFAULT_GROUP_ID = process.env.DEFAULT_GROUP_ID || process.env.DEFAULT_GROUP
+// const DEFAULT_GROUP_ID = process.env.DEFAULT_GROUP_ID || process.env.DEFAULT_GROUP // Removido por não uso
 
 // Inicializar serviço de monitoramento
 const monitoringService = new MonitoringService()
@@ -531,7 +531,7 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       type,
       interval: interval, // Valor já em milissegundos do frontend
       timeout: timeout,   // Valor já em milissegundos do frontend
-      group_id: normalizedGroupIdToUpdate,
+      group_id: normalizedGroupIdToUpdate as any, // permitir null para limpar associação de grupo
       is_active,
       slug,
       report_email,
