@@ -16,6 +16,11 @@ import { reportService } from './services/ReportService.js'
 import { schedulerService } from './services/SchedulerService.js'
 import axios from 'axios'
 
+// Interface para estender o tipo Request com a propriedade user
+interface AuthenticatedRequest extends express.Request {
+  user?: any
+}
+
 // Carregar variáveis de ambiente
 dotenv.config()
 
@@ -229,7 +234,7 @@ initializeServices()
 initializeDefaultData()
 
 // Middleware de autenticação
-const authenticateToken = (req: any, res: any, next: any) => {
+const authenticateToken = (req: AuthenticatedRequest, res: express.Response, next: express.NextFunction) => {
   console.log(`🔐 [AUTH] ${req.method} ${req.path} - Verificando autenticação...`)
   const authHeader = req.headers['authorization']
   const token = authHeader && authHeader.split(' ')[1]
@@ -290,7 +295,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
   }
 })
 
-app.post('/api/auth/verify', authenticateToken, async (req: any, res) => {
+app.post('/api/auth/verify', authenticateToken, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     const user = await databaseService.getUserById(req.user.id)
     if (!user) {
@@ -372,7 +377,7 @@ app.get('/api/monitors', authenticateToken, async (_, res) => {
   }
 })
 
-app.post('/api/monitors', authenticateToken, async (req, res) => {
+app.post('/api/monitors', authenticateToken, async (req: AuthenticatedRequest, res: express.Response) => {
   try {
     console.log('🔍 [MONITOR] Iniciando criação de monitor...')
     console.log('👤 [MONITOR] Usuário autenticado:', req.user?.email)
