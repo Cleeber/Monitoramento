@@ -375,6 +375,20 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
     if (!name || !url || !type) {
       return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
     }
+
+    // Normalizar e validar tipo do monitor (alteração isolada)
+    const rawType = String(type).trim().toLowerCase()
+    let normalizedType: 'http' | 'ping' | 'tcp' | null = null
+    if (['http', 'https', 'http/https', 'url'].includes(rawType)) {
+      normalizedType = 'http'
+    } else if (rawType === 'ping') {
+      normalizedType = 'ping'
+    } else if (rawType === 'tcp') {
+      normalizedType = 'tcp'
+    }
+    if (!normalizedType) {
+      return res.status(400).json({ error: 'Tipo inválido. Valores aceitos: http, ping ou tcp' })
+    }
     
     // Normalizar group_id vazio para null e validar grupo; sem fallback DEFAULT_GROUP_ID
     let safeGroupId = group_id && String(group_id).trim() !== '' ? group_id : null
@@ -383,6 +397,13 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       if (!group) {
         return res.status(400).json({ error: 'Grupo não encontrado' })
       }
+    }
+
+    // Função utilitária local para tratar duração em segundos/milisegundos (alteração isolada)
+    const toMilliseconds = (value: any, defaultMs: number) => {
+      const n = Number(value)
+      if (!Number.isFinite(n) || n <= 0) return defaultMs
+      return n < 1000 ? n * 1000 : n
     }
 
     // Normalizar/validar campos de relatório mensal (alteração isolada)
@@ -404,9 +425,9 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
     const newMonitor = await databaseService.createMonitor({
       name,
       url,
-      type,
-      interval: interval || 60000, // Valor já em milissegundos do frontend
-      timeout: timeout || 30000,   // Valor já em milissegundos do frontend
+      type: normalizedType,
+      interval: toMilliseconds(interval, 60000), // aceita segundos (<1000) ou ms
+      timeout: toMilliseconds(timeout, 30000),   // aceita segundos (<1000) ou ms
       group_id: safeGroupId,
       is_active: enabled,
       slug,
