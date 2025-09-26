@@ -189,6 +189,18 @@ export function DomainsPage() {
         : `${import.meta.env.VITE_API_URL}/monitors`
       
       const method = editingMonitor ? 'PUT' : 'POST'
+
+      // Normalizar slug: enviar null quando vazio (apenas espaços) e aparar espaços
+      const normalizedSlugRaw = (formData.slug ?? '').trim()
+      const normalizedSlug = normalizedSlugRaw === '' ? null : normalizedSlugRaw
+
+      const payload = {
+        ...formData,
+        slug: normalizedSlug,
+        interval: formData.interval * 1000, // Converter segundos para milissegundos
+        timeout: formData.timeout * 1000,   // Converter segundos para milissegundos
+        logo_url: logoUrl
+      }
       
       const response = await fetch(urlApi, {
         method,
@@ -196,12 +208,7 @@ export function DomainsPage() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`
         },
-        body: JSON.stringify({
-          ...formData,
-          interval: formData.interval * 1000, // Converter segundos para milissegundos
-          timeout: formData.timeout * 1000,   // Converter segundos para milissegundos
-          logo_url: logoUrl
-        })
+        body: JSON.stringify(payload)
       })
 
       if (response.ok) {
@@ -214,7 +221,22 @@ export function DomainsPage() {
         resetForm()
         fetchData()
       } else {
-        throw new Error('Erro ao salvar monitor')
+        // Exibir mensagem de erro detalhada da API quando disponível
+        let errorMessage = 'Erro ao salvar monitor'
+        try {
+          const contentType = response.headers.get('content-type') || ''
+          if (contentType.includes('application/json')) {
+            const errData = await response.json()
+            errorMessage = (errData && (errData.error || errData.message)) || errorMessage
+          } else {
+            const text = await response.text()
+            if (text) errorMessage = text
+          }
+        } catch (e) {
+          // Ignorar erros de parsing e usar mensagem padrão
+        }
+        addToast({ title: errorMessage, variant: 'destructive' })
+        return
       }
     } catch (error) {
       console.error('Erro ao salvar monitor:', error)
