@@ -22,6 +22,7 @@ dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 8081
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
+const DEFAULT_GROUP_ID = process.env.DEFAULT_GROUP_ID || process.env.DEFAULT_GROUP
 
 // Inicializar serviço de monitoramento
 const monitoringService = new MonitoringService()
@@ -375,8 +376,8 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
     }
     
-    // Normalizar group_id vazio para null e validar grupo (alteração isolada)
-    const safeGroupId = group_id && String(group_id).trim() !== '' ? group_id : null
+    // Normalizar group_id vazio para null e validar grupo; sem fallback DEFAULT_GROUP_ID
+    let safeGroupId = group_id && String(group_id).trim() !== '' ? group_id : null
     if (safeGroupId) {
       const group = await databaseService.getGroupById(safeGroupId)
       if (!group) {
@@ -452,6 +453,15 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
         return res.status(400).json({ error: 'Slug já está em uso. Escolha outro.' })
       }
     }
+    // Violação de NOT NULL (ex.: group_id obrigatório no schema do Supabase)
+    if (errAny?.code === '23502') {
+      return res.status(400).json({ error: 'Falha ao salvar: verifique se todos os campos obrigatórios do banco estão preenchidos. Em alguns ambientes o campo "group_id" pode estar como obrigatório.' })
+    }
+    // Violação de chave estrangeira (grupo inexistente)
+    if (errAny?.code === '23503') {
+      return res.status(400).json({ error: 'Grupo selecionado não existe no banco de dados.' })
+    }
+    // Resposta genérica
     res.status(500).json({ error: 'Erro ao salvar monitor' })
   }
 })
@@ -484,10 +494,18 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
     const { id } = req.params
     const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time, logo_url } = req.body
     
-    if (group_id) {
-      const group = await databaseService.getGroupById(group_id)
-      if (!group) {
-        return res.status(400).json({ error: 'Grupo não encontrado' })
+    // Validar/normalizar group_id; permitir vazio (null) sem fallback
+    let normalizedGroupIdToUpdate: string | null | undefined = undefined
+    if (group_id !== undefined) {
+      const hasValue = group_id !== null && String(group_id).trim() !== ''
+      if (hasValue) {
+        const group = await databaseService.getGroupById(group_id)
+        if (!group) {
+          return res.status(400).json({ error: 'Grupo não encontrado' })
+        }
+        normalizedGroupIdToUpdate = group_id
+      } else {
+        normalizedGroupIdToUpdate = null
       }
     }
 
@@ -513,7 +531,7 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       type,
       interval: interval, // Valor já em milissegundos do frontend
       timeout: timeout,   // Valor já em milissegundos do frontend
-      group_id,
+      group_id: normalizedGroupIdToUpdate,
       is_active,
       slug,
       report_email,
@@ -1675,6 +1693,30 @@ app.get('/api/health', (_, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   })
+})
+
+// Health check de conectividade com Supabase (diagnóstico em produção)
+app.get('/api/health/supabase', async (_, res) => {
+  try {
+    const { error } = await supabase
+      .from('monitors')
+      .select('id', { count: 'exact', head: true })
+
+    if (error) {
+      return res.status(200).json({
+        supabase_connected: false,
+        error_code: (error as any).code,
+        error_message: error.message
+      })
+    }
+
+    return res.json({ supabase_connected: true })
+  } catch (err) {
+    return res.status(200).json({
+      supabase_connected: false,
+      error_message: err instanceof Error ? err.message : String(err)
+    })
+  }
 })
 
 

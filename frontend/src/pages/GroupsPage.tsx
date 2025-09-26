@@ -32,7 +32,7 @@ interface Monitor {
   url: string
   status: 'online' | 'offline' | 'warning' | 'unknown'
   type: string
-  group_id: string
+  group_id: string | null
   response_time?: number
 }
 
@@ -166,7 +166,7 @@ export function GroupsPage() {
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm('Tem certeza que deseja excluir este grupo? Todos os monitores associados também serão removidos.')) return
+    if (!confirm('Tem certeza que deseja excluir este grupo? Monitores associados não serão excluídos e impedirão a exclusão. Mova-os para "Sem grupo" ou outro grupo antes de continuar.')) return
 
     try {
       const token = localStorage.getItem('auth_token')

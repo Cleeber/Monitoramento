@@ -72,7 +72,7 @@ interface Monitor {
   name: string
   url: string
   status: string
-  group_id: string
+  group_id: string | null
   group_name: string
   report_email?: string
   report_send_day?: number
