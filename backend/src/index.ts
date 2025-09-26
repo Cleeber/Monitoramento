@@ -370,13 +370,18 @@ app.get('/api/monitors', authenticateToken, async (_, res) => {
 
 app.post('/api/monitors', authenticateToken, async (req, res) => {
   try {
+    console.log('🔍 Iniciando criação de monitor...')
+    console.log('📋 Dados recebidos:', JSON.stringify(req.body, null, 2))
+    
     const { name, url, type, interval, timeout, group_id, enabled = true, slug, logo_url, report_email, report_send_day, report_send_time } = req.body
     
     if (!name || !url || !type) {
+      console.log('❌ Campos obrigatórios faltando')
       return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
     }
 
     // Normalizar e validar tipo do monitor (alteração isolada)
+    console.log('🔍 Validando tipo do monitor...')
     const rawType = String(type).trim().toLowerCase()
     let normalizedType: 'http' | 'ping' | 'tcp' | null = null
     if (['http', 'https', 'http/https', 'url'].includes(rawType)) {
@@ -387,16 +392,24 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       normalizedType = 'tcp'
     }
     if (!normalizedType) {
+      console.log('❌ Tipo inválido:', rawType)
       return res.status(400).json({ error: 'Tipo inválido. Valores aceitos: http, ping ou tcp' })
     }
+    console.log('✅ Tipo normalizado:', normalizedType)
     
     // Normalizar group_id vazio para null e validar grupo; sem fallback DEFAULT_GROUP_ID
+    console.log('🔍 Validando grupo...')
     let safeGroupId = group_id && String(group_id).trim() !== '' ? group_id : null
+    console.log('📋 Group ID normalizado:', safeGroupId)
     if (safeGroupId) {
       const group = await databaseService.getGroupById(safeGroupId)
       if (!group) {
+        console.log('❌ Grupo não encontrado:', safeGroupId)
         return res.status(400).json({ error: 'Grupo não encontrado' })
       }
+      console.log('✅ Grupo validado:', group.name)
+    } else {
+      console.log('✅ Nenhum grupo selecionado')
     }
 
     // Função utilitária local para tratar duração em segundos/milisegundos (alteração isolada)
@@ -414,13 +427,37 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
         normalizedReportSendDay = Math.min(28, Math.max(1, Math.trunc(n)))
       }
     }
+    console.log('🔍 Validando report_send_time...')
+    console.log('📋 report_send_time recebido:', report_send_time, 'tipo:', typeof report_send_time)
     if (report_send_time !== undefined && report_send_time !== null) {
       const timeStr = String(report_send_time).trim()
+      console.log('📋 timeStr após trim:', timeStr)
       const isValidTime = /^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)
+      console.log('📋 isValidTime:', isValidTime)
       if (!isValidTime) {
+        console.log('❌ Horário inválido:', timeStr)
         return res.status(400).json({ error: 'Horário inválido em report_send_time. Use HH:MM (00:00 a 23:59)' })
       }
+      console.log('✅ Horário válido:', timeStr)
+    } else {
+      console.log('✅ Nenhum horário fornecido')
     }
+    
+    console.log('🔍 Criando monitor no banco de dados...')
+    console.log('📋 Parâmetros para createMonitor:', {
+      name,
+      url,
+      type: normalizedType,
+      interval: toMilliseconds(interval, 60000),
+      timeout: toMilliseconds(timeout, 30000),
+      group_id: safeGroupId,
+      is_active: enabled,
+      slug,
+      logo_url,
+      report_email,
+      report_send_day: normalizedReportSendDay,
+      report_send_time
+    })
     
     const newMonitor = await databaseService.createMonitor({
       name,
@@ -436,18 +473,24 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       report_send_day: normalizedReportSendDay,
       report_send_time
     })
+    console.log('✅ Monitor criado com sucesso:', newMonitor.id)
     
     // Criar configuração de relatório mensal se fornecida
     if (report_email && normalizedReportSendDay) {
+      console.log('🔍 Criando configuração de relatório mensal...')
       await databaseService.createMonthlyReportConfig({
         monitor_id: newMonitor.id,
         email: report_email,
         send_day: normalizedReportSendDay,
         is_active: true
       })
+      console.log('✅ Configuração de relatório mensal criada')
+    } else {
+      console.log('✅ Nenhuma configuração de relatório mensal necessária')
     }
     
     // Adicionar ao serviço de monitoramento
+    console.log('🔍 Adicionando monitor ao serviço de monitoramento...')
     monitoringService.addMonitor({
       ...newMonitor,
       enabled: newMonitor.is_active,
@@ -455,9 +498,12 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       uptime_7d: 0,
       uptime_30d: 0
     })
+    console.log('✅ Monitor adicionado ao serviço de monitoramento')
     
     // Reagendar job de relatório mensal para o novo monitor
+    console.log('🔍 Reagendando job de relatório mensal...')
     await schedulerService.rescheduleMonitorReport(newMonitor.id)
+    console.log('✅ Job de relatório mensal reagendado')
     
     res.status(201).json(newMonitor)
   } catch (error) {
