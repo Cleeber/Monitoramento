@@ -475,6 +475,7 @@ app.post('/api/monitors', authenticateToken, async (req: AuthenticatedRequest, r
     }
     
     console.log('🔍 Criando monitor no banco de dados...')
+    const normalizedSlug = (typeof slug === 'string' && slug.trim() !== '' ? slug.trim() : null)
     console.log('📋 Parâmetros para createMonitor:', {
       name,
       url,
@@ -483,7 +484,7 @@ app.post('/api/monitors', authenticateToken, async (req: AuthenticatedRequest, r
       timeout: toMilliseconds(timeout, 30000),
       group_id: safeGroupId,
       is_active: enabled,
-      slug,
+      slug: normalizedSlug,
       report_email,
       report_send_day: normalizedReportSendDay,
       report_send_time
@@ -497,7 +498,7 @@ app.post('/api/monitors', authenticateToken, async (req: AuthenticatedRequest, r
       timeout: toMilliseconds(timeout, 30000),   // aceita segundos (<1000) ou ms
       group_id: safeGroupId,
       is_active: enabled,
-      slug,
+      slug: normalizedSlug,
       report_email,
       report_send_day: normalizedReportSendDay,
       report_send_time

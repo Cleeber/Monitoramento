@@ -217,7 +217,7 @@ export class DatabaseService {
         interval: monitorData.interval || 60000,
         timeout: monitorData.timeout || 30000,
         group_id: monitorData.group_id,
-        slug: monitorData.slug,
+        slug: (monitorData.slug && monitorData.slug.trim() !== '' ? monitorData.slug.trim() : null),
         report_email: monitorData.report_email || null,
         report_send_day: monitorData.report_send_day || 1,
         report_send_time: monitorData.report_send_time || '09:00',
