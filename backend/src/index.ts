@@ -484,7 +484,7 @@ app.post('/api/monitors', authenticateToken, async (req: AuthenticatedRequest, r
       timeout: toMilliseconds(timeout, 30000),
       group_id: safeGroupId,
       is_active: enabled,
-      slug: normalizedSlug,
+      slug: normalizedSlug ?? undefined,
       report_email,
       report_send_day: normalizedReportSendDay,
       report_send_time
