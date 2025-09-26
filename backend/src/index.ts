@@ -420,7 +420,27 @@ app.post('/api/monitors', authenticateToken, async (req: AuthenticatedRequest, r
       }
       console.log('✅ Grupo validado:', group.name)
     } else {
-      console.log('✅ Nenhum grupo selecionado')
+      console.log('✅ Nenhum grupo selecionado, aplicando grupo padrão se necessário')
+      try {
+        const groups = await databaseService.getGroups()
+        let defaultGroup = groups.find((g: any) => g.slug === 'sem-grupo') 
+          || groups.find((g: any) => String(g.name || '').toLowerCase() === 'sem grupo')
+        if (!defaultGroup) {
+          console.log('🔧 Criando grupo padrão "Sem grupo"...')
+          defaultGroup = await databaseService.createGroup({
+            name: 'Sem grupo',
+            description: 'Grupo padrão para monitores sem associação',
+            slug: 'sem-grupo'
+          })
+          console.log('✅ Grupo "Sem grupo" criado:', defaultGroup?.id)
+        } else {
+          console.log('✅ Grupo padrão localizado:', defaultGroup?.id)
+        }
+        safeGroupId = defaultGroup?.id || safeGroupId
+        console.log('📋 Group ID aplicado:', safeGroupId)
+      } catch (e) {
+        console.log('⚠️ Falha ao obter/criar grupo padrão:', e)
+      }
     }
 
     // Função utilitária local para tratar duração em segundos/milisegundos (alteração isolada)
