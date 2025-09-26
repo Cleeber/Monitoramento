@@ -1,7 +1,7 @@
 Algumas premissas básicas que você precisa sempre se lembrar e executar:
 
 - O projeto já está em execução então, após qualquer edição nos arquivos do projeto, é necessário fazer um git push e dentro do Easy Panel fazer um novo deploy. 
-- Quando executar o comando de commit, use sempre o mesmo padrão de identificação da versão anterior. Exemplo:
+- Quando executar o comando de commit, use sempre o mesmo padrão de identificação da versão anterior, apenas editando o número da versão "010, 011, 012, etc e a mensagem curta. Exemplo:
 ```
 git commit -m "Produção: 010 - Erros ao cadastrar novo monitor"
 ```
