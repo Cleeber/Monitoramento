@@ -100,7 +100,6 @@ export interface Database {
           updated_at: string
           // Adicionados para alinhar com uso no DatabaseService
           name: string
-          logo_url: string | null
           report_email: string | null
           report_send_day: number
           report_send_time: string
@@ -126,7 +125,6 @@ export interface Database {
           is_active?: boolean
           updated_at?: string
           // Adicionados para alinhar com criação em DatabaseService.createMonitor
-          logo_url?: string | null
           report_email?: string | null
           report_send_day?: number
           report_send_time?: string
@@ -149,7 +147,6 @@ export interface Database {
           is_active?: boolean
           updated_at?: string
           // Adicionados para suportar atualizações via rota PUT /api/monitors/:id
-          logo_url?: string | null
           report_email?: string | null
           report_send_day?: number
           report_send_time?: string

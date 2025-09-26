@@ -373,7 +373,7 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
     console.log('🔍 Iniciando criação de monitor...')
     console.log('📋 Dados recebidos:', JSON.stringify(req.body, null, 2))
     
-    const { name, url, type, interval, timeout, group_id, enabled = true, slug, logo_url, report_email, report_send_day, report_send_time } = req.body
+    const { name, url, type, interval, timeout, group_id, enabled = true, slug, report_email, report_send_day, report_send_time } = req.body
     
     if (!name || !url || !type) {
       console.log('❌ Campos obrigatórios faltando')
@@ -453,7 +453,6 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       group_id: safeGroupId,
       is_active: enabled,
       slug,
-      logo_url,
       report_email,
       report_send_day: normalizedReportSendDay,
       report_send_time
@@ -468,7 +467,6 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       group_id: safeGroupId,
       is_active: enabled,
       slug,
-      logo_url,
       report_email,
       report_send_day: normalizedReportSendDay,
       report_send_time
@@ -559,7 +557,7 @@ app.post('/api/upload/logo', authenticateToken, upload.single('logo'), async (re
 app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time, logo_url } = req.body
+    const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time } = req.body
     
     // Validar/normalizar group_id; permitir vazio (null) sem fallback
     let normalizedGroupIdToUpdate: string | null | undefined = undefined
@@ -603,9 +601,7 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       slug,
       report_email,
       report_send_day: normalizedReportSendDay,
-      report_send_time,
-      // Adicionado: permitir atualização do campo de logo
-      logo_url
+      report_send_time
     })
     
     if (!updatedMonitor) {
@@ -1456,7 +1452,6 @@ app.get('/api/public/status/monitor/:slug', async (req, res) => {
         name: monitor.name,
         url: monitor.url,
         slug: monitor.slug,
-        logo_url: monitor.logo_url,
         status: monitorStatus?.status || 'unknown',
         last_check: monitorStatus?.last_check,
         response_time: monitorStatus?.response_time,

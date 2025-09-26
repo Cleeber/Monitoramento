@@ -203,7 +203,6 @@ export class DatabaseService {
     group_id?: string | null
     slug?: string
     is_active?: boolean
-    logo_url?: string | null
     report_email?: string
     report_send_day?: number
     report_send_time?: string
@@ -219,7 +218,6 @@ export class DatabaseService {
         timeout: monitorData.timeout || 30000,
         group_id: monitorData.group_id,
         slug: monitorData.slug,
-        logo_url: monitorData.logo_url,
         report_email: monitorData.report_email || null,
         report_send_day: monitorData.report_send_day || 1,
         report_send_time: monitorData.report_send_time || '09:00',
