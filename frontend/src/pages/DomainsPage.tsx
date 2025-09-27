@@ -670,7 +670,7 @@ export function DomainsPage() {
                       </div>
                       
                       {/* Atualizado para incluir WEBP */}
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-gray-400" data-ui-version="fmts-015">
                         Formatos aceitos: PNG, JPG, SVG e WEBP • Tamanho máximo: 5MB
                       </p>
                     </div>
