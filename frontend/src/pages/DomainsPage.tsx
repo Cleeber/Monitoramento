@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -91,6 +91,7 @@ export function DomainsPage() {
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const { addToast } = useToast()
+  const fileInputRef = useRef<HTMLInputElement | null>(null) // Correção: referência ao input para acionar via clique programático
 
   useEffect(() => {
     fetchData()
@@ -314,11 +315,11 @@ export function DomainsPage() {
   }
 
   const validateLogoFile = (file: File): boolean => {
-    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml']
+    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/svg+xml', 'image/webp']
     const maxSize = 5 * 1024 * 1024 // 5MB
 
     if (!allowedTypes.includes(file.type)) {
-      addToast({ title: 'Formato de arquivo não suportado. Use PNG, JPG ou SVG.', variant: 'destructive' })
+      addToast({ title: 'Formato de arquivo não suportado. Use PNG, JPG, SVG ou WEBP.', variant: 'destructive' })
       return false
     }
 
@@ -648,15 +649,20 @@ export function DomainsPage() {
                       <div className="flex items-center gap-2">
                         <Input
                           type="file"
-                          accept=".png,.jpg,.jpeg,.svg"
+                          accept=".png,.jpg,.jpeg,.svg,.webp"
                           onChange={handleLogoChange}
                           className="hidden"
                           id="logo-upload"
                           disabled={uploadingLogo}
+                          ref={fileInputRef}
                         />
                         <Label 
                           htmlFor="logo-upload" 
                           className="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-md text-sm font-medium transition-colors"
+                          onClick={() => fileInputRef.current?.click()} // Garantir abertura do seletor de arquivos
+                          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInputRef.current?.click() } }}
+                          role="button"
+                          tabIndex={0}
                         >
                           <Upload className="h-4 w-4" />
                           {uploadingLogo ? 'Enviando...' : 'Escolher Arquivo'}
@@ -664,7 +670,7 @@ export function DomainsPage() {
                       </div>
                       
                       <p className="text-xs text-gray-400">
-                        Formatos aceitos: PNG, JPG, SVG • Tamanho máximo: 5MB
+                        Formatos aceitos: PNG, JPG, SVG e WEBP • Tamanho máximo: 5MB
                       </p>
                     </div>
                   </div>

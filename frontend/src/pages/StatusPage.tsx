@@ -91,7 +91,7 @@ const fetchUptimeHistory = async (groupId?: string) => {
       params.append('group_id', groupId)
     }
     
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/public/uptime-history?${params}`)
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/public/uptime-history?${params}`)
     if (!response.ok) {
       throw new Error('Falha ao buscar histórico de uptime')
     }
@@ -131,7 +131,7 @@ const fetchUptimeHistory = async (groupId?: string) => {
 // Função para buscar estatísticas reais do monitor
 const fetchMonitorStats = async (monitorId: string): Promise<MonitorStats | null> => {
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/public/monitor-stats/${monitorId}`)
+    const response = await fetch(`${import.meta.env.VITE_API_URL}/public/monitor-stats/${monitorId}`)
     if (!response.ok) {
       throw new Error('Erro ao buscar estatísticas do monitor')
     }
