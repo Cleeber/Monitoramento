@@ -669,6 +669,7 @@ export function DomainsPage() {
                         </Label>
                       </div>
                       
+                      {/* Atualizado para incluir WEBP */}
                       <p className="text-xs text-gray-400">
                         Formatos aceitos: PNG, JPG, SVG e WEBP • Tamanho máximo: 5MB
                       </p>
