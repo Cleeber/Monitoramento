@@ -103,6 +103,7 @@ export interface Database {
           report_email: string | null
           report_send_day: number
           report_send_time: string
+          logo_url: string | null
         }
         Insert: {
           id?: string
@@ -128,6 +129,7 @@ export interface Database {
           report_email?: string | null
           report_send_day?: number
           report_send_time?: string
+          logo_url?: string | null
         }
         Update: {
           id?: string
@@ -150,6 +152,7 @@ export interface Database {
           report_email?: string | null
           report_send_day?: number
           report_send_time?: string
+          logo_url?: string | null
         }
       }
       monitor_checks: {

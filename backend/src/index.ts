@@ -589,7 +589,7 @@ app.post('/api/upload/logo', authenticateToken, upload.single('logo'), async (re
 app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time } = req.body
+    const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time, logo_url } = req.body
     
     // Validar/normalizar group_id; permitir vazio (null) sem fallback
     let normalizedGroupIdToUpdate: string | null | undefined = undefined
@@ -633,7 +633,8 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       slug,
       report_email,
       report_send_day: normalizedReportSendDay,
-      report_send_time
+      report_send_time,
+      logo_url
     })
     
     if (!updatedMonitor) {

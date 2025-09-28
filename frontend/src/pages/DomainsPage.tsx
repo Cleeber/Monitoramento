@@ -200,9 +200,16 @@ export function DomainsPage() {
         slug: normalizedSlug,
         interval: formData.interval * 1000, // Converter segundos para milissegundos
         timeout: formData.timeout * 1000,   // Converter segundos para milissegundos
-        logo_url: logoUrl
+        is_active: formData.enabled // Corrigir: backend espera 'is_active', não 'enabled'
       }
       
+      // Adicionar logo_url apenas se não for null/undefined
+      if (logoUrl) {
+        payload.logo_url = logoUrl
+      }
+      
+      // Remover o campo 'enabled' do payload para evitar confusão
+      delete (payload as any).enabled
       const response = await fetch(urlApi, {
         method,
         headers: {
