@@ -177,6 +177,9 @@ export function StatusPage() {
   const [uptimeData, setUptimeData] = useState<any>(null)
   const [incidentsData, setIncidentsData] = useState<any>(null)
   const [responseTimeData, setResponseTimeData] = useState<any>(null)
+  // Estado interno para manter o ID real do grupo/monitor (UUID) para chamadas à API
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
+  const [selectedMonitorId, setSelectedMonitorId] = useState<string | null>(null)
   
   // Calcular totalServices baseado nos dados
   const totalServices = data ? data.monitors.length : 0
@@ -207,7 +210,8 @@ export function StatusPage() {
 
   const loadUptimeData = async () => {
     try {
-      const chartData = await fetchUptimeHistory(groupId)
+      // Usar o ID real do grupo (UUID) quando disponível para filtrar corretamente no backend
+      const chartData = await fetchUptimeHistory(selectedGroupId || undefined)
       setUptimeChartData(chartData)
       
       // Calcular dados de uptime para os cards de métricas
@@ -274,9 +278,10 @@ export function StatusPage() {
         statusData = await statusResponse.json()
         setData(statusData)
         
-        // Se é um grupo, usar o group_id para filtrar incidentes
+        // Se é um grupo, usar o group_id (UUID) para filtros posteriores
         if (statusData.group && statusData.group.id) {
           currentGroupId = statusData.group.id
+          setSelectedGroupId(currentGroupId)
           incidentsUrl = `${import.meta.env.VITE_API_URL}/public/incidents?group_id=${currentGroupId}`
         }
       } else if (statusResponse.status === 404 && groupId !== 'all') {
@@ -299,6 +304,7 @@ export function StatusPage() {
             statusData = adaptedData
             // Removido: isMonitorIndividual = true (não utilizado)
             currentMonitorId = monitorData.monitor.id
+            setSelectedMonitorId(currentMonitorId)
             
             // Para monitor individual, filtrar incidentes por monitor_id
             incidentsUrl = `${import.meta.env.VITE_API_URL}/public/incidents?monitor_id=${currentMonitorId}`
