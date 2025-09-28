@@ -463,11 +463,11 @@ app.post('/api/monitors', authenticateToken, async (req: AuthenticatedRequest, r
     if (report_send_time !== undefined && report_send_time !== null) {
       const timeStr = String(report_send_time).trim()
       console.log('📋 timeStr após trim:', timeStr)
-      const isValidTime = /^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)
+      const isValidTime = /^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/.test(timeStr)
       console.log('📋 isValidTime:', isValidTime)
       if (!isValidTime) {
         console.log('❌ Horário inválido:', timeStr)
-        return res.status(400).json({ error: 'Horário inválido em report_send_time. Use HH:MM (00:00 a 23:59)' })
+        return res.status(400).json({ error: 'Horário inválido em report_send_time. Use HH:MM ou HH:MM:SS (00:00 a 23:59)' })
       }
       console.log('✅ Horário válido:', timeStr)
     } else {
@@ -590,6 +590,8 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
     const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time, logo_url } = req.body
+    
+
     
     // Validar/normalizar group_id; permitir vazio (null) sem fallback
     let normalizedGroupIdToUpdate: string | null | undefined = undefined
