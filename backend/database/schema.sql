@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS public.monitors (
     uptime_24h DECIMAL(5,2) DEFAULT 0,
     uptime_7d DECIMAL(5,2) DEFAULT 0,
     uptime_30d DECIMAL(5,2) DEFAULT 0,
+    logo_url TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
