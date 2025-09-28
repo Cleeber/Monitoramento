@@ -590,9 +590,22 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
     const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time, logo_url } = req.body
-    
 
-    
+    // Normalizar e validar tipo do monitor (alinhado com POST)
+    let normalizedTypeToUpdate: 'http' | 'ping' | 'tcp' | null | undefined = undefined
+    if (type !== undefined && type !== null) {
+      const rawType = String(type).trim().toLowerCase()
+      if (['http', 'https', 'http/https', 'url'].includes(rawType)) {
+        normalizedTypeToUpdate = 'http'
+      } else if (rawType === 'ping') {
+        normalizedTypeToUpdate = 'ping'
+      } else if (rawType === 'tcp') {
+        normalizedTypeToUpdate = 'tcp'
+      } else {
+        return res.status(400).json({ error: 'Tipo inválido. Valores aceitos: http, ping ou tcp' })
+      }
+    }
+
     // Validar/normalizar group_id; permitir vazio (null) sem fallback
     let normalizedGroupIdToUpdate: string | null | undefined = undefined
     if (group_id !== undefined) {
@@ -618,16 +631,16 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
     }
     if (report_send_time !== undefined && report_send_time !== null) {
       const timeStr = String(report_send_time).trim()
-      const isValidTime = /^([01]\d|2[0-3]):([0-5]\d)$/.test(timeStr)
+      const isValidTime = /^([01]\d|2[0-3]):([0-5]\d)(:([0-5]\d))?$/.test(timeStr)
       if (!isValidTime) {
-        return res.status(400).json({ error: 'Horário inválido em report_send_time. Use HH:MM (00:00 a 23:59)' })
+        return res.status(400).json({ error: 'Horário inválido em report_send_time. Use HH:MM ou HH:MM:SS (00:00 a 23:59)' })
       }
     }
     
     const updatedMonitor = await databaseService.updateMonitor(id, {
       name,
       url,
-      type,
+      type: normalizedTypeToUpdate ?? undefined,
       interval: interval, // Valor já em milissegundos do frontend
       timeout: timeout,   // Valor já em milissegundos do frontend
       group_id: normalizedGroupIdToUpdate as any, // permitir null para limpar associação de grupo
