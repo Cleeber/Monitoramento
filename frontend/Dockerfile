@@ -56,14 +56,6 @@ server {
         add_header Cache-Control "public, immutable";
     }
 
-    # API proxy (if needed for same-origin requests)
-    location /api/ {
-        proxy_pass \$BACKEND_ORIGIN;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-    }
 }
 EOF
 
