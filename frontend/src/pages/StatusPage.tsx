@@ -179,7 +179,8 @@ export function StatusPage() {
   const [responseTimeData, setResponseTimeData] = useState<any>(null)
   // Estado interno para manter o ID real do grupo/monitor (UUID) para chamadas à API
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null)
-  const [selectedMonitorId, setSelectedMonitorId] = useState<string | null>(null)
+  // Ajuste: variável de estado não utilizada; manter apenas o setter para evitar erro TS6133 durante o build
+  const [, setSelectedMonitorId] = useState<string | null>(null)
   
   // Calcular totalServices baseado nos dados
   const totalServices = data ? data.monitors.length : 0
