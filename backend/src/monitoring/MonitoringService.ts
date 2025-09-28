@@ -28,6 +28,8 @@ interface Monitor {
   uptime_30d: number
   group_id?: string | null
   group_name?: string
+  // Campo opcional para URL da logo do monitor (alteração pontual para suportar exibição de logo na Página de Status)
+  logo_url?: string | null
 }
 
 interface ContentValidationConfig {
