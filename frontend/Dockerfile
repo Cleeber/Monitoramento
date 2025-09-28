@@ -41,9 +41,13 @@ server {
     add_header X-XSS-Protection "1; mode=block" always;
     add_header Referrer-Policy "strict-origin-when-cross-origin" always;
 
-    # Handle client-side routing
+    # Handle client-side routing (disable cache for HTML responses)
     location / {
-        try_files \$uri \$uri/ /index.html;
+        try_files $uri $uri/ /index.html;
+        # Ensure HTML is never cached (so new JS/CSS manifests are picked up)
+        add_header Cache-Control "no-store, no-cache, must-revalidate, max-age=0" always;
+        add_header Pragma "no-cache" always;
+        add_header Expires "0" always;
     }
 
     # Cache static assets
