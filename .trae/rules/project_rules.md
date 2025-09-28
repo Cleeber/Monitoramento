@@ -6,7 +6,7 @@ Algumas premissas básicas que você precisa sempre se lembrar e executar:
 
 - Sempre após um deploy, verifique na aba Deployments se o deploy foi realizado com sucesso. Caso exista algum erro de deploy, verifique os logs, identifique e corrija.
 
-- Quando executar o comando de commit, mantenha sempre o mesmo padrão de identificação da versão anterior, apenas seguindo para o próximo número da versão. ex: "010, 011, 012, etc e a mensagem curta. Exemplo:
+- Quando executar o comando de commit, mantenha sempre o mesmo padrão de identificação da versão anterior, apenas seguindo a sequencia para o próximo número da versão. ex: "010, 011, 012, etc e a mensagem curta. Exemplo:
 ```
 git commit -m "Produção: 010 - Erros ao cadastrar novo monitor"
 ```
@@ -23,7 +23,7 @@ Link: https://monitor.pagina1digital.com.br/
 Login: admin@agencia.com
 Senha: admin123
 
-- Faça validações do banco de dados usando o MCP do Supabase para verificar se todas as tabelas, relações e etc estão corretas.
+- Quando necessário, faça validações do banco de dados usando o MCP do Supabase para verificar se todas as tabelas, relações e etc estão corretas.
 Se necessário conecte-se via MCP Playwright na conta da Supabase para executar alguma ação. Estes são os dados de acesso:
 Link: https://supabase.com/
 Login: websites@pagina1digital.com.br

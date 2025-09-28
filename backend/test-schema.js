@@ -6,12 +6,12 @@ import { fileURLToPath } from 'url'
 import dotenv from 'dotenv'
 
 // Carregar variáveis de ambiente
-dotenv.config()
+dotenv.config({ path: path.resolve(process.cwd(), '.env.production') })
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.VITE_SUPABASE_URL
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
 
 if (!supabaseUrl || !supabaseServiceKey) {
@@ -20,6 +20,33 @@ if (!supabaseUrl || !supabaseServiceKey) {
 }
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey)
+
+async function checkColumn(table, column) {
+  try {
+    const { data, error } = await supabase
+      .from(table)
+      .select(column)
+      .limit(1)
+
+    if (error) {
+      if (
+        (error.message && (error.message.includes('does not exist') || error.message.includes('unknown') || error.message.includes('column'))) ||
+        error.code === 'PGRST204'
+      ) {
+        console.log(`❌ Coluna ${column} não existe na tabela ${table}`)
+        return false
+      }
+      console.log(`⚠️ Erro ao verificar coluna ${column} em ${table}:`, error.message)
+      return false
+    }
+
+    console.log(`✅ Coluna ${column} existe na tabela ${table}`)
+    return true
+  } catch (err) {
+    console.log(`⚠️ Erro ao verificar coluna ${column} em ${table}:`, err.message)
+    return false
+  }
+}
 
 async function testSchema() {
   try {
@@ -37,7 +64,7 @@ async function testSchema() {
     // Testar se as tabelas existem
     console.log('🔍 Verificando se as tabelas existem...')
     
-    const tables = ['users', 'groups', 'monitors', 'monitor_checks', 'smtp_config', 'reports']
+    const tables = ['users', 'groups', 'monitors', 'monitor_checks', 'smtp_config', 'reports', 'monthly_report_configs', 'monthly_report_history']
     let allTablesExist = true
     
     for (const table of tables) {
@@ -70,8 +97,15 @@ async function testSchema() {
       console.log('3. Execute o conteúdo do arquivo database/schema.sql')
       console.log('\n📄 O schema foi corrigido e está pronto para execução!')
     }
-    
-    return allTablesExist
+
+    console.log('🔎 Validando colunas específicas...')
+    const results = []
+    results.push(await checkColumn('groups', 'slug'))
+    results.push(await checkColumn('monitors', 'slug'))
+    results.push(await checkColumn('monitors', 'logo_url'))
+    const allColumnsExist = results.every(Boolean)
+
+    return allTablesExist && allColumnsExist
     
   } catch (error) {
     console.error('❌ Erro geral:', error)
