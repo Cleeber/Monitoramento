@@ -665,24 +665,32 @@ ${this.generateAnalysis(stats)}
         [toEmail],
         `📊 Relatório Completo - ${monitor.name} - ${month}/${year}`,
         `
-          <h3>Relatório Mensal Completo</h3>
-          <p><strong>Monitor:</strong> ${monitor.name}</p>
-          <p><strong>Período:</strong> ${month}/${year}</p>
-          
-          <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e5e7eb;">
-            ${reportContent.replace(/\n/g, '<br>')}
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #f5f5f5; padding: 20px;">
+            <div style="background-color: #ffffff; border: 2px solid #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+              <div style="background-color: #3b82f6; color: white; padding: 20px; text-align: left;">
+                <h1 style="margin: 0; font-size: 24px; font-weight: bold;">📊 Relatório Completo</h1>
+                <p style="margin: 10px 0 0 0; font-size: 16px;">${monitor.name} - ${month}/${year}</p>
+              </div>
+              
+              <div style="padding: 30px; background-color: #ffffff; color: #374151;">
+                <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e5e7eb;">
+                  ${reportContent.replace(/\n/g, '<br>')}
+                </div>
+                
+                ${attachments.length > 0 ? `
+                <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px; border: 1px solid #e5e7eb;">
+                  <p style="margin: 0 0 15px 0; color: #374151; font-size: 16px;"><strong>📎 Anexos:</strong></p>
+                  <p style="color: #6b7280; margin: 0;">Relatório mensal e status geral em PDF</p>
+                </div>` : ''}
+                
+                ${statusLink ? `
+                <div style="background-color: #f8fafc; padding: 15px; border-left: 4px solid #3b82f6; margin-bottom: 20px;">
+                  <p style="margin: 0 0 8px 0; color: #1e40af; font-weight: bold; font-size: 14px;">🔗 Acompanhe o status em tempo real:</p>
+                  <a href="${statusLink}" target="_blank" style="color: #3b82f6; text-decoration: none; font-size: 14px; word-break: break-all;">${statusLink}</a>
+                </div>` : ''}
+              </div>
+            </div>
           </div>
-          
-          ${attachments.length > 0 ? `
-          <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px; border: 1px solid #e5e7eb;">
-            <p style="margin: 0 0 15px 0; color: #374151; font-size: 16px;"><strong>📎 Anexos:</strong></p>
-            <p style="color: #6b7280; margin: 0;">Relatório mensal e status geral em PDF</p>
-          </div>` : ''}
-          ${statusLink ? `
-        <div style="background-color: #f8fafc; padding: 15px; border-left: 4px solid #3b82f6; margin-bottom: 20px;">
-            <p style="margin: 0 0 8px 0; color: #1e40af; font-weight: bold; font-size: 14px;"><strong>🔗 Acompanhe o status em tempo real:</strong></p>
-            <a href="${statusLink}" target="_blank" style="color: #3b82f6; text-decoration: none; font-size: 14px; word-break: break-all;">${statusLink}</a>
-          </div>` : ''}
         `,
         attachments
       )
