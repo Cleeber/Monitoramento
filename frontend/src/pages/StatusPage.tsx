@@ -98,6 +98,22 @@ interface MonitorStats {
   }
 
   const API_BASE = resolveApiBase()
+  const BACKEND_ORIGIN = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
+  const RAW_API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+
+  // Helper para montar bases alternativas (evita falhas de proxy em produção)
+  const buildApiBases = (): string[] => {
+    const bases: string[] = []
+    const isAbsolute = /^https?:\/\//i.test(RAW_API_URL)
+    if (isAbsolute) bases.push(RAW_API_URL)
+    // API_BASE já considera VITE_BACKEND_ORIGIN quando presente
+    bases.push(API_BASE)
+    if (!isAbsolute && BACKEND_ORIGIN) {
+      bases.push(`${BACKEND_ORIGIN}${RAW_API_URL || '/api'}`)
+    }
+    // Remover duplicados mantendo a ordem de preferência
+    return Array.from(new Set(bases))
+  }
 
   const fetchUptimeHistory = async (groupId?: string) => {
   try {
@@ -109,12 +125,23 @@ interface MonitorStats {
       params.append('group_id', groupId)
     }
     
-    const response = await fetch(`${API_BASE}/public/uptime-history?${params}`)
-    if (!response.ok) {
+    // Tentar em múltiplas bases para evitar 502/404 do proxy
+    const bases = buildApiBases()
+    let uptimeData: any[] = []
+    let fetched = false
+    for (const base of bases) {
+      try {
+        const response = await fetch(`${base}/public/uptime-history?${params}`)
+        if (response.ok) {
+          uptimeData = await response.json()
+          fetched = true
+          break
+        }
+      } catch (_) { /* tentar próxima base */ }
+    }
+    if (!fetched) {
       throw new Error('Falha ao buscar histórico de uptime')
     }
-    
-    const uptimeData = await response.json()
     
     return {
       labels: uptimeData.map((item: any) => item.date),
@@ -148,17 +175,80 @@ interface MonitorStats {
 
 // Função para buscar estatísticas reais do monitor
   const fetchMonitorStats = async (monitorId: string): Promise<MonitorStats | null> => {
-  try {
-    const response = await fetch(`${API_BASE}/public/monitor-stats/${monitorId}`)
-    if (!response.ok) {
+    try {
+      // Tentar em múltiplas bases para contornar 502 do proxy
+      const bases = buildApiBases()
+      for (const base of bases) {
+        try {
+          const response = await fetch(`${base}/public/monitor-stats/${monitorId}`)
+          if (response.ok) {
+            return await response.json()
+          }
+        } catch (_) { /* tentar próxima base */ }
+      }
       throw new Error('Erro ao buscar estatísticas do monitor')
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas do monitor:', error)
+      return null
     }
-    return await response.json()
-  } catch (error) {
-    console.error('Erro ao buscar estatísticas do monitor:', error)
-    return null
   }
-}
+
+  // Fallback: calcular estatísticas a partir dos checks públicos
+  const fetchMonitorChecksStats = async (monitorId: string): Promise<MonitorStats | null> => {
+    try {
+      // Tentar em múltiplas bases para contornar 502 do proxy
+      const bases = buildApiBases()
+      let checks: any[] = []
+      let fetched = false
+      for (const base of bases) {
+        try {
+          const resp = await fetch(`${base}/public/monitors/${monitorId}/checks?limit=200`)
+          if (resp.ok) {
+            checks = await resp.json()
+            fetched = true
+            break
+          }
+        } catch (_) { /* tentar próxima base */ }
+      }
+      if (!fetched) {
+        throw new Error('Erro ao buscar checks do monitor')
+      }
+      if (!Array.isArray(checks) || checks.length === 0) {
+        return {
+          totalChecks: 0,
+          successfulChecks: 0,
+          failedChecks: 0,
+          minResponseTime: 0,
+          maxResponseTime: 0,
+          avgResponseTime: 0
+        }
+      }
+
+      const totalChecks = checks.length
+      const successfulChecks = checks.filter((c: any) => c.status === 'online').length
+      const failedChecks = totalChecks - successfulChecks
+      const responseTimes = checks
+        .map((c: any) => c.response_time)
+        .filter((rt: any) => typeof rt === 'number' && rt > 0)
+      const minResponseTime = responseTimes.length ? Math.min(...responseTimes) : 0
+      const maxResponseTime = responseTimes.length ? Math.max(...responseTimes) : 0
+      const avgResponseTime = responseTimes.length
+        ? Math.round(responseTimes.reduce((sum: number, v: number) => sum + v, 0) / responseTimes.length)
+        : 0
+
+      return {
+        totalChecks,
+        successfulChecks,
+        failedChecks,
+        minResponseTime,
+        maxResponseTime,
+        avgResponseTime
+      }
+    } catch (error) {
+      console.error('Erro ao calcular estatísticas pelos checks:', error)
+      return null
+    }
+  }
 
 // Função para gerar dados do gráfico de distribuição de status
 const generateStatusDistributionData = (monitors: PublicMonitor[]) => {
@@ -257,10 +347,17 @@ export function StatusPage() {
         // Para monitor individual, verificar se temos apenas um monitor e usar seu ID real
         if (data.monitors.length === 1) {
           // É um monitor individual, usar o ID real do monitor
-          const stats = await fetchMonitorStats(data.monitors[0].id)
+          let stats = await fetchMonitorStats(data.monitors[0].id)
+          // Fallback: se não houver dados (ou todos zeros), calcular pelos checks públicos
+          if (!stats || (stats.totalChecks === 0 && stats.successfulChecks === 0 && stats.failedChecks === 0)) {
+            const computed = await fetchMonitorChecksStats(data.monitors[0].id)
+            if (computed) stats = computed
+          }
           setMonitorStats(stats)
         } else {
           // É um grupo, usar o slug da URL
+          // Para páginas de grupo, não exibimos o cartão detalhado, então apenas evitar chamada desnecessária
+          // Mantido para compatibilidade caso o layout mude no futuro
           const stats = await fetchMonitorStats(groupId)
           setMonitorStats(stats)
         }

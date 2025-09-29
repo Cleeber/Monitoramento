@@ -37,6 +37,28 @@ interface ResponseTimeChartProps {
   monitors: PublicMonitor[]
 }
 
+// Resolve API base garantindo URL absoluta mesmo se VITE_API_URL for relativa
+const resolveApiBase = () => {
+  const raw = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  const isAbsolute = /^https?:\/\//i.test(raw)
+  if (isAbsolute) return raw
+  const origin = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
+  if (origin) return `${origin}${raw || '/api'}`
+  return '/api'
+}
+
+const buildApiBases = (): string[] => {
+  const base = resolveApiBase()
+  const backendOrigin = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
+  const raw = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  const bases: string[] = []
+  const isAbsolute = /^https?:\/\//i.test(raw)
+  if (isAbsolute) bases.push(raw)
+  bases.push(base)
+  if (!isAbsolute && backendOrigin) bases.push(`${backendOrigin}${raw || '/api'}`)
+  return Array.from(new Set(bases))
+}
+
 const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({ monitors }) => {
   const [chartData, setChartData] = useState<any>(null)
   const [loading, setLoading] = useState(true)
@@ -76,11 +98,20 @@ const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({ monitors }) => {
       try {
         // Buscar dados históricos reais do primeiro monitor ativo
         const activeMonitor = monitors[0]
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/public/monitors/${activeMonitor.id}/checks?limit=100`)
-        
-        if (!response.ok) throw new Error('Falha ao buscar dados históricos')
-        
-        const checks = await response.json()
+        // Tentar múltiplas bases de API para contornar falhas de proxy
+        let checks: any[] = []
+        let fetched = false
+        for (const base of buildApiBases()) {
+          try {
+            const response = await fetch(`${base}/public/monitors/${activeMonitor.id}/checks?limit=100`)
+            if (response.ok) {
+              checks = await response.json()
+              fetched = true
+              break
+            }
+          } catch (_) { /* tentar próxima base */ }
+        }
+        if (!fetched) throw new Error('Falha ao buscar dados históricos')
         
         // Agrupar checks por dia e calcular média de tempo de resposta
         const dailyData = new Map()
