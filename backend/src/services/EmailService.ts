@@ -91,10 +91,9 @@ export class EmailService {
                 <li><strong>Remetente:</strong> ${this.config!.from_name} &lt;${this.config!.from_email}&gt;</li>
               </ul>
             </div>
-            <p style="color: #6b7280;">Este e-mail foi enviado automaticamente pelo sistema Uptime Monitor para testar a configuração SMTP.</p>
+            <p style="color: #6b7280;">Este e-mail foi enviado automaticamente para testar a configuração SMTP.</p>
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
             <p style="font-size: 12px; color: #9ca3af; text-align: center;">
-              Uptime Monitor - Sistema de Monitoramento<br>
               Enviado em ${new Date().toLocaleString('pt-BR')}
             </p>
           </div>
@@ -144,13 +143,12 @@ export class EmailService {
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <div style="background-color: #dc2626; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-              <h2 style="margin: 0;">🚨 Alerta do Uptime Monitor</h2>
+              <h2 style="margin: 0;">🚨 Alerta de Monitoramento</h2>
             </div>
             <div style="background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb;">
               ${content}
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
               <p style="font-size: 12px; color: #9ca3af; text-align: center;">
-                Uptime Monitor - Sistema de Monitoramento<br>
                 Enviado em ${new Date().toLocaleString('pt-BR')}
               </p>
             </div>
