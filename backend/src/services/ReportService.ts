@@ -504,15 +504,16 @@ ${this.generateAnalysis(stats)}
       // Registrar falha no histórico
       try {
         const now = new Date()
+        const errorMessage = error instanceof Error ? error.message : String(error)
         await databaseService.createMonthlyReportHistory({
           monitor_id: monitorId,
           email: email,
           year: now.getFullYear(),
           month: now.getMonth() + 1,
-          report_data: JSON.stringify({ error: error.message }),
+          report_data: JSON.stringify({ error: errorMessage }),
           sent_at: now.toISOString(),
           status: 'failed',
-          error_message: error.message
+          error_message: errorMessage
         })
         console.log(`💾 Falha registrada no histórico`)
       } catch (historyError) {
