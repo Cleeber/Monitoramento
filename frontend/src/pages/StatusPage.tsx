@@ -85,6 +85,12 @@ interface MonitorStats {
   const resolveApiBase = () => {
     const raw = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
     const isAbsolute = /^https?:\/\//i.test(raw)
+    console.log('Debug resolveApiBase:', {
+      raw,
+      isAbsolute,
+      VITE_API_URL: import.meta.env.VITE_API_URL,
+      VITE_BACKEND_ORIGIN: import.meta.env.VITE_BACKEND_ORIGIN
+    })
     if (isAbsolute) return raw
     const origin = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
     if (origin) return `${origin}${raw || '/api'}`
