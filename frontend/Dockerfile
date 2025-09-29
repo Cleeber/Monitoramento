@@ -17,8 +17,8 @@ COPY . .
 
 # Build only the frontend application
 # Inject build-time environment variables for Vite
-ARG VITE_API_URL=https://monitor.pagina1digital.com.br/api
-ARG VITE_BACKEND_ORIGIN=https://monitor.pagina1digital.com.br
+ARG VITE_API_URL=https://api.pagina1digital.com.br/api
+ARG VITE_BACKEND_ORIGIN=https://api.pagina1digital.com.br
 ENV VITE_API_URL=${VITE_API_URL}
 ENV VITE_BACKEND_ORIGIN=${VITE_BACKEND_ORIGIN}
 RUN cd frontend && VITE_API_URL=$VITE_API_URL VITE_BACKEND_ORIGIN=$VITE_BACKEND_ORIGIN npm run build
@@ -63,9 +63,9 @@ server {
 
     # Proxy API requests to backend (failsafe for any relative /api calls)
     location ^~ /api/ {
-        proxy_pass https://monitor.pagina1digital.com.br/api/;
+        proxy_pass https://api.pagina1digital.com.br/api/;
         proxy_http_version 1.1;
-        proxy_set_header Host monitor.pagina1digital.com.br;
+        proxy_set_header Host api.pagina1digital.com.br;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Upgrade $http_upgrade;
@@ -73,7 +73,7 @@ server {
 
         # Ensure TLS SNI and proper DNS resolution for upstream
         proxy_ssl_server_name on;
-        proxy_ssl_name monitor.pagina1digital.com.br;
+        proxy_ssl_name api.pagina1digital.com.br;
         resolver 1.1.1.1 8.8.8.8 ipv6=off valid=300s;
         resolver_timeout 10s;
 
