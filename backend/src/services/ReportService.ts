@@ -430,13 +430,7 @@ ${this.generateAnalysis(stats)}
         throw new Error('Não foi possível coletar estatísticas do monitor')
       }
       
-      // Gerar conteúdo do relatório dinâmico
-      const content = this.generateDynamicReportContent(
-        stats,
-        monitor,
-        startDate,
-        endDate
-      )
+      // Conteúdo do relatório será gerado dinamicamente quando necessário
       
       let pdfBuffer: Buffer | undefined
       
@@ -562,8 +556,7 @@ ${this.generateAnalysis(stats)}
       console.log(`📈 Estatísticas coletadas - Uptime: ${stats.uptime_30d.toFixed(2)}%, Checks: ${stats.total_checks}`)
       console.log(`📝 Gerando conteúdo do relatório...`)
       
-      // Gerar conteúdo do relatório
-      const reportContent = this.generateTextContent(monitor, stats, `${this.getMonthName(month)} ${year}`)
+      // Conteúdo do relatório será gerado dinamicamente quando necessário
       
       let pdfBuffer: Buffer | undefined
       let fileName: string | undefined
