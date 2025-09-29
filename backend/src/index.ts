@@ -255,6 +255,22 @@ const authenticateToken = (req: AuthenticatedRequest, res: express.Response, nex
   })
 }
 
+// Rota raiz
+app.get('/', (_, res) => {
+  res.json({
+    message: 'Uptime Monitor API',
+    version: '1.0.0',
+    status: 'running',
+    endpoints: {
+      health: '/api/health',
+      auth: '/api/auth/login',
+      dashboard: '/api/dashboard/stats',
+      monitors: '/api/monitors',
+      public: '/api/public/status'
+    }
+  })
+})
+
 // Rotas de autenticação
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
   try {
