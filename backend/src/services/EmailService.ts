@@ -248,33 +248,34 @@ export class EmailService {
         to: toEmail,
         subject: `📊 Relatório Mensal - ${monitorName} - ${monthYear}`,
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <div style="background-color: #2563eb; color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-              <h2 style="margin: 0;">📊 Relatório Mensal</h2>
-              <p style="margin: 10px 0 0 0; opacity: 0.9;">${monitorName} - ${monthYear}</p>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #1a1a1a; color: #ffffff; border-radius: 8px; overflow: hidden;">
+            <div style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); color: white; padding: 20px; text-align: center;">
+              <h2 style="margin: 0; font-size: 24px;">📊 Relatório Mensal</h2>
+              <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 16px;">${monitorName} - ${monthYear}</p>
             </div>
-            <div style="background-color: #f9fafb; padding: 20px; border-radius: 0 0 8px 8px; border: 1px solid #e5e7eb;">
+            
+            <div style="padding: 30px; background-color: #2a2a2a;">
               ${statusLink ? `
-              <div style="background-color: #ecfeff; padding: 15px; border-radius: 6px; border-left: 4px solid #06b6d4;">
-                <p style="margin: 0; color: #0e7490;"><strong>🔗 Acompanhe o status em tempo real:</strong><br>
-                  <a href="${statusLink}" target="_blank" style="color: #0369a1; text-decoration: none;">${statusLink}</a>
-                </p>
+              <div style="background-color: #0f172a; padding: 15px; border-radius: 6px; border-left: 4px solid #06b6d4; margin-bottom: 20px;">
+                <p style="margin: 0; color: #38bdf8;"><strong>🔗 Acompanhe o status em tempo real:</strong></p>
+                <a href="${statusLink}" target="_blank" style="color: #60a5fa; text-decoration: none; font-size: 14px; word-break: break-all;">${statusLink}</a>
               </div>` : ''}
 
-              <div style="background-color: white; padding: 15px; border-radius: 6px; border-left: 4px solid #2563eb; margin-top: 16px;">
-                ${content.replace(/\n/g, '<br>')}
-              </div>
+              <p style="color: #d1d5db; margin: 0 0 20px 0; line-height: 1.6;">
+                Caso não consiga abrir o link acima, enviamos uma versão em PDF em anexo.
+              </p>
 
               ${pdfBuffer ? `
-              <p style="margin-top: 16px; color: #374151;">Caso não consiga abrir o link acima, enviamos uma versão em PDF em anexo.</p>` : ''}
+              <div style="background-color: #374151; padding: 15px; border-radius: 6px; text-align: center; margin-bottom: 20px;">
+                <p style="margin: 0; color: #f3f4f6;"><strong>📎 Anexo:</strong> Relatório detalhado em PDF</p>
+              </div>` : ''}
 
-              ${pdfBuffer ? '<p style="margin-top: 8px;"><strong>📎 Anexo:</strong> Relatório detalhado em PDF</p>' : ''}
-
-              <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-              <p style="font-size: 12px; color: #9ca3af; text-align: center;">
-                Uptime Monitor - Sistema de Monitoramento<br>
-                Relatório gerado em ${currentDate.toLocaleString('pt-BR')}
-              </p>
+              <div style="text-align: center; padding-top: 20px; border-top: 1px solid #4b5563;">
+                <p style="font-size: 12px; color: #9ca3af; margin: 0;">
+                  Uptime Monitor - Sistema de Monitoramento<br>
+                  Relatório gerado em ${currentDate.toLocaleString('pt-BR')}
+                </p>
+              </div>
             </div>
           </div>
         `
