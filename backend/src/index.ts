@@ -1817,14 +1817,16 @@ app.get('/api/public/monitor-stats/:monitorId', async (req, res) => {
       avgResponseTime = Math.round(responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length)
     }
     
-    res.json({
+    const result = {
       totalChecks,
       successfulChecks,
       failedChecks,
       minResponseTime,
       maxResponseTime,
       avgResponseTime
-    })
+    }
+    
+    res.json(result)
   } catch (error) {
     console.error('Erro ao buscar estatísticas do monitor:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
