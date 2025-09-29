@@ -81,7 +81,19 @@ interface MonitorStats {
 }
 
 // Função para buscar dados históricos reais de uptime
-const fetchUptimeHistory = async (groupId?: string) => {
+  // Resolve API base ensuring absolute URL even if VITE_API_URL is relative (e.g., "/api")
+  const resolveApiBase = () => {
+    const raw = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+    const isAbsolute = /^https?:\/\//i.test(raw)
+    if (isAbsolute) return raw
+    const origin = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
+    if (origin) return `${origin}${raw || '/api'}`
+    return 'https://api.pagina1digital.com.br/api'
+  }
+
+  const API_BASE = resolveApiBase()
+
+  const fetchUptimeHistory = async (groupId?: string) => {
   try {
     const params = new URLSearchParams({
       days: '30'
@@ -91,7 +103,7 @@ const fetchUptimeHistory = async (groupId?: string) => {
       params.append('group_id', groupId)
     }
     
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/public/uptime-history?${params}`)
+    const response = await fetch(`${API_BASE}/public/uptime-history?${params}`)
     if (!response.ok) {
       throw new Error('Falha ao buscar histórico de uptime')
     }
@@ -129,9 +141,9 @@ const fetchUptimeHistory = async (groupId?: string) => {
 }
 
 // Função para buscar estatísticas reais do monitor
-const fetchMonitorStats = async (monitorId: string): Promise<MonitorStats | null> => {
+  const fetchMonitorStats = async (monitorId: string): Promise<MonitorStats | null> => {
   try {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/public/monitor-stats/${monitorId}`)
+    const response = await fetch(`${API_BASE}/public/monitor-stats/${monitorId}`)
     if (!response.ok) {
       throw new Error('Erro ao buscar estatísticas do monitor')
     }
@@ -264,12 +276,12 @@ export function StatusPage() {
       let currentMonitorId: string | null = null
       
       if (!groupId || groupId === 'all') {
-        statusUrl = `${import.meta.env.VITE_API_URL}/public/status/all`
-        incidentsUrl = `${import.meta.env.VITE_API_URL}/public/incidents`
+    statusUrl = `${API_BASE}/public/status/all`
+    incidentsUrl = `${API_BASE}/public/incidents`
       } else {
         // Primeiro, tentar buscar como slug de grupo
-        statusUrl = `${import.meta.env.VITE_API_URL}/public/status/group/${groupId}`
-        incidentsUrl = `${import.meta.env.VITE_API_URL}/public/incidents`
+    statusUrl = `${API_BASE}/public/status/group/${groupId}`
+    incidentsUrl = `${API_BASE}/public/incidents`
       }
         
       const statusResponse = await fetch(statusUrl)
@@ -283,12 +295,12 @@ export function StatusPage() {
         if (statusData.group && statusData.group.id) {
           currentGroupId = statusData.group.id
           setSelectedGroupId(currentGroupId)
-          incidentsUrl = `${import.meta.env.VITE_API_URL}/public/incidents?group_id=${currentGroupId}`
+    incidentsUrl = `${API_BASE}/public/incidents?group_id=${currentGroupId}`
         }
       } else if (statusResponse.status === 404 && groupId !== 'all') {
         // Se não encontrou como grupo, tentar buscar como monitor individual
         try {
-          const monitorUrl = `${import.meta.env.VITE_API_URL}/public/status/monitor/${groupId}`
+    const monitorUrl = `${API_BASE}/public/status/monitor/${groupId}`
           const monitorResponse = await fetch(monitorUrl)
           if (monitorResponse.ok) {
             const monitorData = await monitorResponse.json()
@@ -308,7 +320,7 @@ export function StatusPage() {
             setSelectedMonitorId(currentMonitorId)
             
             // Para monitor individual, filtrar incidentes por monitor_id
-            incidentsUrl = `${import.meta.env.VITE_API_URL}/public/incidents?monitor_id=${currentMonitorId}`
+    incidentsUrl = `${API_BASE}/public/incidents?monitor_id=${currentMonitorId}`
           }
         } catch (monitorError) {
           console.error('Erro ao buscar monitor por slug:', monitorError)
@@ -337,7 +349,7 @@ export function StatusPage() {
     
     try {
       // Primeiro, tentar buscar como slug de grupo
-      const groupResponse = await fetch(`${import.meta.env.VITE_API_URL}/public/status/group/${groupId}`)
+  const groupResponse = await fetch(`${API_BASE}/public/status/group/${groupId}`)
       if (groupResponse.ok) {
         const groupData = await groupResponse.json()
         if (groupData.group) {
@@ -347,7 +359,7 @@ export function StatusPage() {
       }
       
       // Se não encontrou como grupo, tentar buscar como monitor individual
-      const monitorResponse = await fetch(`${import.meta.env.VITE_API_URL}/public/status/monitor/${groupId}`)
+  const monitorResponse = await fetch(`${API_BASE}/public/status/monitor/${groupId}`)
       if (monitorResponse.ok) {
         const monitorData = await monitorResponse.json()
         if (monitorData.monitor) {

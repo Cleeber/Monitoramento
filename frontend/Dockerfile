@@ -16,7 +16,12 @@ RUN npm ci && npm cache clean --force
 COPY . .
 
 # Build only the frontend application
-RUN cd frontend && npm run build
+# Inject build-time environment variables for Vite
+ARG VITE_API_URL=https://api.pagina1digital.com.br/api
+ARG VITE_BACKEND_ORIGIN=https://api.pagina1digital.com.br
+ENV VITE_API_URL=${VITE_API_URL}
+ENV VITE_BACKEND_ORIGIN=${VITE_BACKEND_ORIGIN}
+RUN cd frontend && VITE_API_URL=$VITE_API_URL VITE_BACKEND_ORIGIN=$VITE_BACKEND_ORIGIN npm run build
 
 # Production stage
 FROM nginx:alpine AS production
@@ -54,6 +59,37 @@ server {
     location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
         expires 1y;
         add_header Cache-Control "public, immutable";
+    }
+
+    # Proxy API requests to backend (failsafe for any relative /api calls)
+    location ^~ /api/ {
+        proxy_pass https://api.pagina1digital.com.br/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host api.pagina1digital.com.br;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        # Ensure TLS SNI and proper DNS resolution for upstream
+        proxy_ssl_server_name on;
+        proxy_ssl_name api.pagina1digital.com.br;
+        resolver 1.1.1.1 8.8.8.8 ipv6=off valid=300s;
+        resolver_timeout 10s;
+
+        # Timeouts to avoid premature 502 on slower upstream
+        proxy_connect_timeout 10s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+
+        # CORS headers (OPTIONS preflight support)
+        add_header Access-Control-Allow-Origin "*" always;
+        add_header Access-Control-Allow-Credentials "true" always;
+        add_header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS" always;
+        add_header Access-Control-Allow-Headers "Origin, Content-Type, Accept, Authorization" always;
+        if ($request_method = OPTIONS) {
+            return 204;
+        }
     }
 
 }

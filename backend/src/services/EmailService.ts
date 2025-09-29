@@ -213,7 +213,6 @@ export class EmailService {
   async sendMonthlyReport(
     toEmail: string, 
     monitorName: string, 
-    content: string,
     pdfBuffer?: Buffer,
     fileName?: string,
     statusLink?: string
