@@ -1799,6 +1799,111 @@ app.get('/api/public/monitor-stats/:monitorId', async (req, res) => {
   }
 })
 
+// Rota temporária para testar geração de PDF (sem autenticação)
+app.get('/api/test/pdf-generation', async (_, res) => {
+  try {
+    console.log('🧪 Iniciando teste de geração de PDF...');
+    
+    // Teste com o monitor Microsoft
+    const monitorId = 'ff1154e6-b422-4f68-b253-5cff81332fa5';
+    const year = 2024;
+    const month = 12;
+    
+    console.log(`Gerando PDF para monitor ${monitorId}, ano ${year}, mês ${month}`);
+    
+    const pdfBuffer = await pdfService.generateMonthlyReportPDF(monitorId, year, month);
+    
+    if (pdfBuffer && pdfBuffer.length > 0) {
+      console.log(`✅ PDF gerado com sucesso! Tamanho: ${pdfBuffer.length} bytes`);
+      
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', 'attachment; filename="test-report.pdf"');
+      res.send(pdfBuffer);
+    } else {
+      console.log('❌ PDF não foi gerado ou está vazio');
+      res.status(500).json({ error: 'PDF não foi gerado ou está vazio' });
+    }
+    
+  } catch (error: any) {
+    console.error('❌ Erro ao gerar PDF:', error);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ error: 'Erro ao gerar PDF', details: error.message });
+  }
+});
+
+// Rota de teste para envio de email com PDF anexado
+app.get('/api/test/email-with-pdf', async (_, res) => {
+  try {
+    console.log('🧪 Iniciando teste de envio de email com PDF...');
+    
+    // Buscar um monitor para teste
+    const { data: monitors, error: monitorsError } = await supabase
+      .from('monitors')
+      .select('*')
+      .limit(1);
+
+    if (monitorsError || !monitors || monitors.length === 0) {
+      console.log('❌ Nenhum monitor encontrado para teste');
+      return res.status(404).json({ error: 'Nenhum monitor encontrado para teste' });
+    }
+
+    const monitor = monitors[0];
+    console.log(`📊 Usando monitor: ${monitor.name} (${monitor.slug})`);
+
+    // Gerar PDF de status
+    const pdfBuffer = await pdfService.captureStatusPage(monitor.slug);
+    
+    if (!pdfBuffer || pdfBuffer.length === 0) {
+      console.log('❌ PDF não foi gerado ou está vazio');
+      return res.status(500).json({ error: 'PDF não foi gerado ou está vazio' });
+    }
+
+    console.log(`✅ PDF gerado com sucesso! Tamanho: ${pdfBuffer.length} bytes`);
+
+    // Buscar configuração SMTP
+    const { data: smtpConfig, error: smtpError } = await supabase
+      .from('smtp_config')
+      .select('*')
+      .single();
+
+    if (smtpError || !smtpConfig) {
+      console.log('❌ Configuração SMTP não encontrada');
+      return res.status(500).json({ error: 'Configuração SMTP não encontrada' });
+    }
+
+    console.log('📧 Configuração SMTP encontrada, enviando email de teste...');
+
+    // Enviar email de teste com PDF anexado
+    const emailResult = await reportService.sendTestEmailWithPDF(
+      monitor,
+      pdfBuffer,
+      'admin@agencia.com' // Email de teste
+    );
+
+    if (emailResult.success) {
+      console.log('✅ Email enviado com sucesso!');
+      res.json({ 
+        success: true, 
+        message: 'Email com PDF enviado com sucesso!',
+        monitor: monitor.name,
+        pdfSize: pdfBuffer.length,
+        emailTo: 'admin@agencia.com'
+      });
+    } else {
+      console.log('❌ Erro ao enviar email:', emailResult.error);
+      res.status(500).json({ 
+        error: 'Erro ao enviar email', 
+        details: emailResult.error 
+      });
+    }
+    
+  } catch (error: any) {
+    console.error('❌ Erro no teste de email com PDF:', error);
+    console.error('Stack trace:', error.stack);
+    res.status(500).json({ error: 'Erro no teste de email com PDF', details: error.message });
+  }
+});
+
 // Rota de health check
 app.get('/api/health', (_, res) => {
   res.json({ 

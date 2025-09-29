@@ -50,11 +50,13 @@ export class PDFService {
       // Forçar modo monitor na renderização da página de Status para evitar relatório geral
       const statusUrl = `${frontendBaseUrl}/status/${encodeURIComponent(monitorSlug)}?forceMonitor=1`
       console.log(`🌐 Navegando para: ${statusUrl}`)
+      console.log(`🔧 Frontend Base URL: ${frontendBaseUrl}`)
+      console.log(`🔧 Monitor Slug: ${monitorSlug}`)
       
-      // Navegar para a página com timeout otimizado
+      // Navegar para a página com timeout aumentado
       await page.goto(statusUrl, {
-        waitUntil: 'networkidle0',
-        timeout: 15000 // 15 segundos como no frontend
+        waitUntil: 'domcontentloaded', // Mudança de networkidle0 para domcontentloaded para ser mais rápido
+        timeout: 30000 // Aumentado de 15 para 30 segundos
       })
       
       // Aguardar renderização completa (mesmo tempo do frontend)

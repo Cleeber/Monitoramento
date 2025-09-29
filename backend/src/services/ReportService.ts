@@ -726,6 +726,43 @@ ${this.generateAnalysis(stats)}
       }
     }
   }
+
+  /**
+   * Método de teste para enviar email com PDF anexado
+   */
+  async sendTestEmailWithPDF(
+    monitor: any,
+    pdfBuffer: Buffer,
+    toEmail: string
+  ): Promise<{ success: boolean; message?: string; error?: string }> {
+    try {
+      console.log(`📧 Enviando email de teste com PDF para: ${toEmail}`);
+      
+      const fileName = `status-${monitor.slug}-${new Date().toISOString().split('T')[0]}.pdf`;
+      
+      const result = await emailService.sendMonthlyReport(
+        toEmail,
+        monitor.name,
+        pdfBuffer,
+        fileName
+      );
+
+      if (result.success) {
+        console.log(`✅ Email de teste enviado com sucesso para: ${toEmail}`);
+        return { success: true, message: 'Email de teste enviado com sucesso!' };
+      } else {
+        console.error(`❌ Falha ao enviar email de teste: ${result.message}`);
+        return { success: false, error: result.message };
+      }
+      
+    } catch (error) {
+      console.error(`❌ Erro ao enviar email de teste:`, error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
+      };
+    }
+  }
 }
 
 export const reportService = new ReportService()
