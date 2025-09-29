@@ -366,7 +366,7 @@ export function DomainsPage() {
       formData.append('logo', logoFile)
 
       const token = localStorage.getItem('auth_token')
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/upload/logo`, {
+      const response = await fetch(`${import.meta.env.VITE_API_URL}/upload/logo`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`
