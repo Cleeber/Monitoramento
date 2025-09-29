@@ -94,7 +94,7 @@ interface MonitorStats {
     if (isAbsolute) return raw
     const origin = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
     if (origin) return `${origin}${raw || '/api'}`
-    return 'https://api.pagina1digital.com.br/api'
+    return '/api'
   }
 
   const API_BASE = resolveApiBase()
