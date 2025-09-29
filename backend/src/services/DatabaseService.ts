@@ -417,19 +417,13 @@ export class DatabaseService {
       query = query.eq('monitor_id', filters.monitor_id)
     }
     if (filters?.year && filters?.month) {
-      // Filtrar por período específico
-      const startDate = new Date(filters.year, filters.month - 1, 1)
-      const endDate = new Date(filters.year, filters.month, 0)
+      // Filtrar por ano e mês específicos
       query = query
-        .gte('report_period_start', startDate.toISOString().split('T')[0])
-        .lte('report_period_end', endDate.toISOString().split('T')[0])
+        .eq('report_year', filters.year)
+        .eq('report_month', filters.month)
     } else if (filters?.year) {
       // Filtrar apenas por ano
-      const startDate = new Date(filters.year, 0, 1)
-      const endDate = new Date(filters.year, 11, 31)
-      query = query
-        .gte('report_period_start', startDate.toISOString().split('T')[0])
-        .lte('report_period_end', endDate.toISOString().split('T')[0])
+      query = query.eq('report_year', filters.year)
     }
     if (filters?.limit) {
       query = query.limit(filters.limit)
@@ -451,21 +445,50 @@ export class DatabaseService {
     status: 'sent' | 'failed'
     error_message?: string
   }) {
-    // Calcular período do relatório
-    const startDate = new Date(historyData.year, historyData.month - 1, 1)
-    const endDate = new Date(historyData.year, historyData.month, 0)
+    // Buscar config_id se existir
+    const { data: config } = await supabase
+      .from('monthly_report_configs')
+      .select('id')
+      .eq('monitor_id', historyData.monitor_id)
+      .single()
+    
+    // Extrair estatísticas do report_data se disponível
+     let stats = {
+       uptime_percentage: null,
+       total_checks: null,
+       successful_checks: null,
+       avg_response_time: null
+     }
+     
+     if (historyData.report_data && typeof historyData.report_data === 'string') {
+       try {
+         const parsedData = JSON.parse(historyData.report_data)
+         // Mapear campos corretos da interface MonitorStats
+         if (parsedData.uptime_30d !== undefined) stats.uptime_percentage = parsedData.uptime_30d
+         if (parsedData.total_checks !== undefined) stats.total_checks = parsedData.total_checks
+         if (parsedData.successful_checks !== undefined) stats.successful_checks = parsedData.successful_checks
+         if (parsedData.avg_response_time !== undefined) stats.avg_response_time = parsedData.avg_response_time
+       } catch (e) {
+         console.warn('Erro ao parsear report_data:', e)
+       }
+     }
     
     const { data, error } = await supabase
       .from('monthly_report_history')
       .insert({
         id: uuidv4(),
+        config_id: config?.id || null,
         monitor_id: historyData.monitor_id,
         email: historyData.email,
-        report_period_start: startDate.toISOString().split('T')[0],
-        report_period_end: endDate.toISOString().split('T')[0],
+        report_year: historyData.year,
+        report_month: historyData.month,
         sent_at: historyData.sent_at,
         status: historyData.status,
-        error_message: historyData.error_message
+        error_message: historyData.error_message,
+        uptime_percentage: stats.uptime_percentage,
+        total_checks: stats.total_checks,
+        successful_checks: stats.successful_checks,
+        avg_response_time: stats.avg_response_time
       })
       .select()
       .single()

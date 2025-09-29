@@ -155,13 +155,19 @@ async function createRequiredTables() {
         sql: `
           CREATE TABLE IF NOT EXISTS public.monthly_report_history (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            config_id UUID REFERENCES public.monthly_report_configs(id) ON DELETE CASCADE,
             monitor_id UUID NOT NULL REFERENCES public.monitors(id) ON DELETE CASCADE,
             email VARCHAR(255) NOT NULL,
-            sent_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
-            report_period_start DATE NOT NULL,
-            report_period_end DATE NOT NULL,
-            status VARCHAR(50) DEFAULT 'sent',
-            error_message TEXT
+            report_month INTEGER NOT NULL CHECK (report_month >= 1 AND report_month <= 12),
+            report_year INTEGER NOT NULL CHECK (report_year >= 2020),
+            sent_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            status VARCHAR(20) DEFAULT 'sent' CHECK (status IN ('sent', 'failed', 'pending')),
+            error_message TEXT,
+            uptime_percentage DECIMAL(5,2),
+            total_checks INTEGER,
+            successful_checks INTEGER,
+            avg_response_time DECIMAL(10,2),
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
           );
           
           CREATE INDEX IF NOT EXISTS idx_monthly_report_history_monitor_id ON public.monthly_report_history(monitor_id);
