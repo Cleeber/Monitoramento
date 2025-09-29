@@ -254,9 +254,16 @@ export function StatusPage() {
   const loadMonitorStats = async () => {
     try {
       if (data && data.monitors.length > 0 && groupId && groupId !== 'all') {
-        // Para monitor individual, usar o slug da URL ao invés do UUID
-        const stats = await fetchMonitorStats(groupId)
-        setMonitorStats(stats)
+        // Para monitor individual, verificar se temos apenas um monitor e usar seu ID real
+        if (data.monitors.length === 1) {
+          // É um monitor individual, usar o ID real do monitor
+          const stats = await fetchMonitorStats(data.monitors[0].id)
+          setMonitorStats(stats)
+        } else {
+          // É um grupo, usar o slug da URL
+          const stats = await fetchMonitorStats(groupId)
+          setMonitorStats(stats)
+        }
       }
     } catch (error) {
       console.error('Erro ao carregar estatísticas do monitor:', error)
