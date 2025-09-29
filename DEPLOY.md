@@ -1,5 +1,23 @@
 # 🚀 Guia de Deploy - Sistema de Monitoramento Uptime
 
+## Configuração de variáveis de ambiente (produção)
+
+- Defina a base principal da API para o host direto do backend, evitando o proxy da página:
+  - `VITE_API_URL=https://api.pagina1digital.com.br/api`
+- Opcional mas recomendado: configure um fallback explícito para o proxy da página em caso de indisponibilidade do host direto:
+  - `VITE_FALLBACK_API_URL=https://monitor.pagina1digital.com.br/api`
+- Mantenha `VITE_BACKEND_ORIGIN` apenas se necessário para cenários de URL relativa (não usado com bases absolutas):
+  - `VITE_BACKEND_ORIGIN=https://monitor.pagina1digital.com.br`
+
+Após atualizar o `.env.production`, gere o build e publique:
+
+1. `npm run build` no diretório `frontend/`
+2. Publique o conteúdo de `frontend/dist/` no servidor
+3. Valide no navegador:
+   - `GET https://api.pagina1digital.com.br/api/public/monitor-stats/{id}` deve retornar 200
+   - `GET https://api.pagina1digital.com.br/api/public/monitors/{id}/checks?limit=200` deve retornar 200
+   - A seção “Informações Detalhadas do Monitor” deve exibir tempos em ms e contagens (>0)
+
 ## 📋 Pré-requisitos
 
 - VPS configurada com EasyPanel

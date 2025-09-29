@@ -51,10 +51,12 @@ const buildApiBases = (): string[] => {
   const base = resolveApiBase()
   const backendOrigin = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
   const raw = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  const fallback = (import.meta.env.VITE_FALLBACK_API_URL || '').replace(/\/$/, '')
   const bases: string[] = []
   const isAbsolute = /^https?:\/\//i.test(raw)
   if (isAbsolute) bases.push(raw)
   bases.push(base)
+  if (fallback) bases.push(fallback)
   if (!isAbsolute && backendOrigin) bases.push(`${backendOrigin}${raw || '/api'}`)
   return Array.from(new Set(bases))
 }

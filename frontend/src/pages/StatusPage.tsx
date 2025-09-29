@@ -100,6 +100,7 @@ interface MonitorStats {
   const API_BASE = resolveApiBase()
   const BACKEND_ORIGIN = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
   const RAW_API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+  const FALLBACK_API_URL = (import.meta.env.VITE_FALLBACK_API_URL || '').replace(/\/$/, '')
 
   // Helper para montar bases alternativas (evita falhas de proxy em produção)
   const buildApiBases = (): string[] => {
@@ -108,6 +109,8 @@ interface MonitorStats {
     if (isAbsolute) bases.push(RAW_API_URL)
     // API_BASE já considera VITE_BACKEND_ORIGIN quando presente
     bases.push(API_BASE)
+    // Incluir fallback explícito quando definido
+    if (FALLBACK_API_URL) bases.push(FALLBACK_API_URL)
     if (!isAbsolute && BACKEND_ORIGIN) {
       bases.push(`${BACKEND_ORIGIN}${RAW_API_URL || '/api'}`)
     }
