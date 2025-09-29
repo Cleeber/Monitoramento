@@ -253,8 +253,9 @@ export function StatusPage() {
 
   const loadMonitorStats = async () => {
     try {
-      if (data && data.monitors.length > 0) {
-        const stats = await fetchMonitorStats(data.monitors[0].id)
+      if (data && data.monitors.length > 0 && groupId && groupId !== 'all') {
+        // Para monitor individual, usar o slug da URL ao invés do UUID
+        const stats = await fetchMonitorStats(groupId)
         setMonitorStats(stats)
       }
     } catch (error) {
