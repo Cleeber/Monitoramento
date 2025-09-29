@@ -43,16 +43,29 @@ export class SchedulerService {
    */
   private async scheduleIndividualMonitorReports(): Promise<void> {
     try {
-      // Buscar todos os monitores com configuração de relatório
+      // Buscar configurações de relatório mensal ativas e monitores
+      const configs = await databaseService.getMonthlyReportConfigs()
       const monitors = await databaseService.getMonitors()
-      
-      for (const monitor of monitors) {
-        if (monitor.report_email && monitor.report_send_day && monitor.report_send_time) {
-          await this.scheduleMonitorReport(monitor)
+
+      let scheduledCount = 0
+
+      for (const config of configs) {
+        if (!config?.is_active) continue
+        const monitor = monitors.find(m => m.id === config.monitor_id)
+        if (monitor && monitor.report_send_time && config.email && config.send_day) {
+          // Compor dados a partir da config e do monitor (mantendo mínimo impacto)
+          const composedMonitor = {
+            ...monitor,
+            report_email: config.email,
+            report_send_day: config.send_day
+            // report_send_time já vem do monitor
+          }
+          await this.scheduleMonitorReport(composedMonitor)
+          scheduledCount++
         }
       }
-      
-      console.log(`📅 Agendados relatórios para ${this.jobs.size - 1} monitores`) // -1 para excluir o job de limpeza
+
+      console.log(`📅 Agendados relatórios para ${scheduledCount} monitores`)
     } catch (error) {
       console.error('❌ Erro ao agendar relatórios individuais:', error)
     }
@@ -310,6 +323,7 @@ export class SchedulerService {
   async rescheduleMonitorReport(monitorId: string): Promise<void> {
     try {
       const monitor = await databaseService.getMonitorById(monitorId)
+      const config = await databaseService.getMonthlyReportConfigByMonitor(monitorId)
 
       const jobName = `monthly-report-${monitorId}`
 
@@ -323,9 +337,15 @@ export class SchedulerService {
         return
       }
 
-      // Se configuração estiver completa, reagendar
-      if (monitor.report_email && monitor.report_send_day && monitor.report_send_time) {
-        await this.scheduleMonitorReport(monitor)
+      // Reagendar baseado na configuração mensal (mínimo impacto: usar hora do monitor e e-mail/dia da config)
+      if (config?.is_active && monitor.report_send_time && config.email && config.send_day) {
+        const composedMonitor = {
+          ...monitor,
+          report_email: config.email,
+          report_send_day: config.send_day
+          // report_send_time permanece do monitor
+        }
+        await this.scheduleMonitorReport(composedMonitor)
         return
       }
 
@@ -333,7 +353,7 @@ export class SchedulerService {
       if (this.jobs.has(jobName)) {
         this.jobs.get(jobName)?.stop()
         this.jobs.delete(jobName)
-        console.log(`📅 Job removido para monitor ${monitor.name} (${monitorId}) por ausência de configuração`)
+        console.log(`📅 Job removido para monitor ${monitor.name} (${monitorId}) por ausência de configuração ativa`)
       }
     } catch (error) {
       console.error(`❌ Erro ao reagendar job do monitor ${monitorId}:`, error)
