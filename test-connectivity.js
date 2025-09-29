@@ -5,7 +5,7 @@ const http = require('http');
 
 // URLs para testar
 const urls = [
-  'https://api.pagina1digital.com.br/api/health',
+  'https://monitor.pagina1digital.com.br/api/health',
   'https://monitor.pagina1digital.com.br',
   'https://zhywrrzzezexlvtpqacl.supabase.co',
   'https://monitoramento-uptime-monitor.4uxnvx.easypanel.host'
