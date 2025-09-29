@@ -1763,8 +1763,18 @@ app.get('/api/public/monitor-stats/:monitorId', async (req, res) => {
   try {
     const { monitorId } = req.params
     
-    // Verificar se o monitor existe
-    const monitor = await databaseService.getMonitorById(monitorId)
+    // Verificar se o monitor existe (por ID ou slug)
+    let monitor = null
+    
+    // Primeiro tentar buscar por ID (UUID)
+    try {
+      monitor = await databaseService.getMonitorById(monitorId)
+    } catch (error) {
+      // Se falhar (não é UUID válido), buscar por slug
+      const monitors = await databaseService.getMonitors()
+      monitor = monitors.find(m => m.slug === monitorId)
+    }
+    
     if (!monitor) {
       return res.status(404).json({ error: 'Monitor não encontrado' })
     }
@@ -1774,7 +1784,7 @@ app.get('/api/public/monitor-stats/:monitorId', async (req, res) => {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
     const now = new Date()
     
-    const checks = await databaseService.getMonitorChecksForPeriod(monitorId, thirtyDaysAgo, now)
+    const checks = await databaseService.getMonitorChecksForPeriod(monitor.id, thirtyDaysAgo, now)
     
     if (!checks || checks.length === 0) {
       return res.json({
