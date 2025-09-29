@@ -247,31 +247,32 @@ export class EmailService {
         to: toEmail,
         subject: `📊 Relatório Mensal - ${monitorName} - ${monthYear}`,
         html: `
-          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #1a1a1a; color: #ffffff; border-radius: 8px; overflow: hidden;">
-            <div style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); color: white; padding: 20px; text-align: center;">
-              <h2 style="margin: 0; font-size: 24px;">📊 Relatório Mensal</h2>
-              <p style="margin: 10px 0 0 0; opacity: 0.9; font-size: 16px;">${monitorName} - ${monthYear}</p>
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+            <div style="background: linear-gradient(135deg, #4f46e5 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center;">
+              <h1 style="margin: 0; font-size: 28px; font-weight: bold;">📊 Relatório Mensal</h1>
+              <p style="margin: 15px 0 0 0; font-size: 18px; opacity: 0.95;">${monitorName}</p>
+              <p style="margin: 5px 0 0 0; font-size: 16px; opacity: 0.8;">${monthYear}</p>
             </div>
             
-            <div style="padding: 30px; background-color: #2a2a2a;">
+            <div style="padding: 40px; background-color: #ffffff; color: #374151;">
               ${statusLink ? `
-              <div style="background-color: #0f172a; padding: 15px; border-radius: 6px; border-left: 4px solid #06b6d4; margin-bottom: 20px;">
-                <p style="margin: 0; color: #38bdf8;"><strong>🔗 Acompanhe o status em tempo real:</strong></p>
-                <a href="${statusLink}" target="_blank" style="color: #60a5fa; text-decoration: none; font-size: 14px; word-break: break-all;">${statusLink}</a>
+              <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; border-left: 4px solid #0ea5e9; margin-bottom: 30px;">
+                <p style="margin: 0 0 10px 0; color: #0369a1; font-weight: bold; font-size: 16px;">🔗 Acompanhe o status em tempo real:</p>
+                <a href="${statusLink}" target="_blank" style="color: #0284c7; text-decoration: none; font-size: 14px; word-break: break-all; font-weight: 500;">${statusLink}</a>
               </div>` : ''}
 
-              <p style="color: #d1d5db; margin: 0 0 20px 0; line-height: 1.6;">
+              <p style="color: #6b7280; margin: 0 0 30px 0; line-height: 1.6; font-size: 16px;">
                 Caso não consiga abrir o link acima, enviamos uma versão em PDF em anexo.
               </p>
 
               ${pdfBuffer ? `
-              <div style="background-color: #374151; padding: 15px; border-radius: 6px; text-align: center; margin-bottom: 20px;">
-                <p style="margin: 0; color: #f3f4f6;"><strong>📎 Anexo:</strong> Relatório detalhado em PDF</p>
+              <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px; border: 1px solid #e5e7eb;">
+                <p style="margin: 0; color: #374151; font-size: 16px;"><strong>📎 Anexo:</strong> Relatório detalhado em PDF</p>
               </div>` : ''}
 
-              <div style="text-align: center; padding-top: 20px; border-top: 1px solid #4b5563;">
-                <p style="font-size: 12px; color: #9ca3af; margin: 0;">
-                  Uptime Monitor - Sistema de Monitoramento<br>
+              <div style="text-align: center; padding-top: 30px; border-top: 1px solid #e5e7eb;">
+                <p style="font-size: 14px; color: #9ca3af; margin: 0; line-height: 1.5;">
+                  <strong>Uptime Monitor - Sistema de Monitoramento</strong><br>
                   Relatório gerado em ${currentDate.toLocaleString('pt-BR')}
                 </p>
               </div>

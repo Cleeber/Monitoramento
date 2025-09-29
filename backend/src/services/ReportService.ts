@@ -669,16 +669,19 @@ ${this.generateAnalysis(stats)}
           <p><strong>Monitor:</strong> ${monitor.name}</p>
           <p><strong>Período:</strong> ${month}/${year}</p>
           
-          <div style="background-color: white; padding: 15px; border-radius: 6px; border-left: 4px solid #2563eb;">
+          <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; margin-bottom: 30px; border: 1px solid #e5e7eb;">
             ${reportContent.replace(/\n/g, '<br>')}
           </div>
           
-          ${attachments.length > 0 ? '<p><strong>📎 Anexos:</strong> Relatório mensal e status geral em PDF</p>' : ''}
+          ${attachments.length > 0 ? `
+          <div style="background-color: #f9fafb; padding: 20px; border-radius: 8px; text-align: center; margin-bottom: 30px; border: 1px solid #e5e7eb;">
+            <p style="margin: 0 0 15px 0; color: #374151; font-size: 16px;"><strong>📎 Anexos:</strong></p>
+            <p style="color: #6b7280; margin: 0;">Relatório mensal e status geral em PDF</p>
+          </div>` : ''}
           ${statusLink ? `
-          <div style="background-color: #ecfeff; padding: 15px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #06b6d4;">
-            <p style="margin: 0; color: #0e7490;"><strong>🔗 Acompanhe o status em tempo real:</strong><br>
-              <a href="${statusLink}" target="_blank" style="color: #0369a1; text-decoration: none;">${statusLink}</a>
-            </p>
+        <div style="background-color: #f0f9ff; padding: 20px; border-radius: 8px; border-left: 4px solid #0ea5e9; margin-bottom: 30px;">
+            <p style="margin: 0 0 10px 0; color: #0369a1; font-weight: bold; font-size: 16px;"><strong>🔗 Acompanhe o status em tempo real:</strong></p>
+            <a href="${statusLink}" target="_blank" style="color: #0284c7; text-decoration: none; font-size: 14px; word-break: break-all; font-weight: 500;">${statusLink}</a>
           </div>` : ''}
         `,
         attachments
