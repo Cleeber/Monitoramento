@@ -273,6 +273,9 @@ export function StatusPage() {
   }
 
   const fetchStatusData = async () => {
+    console.log('🔍 [DEBUG] Iniciando fetchStatusData')
+    console.log('🔍 [DEBUG] groupId:', groupId)
+    console.log('🔍 [DEBUG] API_BASE:', API_BASE)
     
     try {
       let statusUrl: string
@@ -284,17 +287,24 @@ export function StatusPage() {
       if (!groupId || groupId === 'all') {
     statusUrl = `${API_BASE}/public/status/all`
     incidentsUrl = `${API_BASE}/public/incidents`
+        console.log('🔍 [DEBUG] Modo: Todos os grupos')
       } else {
         // Primeiro, tentar buscar como slug de grupo
     statusUrl = `${API_BASE}/public/status/group/${groupId}`
     incidentsUrl = `${API_BASE}/public/incidents`
+        console.log('🔍 [DEBUG] Modo: Grupo específico')
       }
+      
+      console.log('🔍 [DEBUG] statusUrl:', statusUrl)
         
       const statusResponse = await fetch(statusUrl)
+      console.log('🔍 [DEBUG] statusResponse.status:', statusResponse.status)
+      console.log('🔍 [DEBUG] statusResponse.ok:', statusResponse.ok)
       let statusData = null
 
       if (statusResponse.ok) {
         statusData = await statusResponse.json()
+        console.log('🔍 [DEBUG] statusData recebido:', statusData)
         setData(statusData)
         
         // Se é um grupo, usar o group_id (UUID) para filtros posteriores
@@ -302,12 +312,16 @@ export function StatusPage() {
           currentGroupId = statusData.group.id
           setSelectedGroupId(currentGroupId)
     incidentsUrl = `${API_BASE}/public/incidents?group_id=${currentGroupId}`
+          console.log('🔍 [DEBUG] Grupo encontrado, currentGroupId:', currentGroupId)
         }
       } else if (statusResponse.status === 404 && groupId !== 'all') {
         // Se não encontrou como grupo, tentar buscar como monitor individual
+        console.log('🔍 [DEBUG] Grupo não encontrado (404), tentando como monitor individual')
         try {
     const monitorUrl = `${API_BASE}/public/status/monitor/${groupId}`
+          console.log('🔍 [DEBUG] monitorUrl:', monitorUrl)
           const monitorResponse = await fetch(monitorUrl)
+          console.log('🔍 [DEBUG] monitorResponse.status:', monitorResponse.status)
           if (monitorResponse.ok) {
             const monitorData = await monitorResponse.json()
             // Converter a estrutura de monitor individual para o formato esperado
