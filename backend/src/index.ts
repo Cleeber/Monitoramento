@@ -1408,44 +1408,88 @@ app.get('/api/public/monitors', async (_, res) => {
   }
 })
 
+// Rota pública específica para status de todos os monitores
+app.get('/api/public/status/all', (req, res) => {
+  try {
+    let monitors = monitoringService.getMonitors()
+    
+    const onlineCount = monitors.filter(m => m.status === 'online').length
+    const totalCount = monitors.length
+    
+    let overall_status = 'operational'
+    if (onlineCount === 0 && totalCount > 0) {
+      overall_status = 'outage'
+    } else if (onlineCount < totalCount) {
+      overall_status = 'degraded'
+    }
+    
+    res.json({
+      monitors: monitors.map(m => ({
+        id: m.id,
+        name: m.name,
+        url: m.url,
+        logo_url: m.logo_url,
+        status: m.status,
+        last_check: m.last_check,
+        response_time: m.response_time,
+        uptime_24h: m.uptime_24h,
+        uptime_7d: m.uptime_7d,
+        uptime_30d: m.uptime_30d,
+        group_name: m.group_name
+      })),
+      overall_status,
+      last_updated: new Date().toISOString(),
+      group_id: 'all'
+    })
+  } catch (error) {
+    console.error('Erro ao buscar status de todos os monitores:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
 // Rota pública para status por grupo
 app.get('/api/public/status/:groupId?', (req, res) => {
-  const { groupId } = req.params
-  let monitors = monitoringService.getMonitors()
-  
-  // Filtrar por grupo se especificado
-  if (groupId && groupId !== 'all') {
-    monitors = monitors.filter(m => m.group_id === groupId)
+  try {
+    const { groupId } = req.params
+    let monitors = monitoringService.getMonitors()
+    
+    // Filtrar por grupo se especificado
+    if (groupId && groupId !== 'all') {
+      monitors = monitors.filter(m => m.group_id === groupId)
+    }
+    
+    const onlineCount = monitors.filter(m => m.status === 'online').length
+    const totalCount = monitors.length
+    
+    let overall_status = 'operational'
+    if (onlineCount === 0 && totalCount > 0) {
+      overall_status = 'outage'
+    } else if (onlineCount < totalCount) {
+      overall_status = 'degraded'
+    }
+    
+    res.json({
+      monitors: monitors.map(m => ({
+        id: m.id,
+        name: m.name,
+        url: m.url,
+        logo_url: m.logo_url,
+        status: m.status,
+        last_check: m.last_check,
+        response_time: m.response_time,
+        uptime_24h: m.uptime_24h,
+        uptime_7d: m.uptime_7d,
+        uptime_30d: m.uptime_30d,
+        group_name: m.group_name
+      })),
+      overall_status,
+      last_updated: new Date().toISOString(),
+      group_id: groupId || 'all'
+    })
+  } catch (error) {
+    console.error('Erro ao buscar status por grupo:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
   }
-  
-  const onlineCount = monitors.filter(m => m.status === 'online').length
-  const totalCount = monitors.length
-  
-  let overall_status = 'operational'
-  if (onlineCount === 0 && totalCount > 0) {
-    overall_status = 'outage'
-  } else if (onlineCount < totalCount) {
-    overall_status = 'degraded'
-  }
-  
-  res.json({
-    monitors: monitors.map(m => ({
-      id: m.id,
-      name: m.name,
-      url: m.url,
-      logo_url: m.logo_url,
-      status: m.status,
-      last_check: m.last_check,
-      response_time: m.response_time,
-      uptime_24h: m.uptime_24h,
-      uptime_7d: m.uptime_7d,
-      uptime_30d: m.uptime_30d,
-      group_name: m.group_name
-    })),
-    overall_status,
-    last_updated: new Date().toISOString(),
-    group_id: groupId || 'all'
-  })
 })
 
 // Rotas públicas por slug
