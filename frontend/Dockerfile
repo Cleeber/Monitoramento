@@ -63,24 +63,30 @@ server {
 
     # Proxy API requests to backend (failsafe for any relative /api calls)
     location ^~ /api/ {
-        proxy_pass https://api.pagina1digital.com.br/api/;
+        proxy_pass https://api.pagina1digital.com.br;
         proxy_http_version 1.1;
         proxy_set_header Host api.pagina1digital.com.br;
+        proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-Host $host;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
-        # Ensure TLS SNI and proper DNS resolution for upstream
+        # SSL configuration for upstream
         proxy_ssl_server_name on;
         proxy_ssl_name api.pagina1digital.com.br;
-        resolver 1.1.1.1 8.8.8.8 ipv6=off valid=300s;
-        resolver_timeout 10s;
+        proxy_ssl_verify off;
+        
+        # DNS resolution
+        resolver 8.8.8.8 1.1.1.1 valid=300s;
+        resolver_timeout 5s;
 
-        # Timeouts to avoid premature 502 on slower upstream
-        proxy_connect_timeout 10s;
-        proxy_send_timeout 30s;
-        proxy_read_timeout 30s;
+        # Increased timeouts to avoid 502 errors
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 60s;
+        proxy_read_timeout 60s;
+        proxy_buffering off;
 
         # CORS headers (OPTIONS preflight support)
         add_header Access-Control-Allow-Origin "*" always;

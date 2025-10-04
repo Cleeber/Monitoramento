@@ -25,7 +25,7 @@ interface AuthenticatedRequest extends express.Request {
 dotenv.config()
 
 const app = express()
-const PORT = process.env.PORT || 8081
+const PORT = process.env.PORT || 3001
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 // const DEFAULT_GROUP_ID = process.env.DEFAULT_GROUP_ID || process.env.DEFAULT_GROUP // Removido por não uso
 
