@@ -29,7 +29,15 @@ function useMonitors(): UseMonitorsReturn {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/public/monitors`);
+        // Normaliza base pública para evitar duplicação de '/api' e 502
+        const API_BASE = (() => {
+          const raw = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+          const isAbsolute = /^https?:\/\//i.test(raw)
+          const origin = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
+          const base = isAbsolute ? raw : `${origin}${raw || '/api'}`
+          return (base || '').replace(/\/$/, '').replace(/\/api$/, '')
+        })()
+        const response = await fetch(`${API_BASE}/api/public/monitors`);
         
         if (!response.ok) {
           throw new Error(`Erro ao buscar monitores: ${response.status}`);

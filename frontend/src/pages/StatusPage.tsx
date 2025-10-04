@@ -106,24 +106,34 @@ interface MonitorStats {
   const buildApiBases = (): string[] => {
     const bases: string[] = []
     const isAbsolute = /^https?:\/\//i.test(RAW_API_URL)
-    
+
+    // Normaliza base removendo barra final e sufixo '/api' para evitar duplicação
+    const normalizeBase = (u: string) => (u || '').replace(/\/$/, '').replace(/\/api$/, '')
+
+    const rawNorm = normalizeBase(RAW_API_URL)
+    const apiBaseNorm = normalizeBase(API_BASE)
+    const backendOriginNorm = normalizeBase(BACKEND_ORIGIN)
+    const fallbackNorm = normalizeBase(FALLBACK_API_URL)
+
     console.log('Debug buildApiBases:', {
       RAW_API_URL,
       API_BASE,
       BACKEND_ORIGIN,
       FALLBACK_API_URL,
-      isAbsolute
+      isAbsolute,
+      rawNorm,
+      apiBaseNorm,
+      backendOriginNorm,
+      fallbackNorm
     })
-    
-    if (isAbsolute) bases.push(RAW_API_URL)
-    // API_BASE já considera VITE_BACKEND_ORIGIN quando presente
-    bases.push(API_BASE)
-    // Incluir fallback explícito quando definido
-    if (FALLBACK_API_URL) bases.push(FALLBACK_API_URL)
-    if (!isAbsolute && BACKEND_ORIGIN) {
-      bases.push(`${BACKEND_ORIGIN}${RAW_API_URL || '/api'}`)
+
+    if (isAbsolute && rawNorm) bases.push(rawNorm)
+    if (apiBaseNorm) bases.push(apiBaseNorm)
+    if (fallbackNorm) bases.push(fallbackNorm)
+    if (!isAbsolute && backendOriginNorm) {
+      const combined = `${backendOriginNorm}${RAW_API_URL || '/api'}`
+      bases.push(normalizeBase(combined))
     }
-    // Remover duplicados mantendo a ordem de preferência
     const result = Array.from(new Set(bases))
     console.log('Debug buildApiBases result:', result)
     return result
