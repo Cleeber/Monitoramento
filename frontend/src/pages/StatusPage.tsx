@@ -106,6 +106,15 @@ interface MonitorStats {
   const buildApiBases = (): string[] => {
     const bases: string[] = []
     const isAbsolute = /^https?:\/\//i.test(RAW_API_URL)
+    
+    console.log('Debug buildApiBases:', {
+      RAW_API_URL,
+      API_BASE,
+      BACKEND_ORIGIN,
+      FALLBACK_API_URL,
+      isAbsolute
+    })
+    
     if (isAbsolute) bases.push(RAW_API_URL)
     // API_BASE já considera VITE_BACKEND_ORIGIN quando presente
     bases.push(API_BASE)
@@ -115,7 +124,9 @@ interface MonitorStats {
       bases.push(`${BACKEND_ORIGIN}${RAW_API_URL || '/api'}`)
     }
     // Remover duplicados mantendo a ordem de preferência
-    return Array.from(new Set(bases))
+    const result = Array.from(new Set(bases))
+    console.log('Debug buildApiBases result:', result)
+    return result
   }
 
   const fetchUptimeHistory = async (groupId?: string) => {
