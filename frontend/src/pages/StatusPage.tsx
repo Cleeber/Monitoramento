@@ -151,9 +151,10 @@ interface MonitorStats {
     
     // Usar base absoluta para evitar 502/404 via proxy do frontend
     const bases = buildApiBases()
-    const base = bases.find(b => /^https?:\/\//i.test(b)) || ''
-    if (!base) {
-      throw new Error('Base de API pública não definida')
+    let base = bases.find(b => /^https?:\/\//i.test(b)) || API_BASE
+    // Garantir base absoluta; se não estiver, lançar erro para evitar chamada relativa
+    if (!/^https?:\/\//i.test(base)) {
+      throw new Error('Base de API pública não definida ou inválida')
     }
     const response = await fetch(`${base}/api/public/uptime-history?${params}`)
     if (!response.ok) {
@@ -196,8 +197,8 @@ interface MonitorStats {
     try {
       // Usar base absoluta para contornar 502 do proxy
       const bases = buildApiBases()
-      const base = bases.find(b => /^https?:\/\//i.test(b)) || ''
-      if (!base) throw new Error('Base de API pública não definida')
+      let base = bases.find(b => /^https?:\/\//i.test(b)) || API_BASE
+      if (!/^https?:\/\//i.test(base)) throw new Error('Base de API pública não definida ou inválida')
       const response = await fetch(`${base}/api/public/monitor-stats/${monitorId}`)
       if (response.ok) {
         return await response.json()
@@ -214,9 +215,9 @@ interface MonitorStats {
     try {
       // Usar base absoluta para contornar 502 do proxy
       const bases = buildApiBases()
-      const base = bases.find(b => /^https?:\/\//i.test(b)) || ''
-      if (!base) {
-        throw new Error('Base de API pública não definida')
+      let base = bases.find(b => /^https?:\/\//i.test(b)) || API_BASE
+      if (!/^https?:\/\//i.test(base)) {
+        throw new Error('Base de API pública não definida ou inválida')
       }
       const resp = await fetch(`${base}/api/public/monitors/${monitorId}/checks?limit=200`)
       if (!resp.ok) {
