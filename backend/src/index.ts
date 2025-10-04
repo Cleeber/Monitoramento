@@ -1409,7 +1409,7 @@ app.get('/api/public/monitors', async (_, res) => {
 })
 
 // Rota pública específica para status de todos os monitores
-app.get('/api/public/status/all', (req, res) => {
+app.get('/api/public/status/all', (_, res) => {
   try {
     let monitors = monitoringService.getMonitors()
     
