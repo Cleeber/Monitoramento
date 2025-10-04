@@ -105,7 +105,7 @@ const ResponseTimeChart: React.FC<ResponseTimeChartProps> = ({ monitors }) => {
         let fetched = false
         for (const base of buildApiBases()) {
           try {
-            const response = await fetch(`${base}/public/monitors/${activeMonitor.id}/checks?limit=100`)
+            const response = await fetch(`${base}/api/public/monitors/${activeMonitor.id}/checks?limit=100`)
             if (response.ok) {
               checks = await response.json()
               fetched = true

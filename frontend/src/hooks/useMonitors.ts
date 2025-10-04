@@ -29,7 +29,7 @@ function useMonitors(): UseMonitorsReturn {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(`${import.meta.env.VITE_API_URL}/public/monitors`);
+        const response = await fetch(`${import.meta.env.VITE_API_URL}/api/public/monitors`);
         
         if (!response.ok) {
           throw new Error(`Erro ao buscar monitores: ${response.status}`);

@@ -91,10 +91,10 @@ interface MonitorStats {
       VITE_API_URL: import.meta.env.VITE_API_URL,
       VITE_BACKEND_ORIGIN: import.meta.env.VITE_BACKEND_ORIGIN
     })
-    if (isAbsolute) return raw
+    if (isAbsolute) return raw.replace(/\/api$/, '')
     const origin = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
-    if (origin) return `${origin}${raw || '/api'}`
-    return '/api'
+    if (origin) return `${origin}${raw || '/api'}`.replace(/\/api$/, '')
+    return ''
   }
 
   const API_BASE = resolveApiBase()
@@ -134,7 +134,7 @@ interface MonitorStats {
     let fetched = false
     for (const base of bases) {
       try {
-        const response = await fetch(`${base}/public/uptime-history?${params}`)
+        const response = await fetch(`${base}/api/public/uptime-history?${params}`)
         if (response.ok) {
           uptimeData = await response.json()
           fetched = true
@@ -183,7 +183,7 @@ interface MonitorStats {
       const bases = buildApiBases()
       for (const base of bases) {
         try {
-          const response = await fetch(`${base}/public/monitor-stats/${monitorId}`)
+          const response = await fetch(`${base}/api/public/monitor-stats/${monitorId}`)
           if (response.ok) {
             return await response.json()
           }
@@ -205,7 +205,7 @@ interface MonitorStats {
       let fetched = false
       for (const base of bases) {
         try {
-          const resp = await fetch(`${base}/public/monitors/${monitorId}/checks?limit=200`)
+          const resp = await fetch(`${base}/api/public/monitors/${monitorId}/checks?limit=200`)
           if (resp.ok) {
             checks = await resp.json()
             fetched = true
@@ -389,12 +389,12 @@ export function StatusPage() {
       let currentMonitorId: string | null = null
       
       if (!groupId || groupId === 'all') {
-    statusUrl = `${API_BASE}/public/status/all`
-    incidentsUrl = `${API_BASE}/public/incidents`
+    statusUrl = `${API_BASE}/api/public/status/all`
+    incidentsUrl = `${API_BASE}/api/public/incidents`
       } else {
         // Primeiro, tentar buscar como slug de grupo
-    statusUrl = `${API_BASE}/public/status/group/${groupId}`
-    incidentsUrl = `${API_BASE}/public/incidents`
+    statusUrl = `${API_BASE}/api/public/status/group/${groupId}`
+    incidentsUrl = `${API_BASE}/api/public/incidents`
       }
         
       const statusResponse = await fetch(statusUrl)
@@ -408,12 +408,12 @@ export function StatusPage() {
         if (statusData.group && statusData.group.id) {
           currentGroupId = statusData.group.id
           setSelectedGroupId(currentGroupId)
-    incidentsUrl = `${API_BASE}/public/incidents?group_id=${currentGroupId}`
+    incidentsUrl = `${API_BASE}/api/public/incidents?group_id=${currentGroupId}`
         }
       } else if (statusResponse.status === 404 && groupId !== 'all') {
         // Se não encontrou como grupo, tentar buscar como monitor individual
         try {
-    const monitorUrl = `${API_BASE}/public/status/monitor/${groupId}`
+    const monitorUrl = `${API_BASE}/api/public/status/monitor/${groupId}`
           console.log('🔍 [DEBUG] monitorUrl:', monitorUrl)
           const monitorResponse = await fetch(monitorUrl)
           console.log('🔍 [DEBUG] monitorResponse.status:', monitorResponse.status)
@@ -435,7 +435,7 @@ export function StatusPage() {
             setSelectedMonitorId(currentMonitorId)
             
             // Para monitor individual, filtrar incidentes por monitor_id
-    incidentsUrl = `${API_BASE}/public/incidents?monitor_id=${currentMonitorId}`
+    incidentsUrl = `${API_BASE}/api/public/incidents?monitor_id=${currentMonitorId}`
           }
         } catch (monitorError) {
           console.error('Erro ao buscar monitor por slug:', monitorError)
@@ -464,7 +464,7 @@ export function StatusPage() {
     
     try {
       // Primeiro, tentar buscar como slug de grupo
-  const groupResponse = await fetch(`${API_BASE}/public/status/group/${groupId}`)
+  const groupResponse = await fetch(`${API_BASE}/api/public/status/group/${groupId}`)
       if (groupResponse.ok) {
         const groupData = await groupResponse.json()
         if (groupData.group) {
@@ -474,7 +474,7 @@ export function StatusPage() {
       }
       
       // Se não encontrou como grupo, tentar buscar como monitor individual
-  const monitorResponse = await fetch(`${API_BASE}/public/status/monitor/${groupId}`)
+  const monitorResponse = await fetch(`${API_BASE}/api/public/status/monitor/${groupId}`)
       if (monitorResponse.ok) {
         const monitorData = await monitorResponse.json()
         if (monitorData.monitor) {
