@@ -101,6 +101,8 @@ interface MonitorStats {
   const BACKEND_ORIGIN = (import.meta.env.VITE_BACKEND_ORIGIN || '').replace(/\/$/, '')
   const RAW_API_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
   const FALLBACK_API_URL = (import.meta.env.VITE_FALLBACK_API_URL || '').replace(/\/$/, '')
+  // Build marker para rastrear versão ativa
+  console.log('[StatusPage] build v024', { API_BASE, BACKEND_ORIGIN, RAW_API_URL, FALLBACK_API_URL })
 
   // Helper para montar bases alternativas (evita falhas de proxy em produção)
   const buildApiBases = (): string[] => {
