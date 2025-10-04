@@ -63,7 +63,7 @@ server {
 
     # Proxy API requests to backend (failsafe for any relative /api calls)
     location ^~ /api/ {
-        proxy_pass https://api.pagina1digital.com.br/api/;
+        proxy_pass https://api.pagina1digital.com.br;
         proxy_http_version 1.1;
         proxy_set_header Host api.pagina1digital.com.br;
         proxy_set_header X-Real-IP $remote_addr;
