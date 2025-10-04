@@ -149,23 +149,17 @@ interface MonitorStats {
       params.append('group_id', groupId)
     }
     
-    // Tentar em múltiplas bases para evitar 502/404 do proxy
+    // Usar base absoluta para evitar 502/404 via proxy do frontend
     const bases = buildApiBases()
-    let uptimeData: any[] = []
-    let fetched = false
-    for (const base of bases) {
-      try {
-        const response = await fetch(`${base}/api/public/uptime-history?${params}`)
-        if (response.ok) {
-          uptimeData = await response.json()
-          fetched = true
-          break
-        }
-      } catch (_) { /* tentar próxima base */ }
+    const base = bases.find(b => /^https?:\/\//i.test(b)) || ''
+    if (!base) {
+      throw new Error('Base de API pública não definida')
     }
-    if (!fetched) {
-      throw new Error('Falha ao buscar histórico de uptime')
+    const response = await fetch(`${base}/api/public/uptime-history?${params}`)
+    if (!response.ok) {
+      throw new Error(`Falha ao buscar histórico de uptime: ${response.status}`)
     }
+    const uptimeData = await response.json()
     
     return {
       labels: uptimeData.map((item: any) => item.date),
@@ -200,15 +194,13 @@ interface MonitorStats {
 // Função para buscar estatísticas reais do monitor
   const fetchMonitorStats = async (monitorId: string): Promise<MonitorStats | null> => {
     try {
-      // Tentar em múltiplas bases para contornar 502 do proxy
+      // Usar base absoluta para contornar 502 do proxy
       const bases = buildApiBases()
-      for (const base of bases) {
-        try {
-          const response = await fetch(`${base}/api/public/monitor-stats/${monitorId}`)
-          if (response.ok) {
-            return await response.json()
-          }
-        } catch (_) { /* tentar próxima base */ }
+      const base = bases.find(b => /^https?:\/\//i.test(b)) || ''
+      if (!base) throw new Error('Base de API pública não definida')
+      const response = await fetch(`${base}/api/public/monitor-stats/${monitorId}`)
+      if (response.ok) {
+        return await response.json()
       }
       throw new Error('Erro ao buscar estatísticas do monitor')
     } catch (error) {
@@ -220,23 +212,17 @@ interface MonitorStats {
   // Fallback: calcular estatísticas a partir dos checks públicos
   const fetchMonitorChecksStats = async (monitorId: string): Promise<MonitorStats | null> => {
     try {
-      // Tentar em múltiplas bases para contornar 502 do proxy
+      // Usar base absoluta para contornar 502 do proxy
       const bases = buildApiBases()
-      let checks: any[] = []
-      let fetched = false
-      for (const base of bases) {
-        try {
-          const resp = await fetch(`${base}/api/public/monitors/${monitorId}/checks?limit=200`)
-          if (resp.ok) {
-            checks = await resp.json()
-            fetched = true
-            break
-          }
-        } catch (_) { /* tentar próxima base */ }
+      const base = bases.find(b => /^https?:\/\//i.test(b)) || ''
+      if (!base) {
+        throw new Error('Base de API pública não definida')
       }
-      if (!fetched) {
+      const resp = await fetch(`${base}/api/public/monitors/${monitorId}/checks?limit=200`)
+      if (!resp.ok) {
         throw new Error('Erro ao buscar checks do monitor')
       }
+      const checks: any[] = await resp.json()
       if (!Array.isArray(checks) || checks.length === 0) {
         return {
           totalChecks: 0,
