@@ -1615,63 +1615,93 @@ app.get('/api/public/monitors/:id/checks', async (req, res) => {
 })
 
 // Rota pública para obter dados históricos de uptime
+// Otimizada para reduzir número de consultas ao banco: busca checks por período único por monitor e agrega por dia
 app.get('/api/public/uptime-history', async (req, res) => {
   try {
     const { days = 30, group_id } = req.query
     const daysNumber = parseInt(days as string)
-    
-    // Calcular data de início
-    // Removido endDate não utilizado para conformidade com noUnusedLocals
+
+    const endDate = new Date()
     const startDate = new Date()
-    startDate.setDate(startDate.getDate() - daysNumber)
-    
+    startDate.setDate(endDate.getDate() - daysNumber)
+
     // Obter monitores
     let monitors = await databaseService.getMonitors()
     if (group_id && group_id !== 'all') {
       monitors = monitors.filter(m => m.group_id === group_id)
     }
-    
-    // Gerar dados para cada dia
-    const uptimeData = []
+
+    // Preparar chaves e limites diários
+    const dayBoundaries: { start: Date; end: Date; key: string }[] = []
     for (let i = 0; i < daysNumber; i++) {
-      const currentDate = new Date(startDate)
-      currentDate.setDate(startDate.getDate() + i)
-      
-      const dayStart = new Date(currentDate)
-      dayStart.setHours(0, 0, 0, 0)
-      
-      const dayEnd = new Date(currentDate)
-      dayEnd.setHours(23, 59, 59, 999)
-      
-      let totalUptime = 0
-      let monitorCount = 0
-      
-      // Calcular uptime para cada monitor neste dia
-      for (const monitor of monitors) {
-        if (!monitor.is_active) continue
-        
-        const checks = await databaseService.getMonitorChecksForPeriod(
-          monitor.id,
-          dayStart,
-          dayEnd
-        )
-        
-        if (checks.length > 0) {
-          const onlineChecks = checks.filter(c => c.status === 'online').length
-          const uptimePercentage = (onlineChecks / checks.length) * 100
-          totalUptime += uptimePercentage
-          monitorCount++
-        }
-      }
-      
-      const avgUptime = monitorCount > 0 ? totalUptime / monitorCount : 100
-      
-      uptimeData.push({
-        date: currentDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-        uptime: Math.round(avgUptime * 100) / 100
-      })
+      const d = new Date(startDate)
+      d.setDate(startDate.getDate() + i)
+      const dayStart = new Date(d); dayStart.setHours(0, 0, 0, 0)
+      const dayEnd = new Date(d); dayEnd.setHours(23, 59, 59, 999)
+      const key = d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+      dayBoundaries.push({ start: dayStart, end: dayEnd, key })
     }
-    
+
+    // Agregado por dia (total de checks, checks online e quantidade de monitores considerados)
+    const aggregateByDay: Map<string, { total: number; online: number; monitorsCount: number }> = new Map()
+    for (const boundary of dayBoundaries) {
+      aggregateByDay.set(boundary.key, { total: 0, online: 0, monitorsCount: 0 })
+    }
+
+    // Para cada monitor ativo, buscar checks uma única vez no período e agregar por dia
+    for (const monitor of monitors) {
+      if (!monitor.is_active) {
+        continue
+      }
+
+      const checks = await databaseService.getMonitorChecksForPeriod(monitor.id, startDate, endDate)
+
+      if (!checks || checks.length === 0) {
+        // Considerar monitor na contagem para média, mesmo sem dados
+        for (const boundary of dayBoundaries) {
+          const agg = aggregateByDay.get(boundary.key)!
+          agg.monitorsCount += 1
+        }
+        continue
+      }
+
+      // Contabilizar por dia
+      const perDayCount: Map<string, { total: number; online: number }> = new Map()
+      for (const boundary of dayBoundaries) {
+        perDayCount.set(boundary.key, { total: 0, online: 0 })
+      }
+
+      const dayZeroTime = dayBoundaries[0].start.getTime()
+      for (const check of checks) {
+        const checkDate = new Date(check.checked_at)
+        const diffDays = Math.floor((checkDate.getTime() - dayZeroTime) / (24 * 60 * 60 * 1000))
+        if (diffDays < 0 || diffDays >= dayBoundaries.length) continue
+        const key = dayBoundaries[diffDays].key
+        const entry = perDayCount.get(key)!
+        entry.total += 1
+        if (check.status === 'online') entry.online += 1
+      }
+
+      // Aplicar contagens ao agregado total
+      for (const boundary of dayBoundaries) {
+        const entry = perDayCount.get(boundary.key)!
+        const agg = aggregateByDay.get(boundary.key)!
+        agg.total += entry.total
+        agg.online += entry.online
+        agg.monitorsCount += 1
+      }
+    }
+
+    const uptimeData = dayBoundaries.map(({ key }) => {
+      const agg = aggregateByDay.get(key)!
+      let uptime = 100
+      if (agg.total > 0 && agg.monitorsCount > 0) {
+        const uptimePercentage = (agg.online / agg.total) * 100
+        uptime = Math.round(uptimePercentage * 100) / 100
+      }
+      return { date: key, uptime }
+    })
+
     res.json(uptimeData)
   } catch (error) {
     console.error('Erro ao buscar histórico de uptime:', error)
@@ -1696,9 +1726,13 @@ app.get('/api/public/incidents', async (req, res) => {
     
     const incidents = []
     
+    // Limitar quantidade de checks analisados para evitar sobrecarga
+    const daysNumber = parseInt(days as string)
+    const checksLimit = Math.min(daysNumber, 30) * 24 * 2 // máximo 30 dias
+
     // Analisar cada monitor para identificar incidentes reais
     for (const monitor of monitors) {
-      const checks = await databaseService.getMonitorChecks(monitor.id, parseInt(days as string) * 24 * 2)
+      const checks = await databaseService.getMonitorChecks(monitor.id, checksLimit)
       
       if (checks.length === 0) continue
       
