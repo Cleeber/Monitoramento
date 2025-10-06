@@ -85,7 +85,6 @@ export function DashboardPage() {
       if (statsResult.success && monitorsResult.success) {
         setStats(statsResult.data)
         setMonitors(monitorsResult.data)
-        console.log('Dados do dashboard carregados com sucesso')
       } else {
         console.error('Erro nas respostas da API:', {
           stats: statsResult.error,
@@ -126,7 +125,7 @@ export function DashboardPage() {
   }
 
   const getSortedMonitors = () => {
-    const monitorsCopy = [...monitors]
+    const monitorsCopy = [...monitors].filter(monitor => monitor.id)
     let sorted: Monitor[]
     
     switch (sortBy) {

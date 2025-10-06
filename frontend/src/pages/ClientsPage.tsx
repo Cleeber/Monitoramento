@@ -48,9 +48,10 @@ export function ClientsPage() {
     try {
       const result = await apiGet('/groups')
 
-      if (result.success) {
+      if (result.success && Array.isArray(result.data)) {
         setGroups(result.data)
       } else {
+        setGroups([])
         addToast({ title: 'Erro ao carregar grupos', description: result.error, variant: 'destructive' })
       }
     } catch (error) {
@@ -131,10 +132,10 @@ export function ClientsPage() {
     setIsDialogOpen(true)
   }
 
-  const filteredGroups = groups.filter(group => 
+  const filteredGroups = Array.isArray(groups) ? groups.filter(group => 
     group.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     group.description.toLowerCase().includes(searchTerm.toLowerCase())
-  )
+  ) : []
 
   if (loading) {
     return (

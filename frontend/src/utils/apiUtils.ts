@@ -19,12 +19,15 @@ export async function apiRequest<T = any>(
   try {
     const token = localStorage.getItem('auth_token');
     
+    // Adicionar prefixo /api se não estiver presente
+    const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
+    
     const defaultHeaders: HeadersInit = {
       'Content-Type': 'application/json',
       ...(token && { Authorization: `Bearer ${token}` }),
     };
 
-    const response = await fetch(url, {
+    const response = await fetch(apiUrl, {
       ...options,
       headers: {
         ...defaultHeaders,
@@ -143,8 +146,11 @@ export async function apiDelete<T = any>(url: string): Promise<ApiResponse<T>> {
 export async function apiUpload<T = any>(url: string, formData: FormData): Promise<ApiResponse<T>> {
   const token = localStorage.getItem('auth_token');
   
+  // Adicionar prefixo /api se não estiver presente
+  const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
+  
   try {
-    const response = await fetch(url, {
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         ...(token && { Authorization: `Bearer ${token}` })

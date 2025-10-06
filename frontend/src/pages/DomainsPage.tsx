@@ -102,8 +102,8 @@ export function DomainsPage() {
   const fetchData = async () => {
     try {
       const [monitorsResult, groupsResult] = await Promise.all([
-        apiGet(`http://localhost:8081/api/dashboard/monitors`),
-        apiGet(`http://localhost:8081/api/groups`)
+        apiGet('/dashboard/monitors'),
+        apiGet('/groups')
       ])
 
       if (monitorsResult.success && groupsResult.success) {
@@ -147,8 +147,8 @@ export function DomainsPage() {
       }
       
       const url = editingMonitor 
-        ? `http://localhost:8081/api/monitors/${editingMonitor.id}`
-        : `http://localhost:8081/api/monitors`
+        ? `/monitors/${editingMonitor.id}`
+        : `/monitors`
       
       const monitorData = {
         ...formData,
@@ -183,7 +183,7 @@ export function DomainsPage() {
     if (!confirm('Tem certeza que deseja excluir este monitor?')) return
 
     try {
-      const result = await apiDelete(`http://localhost:8081/api/monitors/${id}`)
+      const result = await apiDelete(`/monitors/${id}`)
 
       if (result.success) {
         addToast({ title: 'Monitor excluído com sucesso', variant: 'success' })
@@ -288,7 +288,7 @@ export function DomainsPage() {
       const formData = new FormData()
       formData.append('logo', logoFile)
 
-      const result = await apiUpload(`http://localhost:8081/api/upload/logo`, formData)
+      const result = await apiUpload(`/upload/logo`, formData)
 
       if (result.success) {
         return result.data.url
