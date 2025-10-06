@@ -1,9 +1,24 @@
+import dotenv from 'dotenv'
+import path from 'path'
+import fs from 'fs'
+
+// Carregar variáveis de ambiente PRIMEIRO
+const envPath = path.join(process.cwd(), '.env')
+console.log('DEBUG - Current working directory:', process.cwd())
+console.log('DEBUG - Looking for .env at:', envPath)
+console.log('DEBUG - .env file exists:', fs.existsSync(envPath))
+
+dotenv.config({ path: envPath })
+
+// Debug das variáveis de ambiente
+console.log('DEBUG - SUPABASE_URL:', process.env.SUPABASE_URL)
+console.log('DEBUG - SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET')
+
 import express from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
-import dotenv from 'dotenv'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import multer from 'multer'
@@ -16,9 +31,6 @@ import { reportService } from './services/ReportService.js'
 import { schedulerService } from './services/SchedulerService.js'
 import axios from 'axios'
 
-// Carregar variáveis de ambiente
-dotenv.config()
-
 const app = express()
 const PORT = process.env.PORT || 8081
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
@@ -30,7 +42,7 @@ const monitoringService = new MonitoringService()
 app.use(helmet())
 app.use(compression())
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:3002', 'http://127.0.0.1:3002'],
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:3002', 'http://127.0.0.1:3002', 'http://85.31.62.181:3000', 'http://85.31.62.181:3001', 'http://monitor.pagina1digital.com.br', 'https://monitor.pagina1digital.com.br'],
   credentials: true
 }))
 app.use(express.json({ limit: '10mb' }))

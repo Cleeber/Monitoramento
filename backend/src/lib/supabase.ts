@@ -1,21 +1,36 @@
 import { createClient } from '@supabase/supabase-js'
-import dotenv from 'dotenv'
 
-// Carregar variáveis de ambiente
-dotenv.config()
+let _supabase: any = null
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+// Função para obter o cliente Supabase (lazy loading)
+function getSupabaseClient() {
+  if (_supabase) {
+    return _supabase
+  }
 
-if (!supabaseUrl || !supabaseServiceKey) {
-  throw new Error('Variáveis de ambiente do Supabase não configuradas no backend')
+  const supabaseUrl = process.env.SUPABASE_URL
+  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
+
+  if (!supabaseUrl || !supabaseServiceKey) {
+    console.error('SUPABASE_URL:', supabaseUrl)
+    console.error('SUPABASE_SERVICE_ROLE_KEY:', supabaseServiceKey ? 'SET' : 'NOT SET')
+    throw new Error('Variáveis de ambiente do Supabase não configuradas no backend')
+  }
+
+  _supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false
+    }
+  })
+
+  return _supabase
 }
 
 // Cliente Supabase com service role para operações administrativas
-export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+export const supabase = new Proxy({}, {
+  get(target, prop) {
+    return getSupabaseClient()[prop]
   }
 })
 
