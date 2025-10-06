@@ -2,3 +2,6 @@
 
 #2 Para testar e validar as alterações no ambiente de produção, primeiro elas devem ser implantadas emna produção, isto é faça um novo commit e push e em seguida faça o deploy via ssh, ai então você pode testar as alterações no ambiente de produção, pois as correções já terão sido implantadas.
 
+Dados SSH
+root@85.31.62.181
+Senha:Mlez1HO;4xNsbuxF4u5@

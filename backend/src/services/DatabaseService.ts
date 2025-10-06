@@ -282,6 +282,8 @@ export class DatabaseService {
   }
 
   async getMonitorChecksForPeriod(monitorId: string, startDate: Date, endDate: Date) {
+    // Remover limitação padrão de 1000 linhas do Supabase
+    // Definir um limite maior para obter todos os registros do período
     const { data, error } = await supabase
       .from('monitor_checks')
       .select('*')
@@ -289,6 +291,7 @@ export class DatabaseService {
       .gte('checked_at', startDate.toISOString())
       .lte('checked_at', endDate.toISOString())
       .order('checked_at', { ascending: true })
+      .limit(100000) // Limite alto para garantir que todos os registros sejam retornados
     
     if (error) throw error
     return data || []
