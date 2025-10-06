@@ -98,7 +98,7 @@ export function DashboardPage() {
     }
   }
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string, monitorId?: string) => {
     switch (status) {
       case 'online':
         return <CheckCircle className="h-4 w-4 text-green-400" />
@@ -236,9 +236,9 @@ export function DashboardPage() {
                   <SelectValue placeholder="Ordenar por" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="recent">Mais Recentes</SelectItem>
-                  <SelectItem value="alphabetical">Ordem Alfabética</SelectItem>
-                  <SelectItem value="status">Por Status</SelectItem>
+                  <SelectItem key="recent" value="recent">Mais Recentes</SelectItem>
+                  <SelectItem key="alphabetical" value="alphabetical">Ordem Alfabética</SelectItem>
+                  <SelectItem key="status" value="status">Por Status</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -262,7 +262,7 @@ export function DashboardPage() {
                   <TableRow key={monitor.id} style={{borderColor: '#2c313a'}} className="hover:bg-gray-800/50">
                     <TableCell className="text-white">
                       <div className="flex items-center space-x-2">
-                        {getStatusIcon(monitor.status)}
+                        {getStatusIcon(monitor.status, monitor.id)}
                         <span className="text-xs capitalize">{monitor.status}</span>
                       </div>
                     </TableCell>
@@ -275,7 +275,7 @@ export function DashboardPage() {
                       </code>
                     </TableCell>
                     <TableCell className="text-gray-300">
-                      {monitor.group_name || 'Sem grupo'}
+                      <span>{monitor.group_name || 'Sem grupo'}</span>
                     </TableCell>
                     <TableCell className="text-gray-300">
                       <Badge className={getStatusColor(monitor.status)}>

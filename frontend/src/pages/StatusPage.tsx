@@ -353,16 +353,17 @@ export function StatusPage() {
 
   // handleRefresh removido conforme solicitação
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string, monitorId?: string) => {
+    const keyPrefix = monitorId ? `icon-${monitorId}` : `icon-${status}`;
     switch (status) {
       case 'online':
-        return <CheckCircle className="h-4 w-4 text-green-600" />
+        return <CheckCircle key={keyPrefix} className="h-4 w-4 text-green-600" />
       case 'offline':
-        return <AlertTriangle className="h-4 w-4 text-red-600" />
+        return <AlertTriangle key={keyPrefix} className="h-4 w-4 text-red-600" />
       case 'warning':
-        return <Clock className="h-4 w-4 text-yellow-600" />
+        return <Clock key={keyPrefix} className="h-4 w-4 text-yellow-600" />
       default:
-        return <Activity className="h-4 w-4 text-gray-600" />
+        return <Activity key={keyPrefix} className="h-4 w-4 text-gray-600" />
     }
   }
 
@@ -639,7 +640,7 @@ export function StatusPage() {
                     }}
                   >
                     <div className="flex items-center space-x-4">
-                      {getStatusIcon(monitor.status)}
+                      {getStatusIcon(monitor.status, monitor.id)}
                       <div>
                         <h4 className="font-medium" style={{ color: '#1f2937' }}>{monitor.name}</h4>
                         <p className="text-sm" style={{ color: '#6b7280' }}>{monitor.url}</p>

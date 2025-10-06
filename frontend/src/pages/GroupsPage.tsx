@@ -148,16 +148,17 @@ export function GroupsPage() {
     return monitors.filter(monitor => monitor.group_id === groupId)
   }
 
-  const getStatusIcon = (status: string) => {
+  const getStatusIcon = (status: string, monitorId?: string) => {
+    const keyPrefix = monitorId ? `icon-${monitorId}` : `icon-${status}`;
     switch (status) {
       case 'online':
-        return <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+        return <div key={keyPrefix} className="w-2 h-2 bg-green-500 rounded-full"></div>
       case 'offline':
-        return <div className="w-2 h-2 bg-red-500 rounded-full"></div>
+        return <div key={keyPrefix} className="w-2 h-2 bg-red-500 rounded-full"></div>
       case 'warning':
-        return <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+        return <div key={keyPrefix} className="w-2 h-2 bg-yellow-500 rounded-full"></div>
       default:
-        return <div className="w-2 h-2 bg-gray-500 rounded-full"></div>
+        return <div key={keyPrefix} className="w-2 h-2 bg-gray-500 rounded-full"></div>
     }
   }
 
@@ -408,7 +409,7 @@ export function GroupsPage() {
                               {groupMonitors.map((monitor) => (
                                 <div key={monitor.id} className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
                                   <div className="flex items-center space-x-3">
-                                    {getStatusIcon(monitor.status)}
+                                    {getStatusIcon(monitor.status, monitor.id)}
                                     <div>
                                       <div className="text-white font-medium">{monitor.name}</div>
                                       <div className="text-gray-400 text-sm">{monitor.url}</div>
