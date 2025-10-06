@@ -1,0 +1,5 @@
+🚀 Teste de Deploy Automático - GitHub Actions
+Data: 2025-01-06
+Status: Testando workflow de deploy automático para VPS Hostinger
+
+Este arquivo foi criado para testar se o deploy automático está funcionando corretamente.
