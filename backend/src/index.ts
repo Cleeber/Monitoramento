@@ -1038,26 +1038,149 @@ app.post('/api/smtp/test', authenticateToken, async (req, res) => {
 })
 
 // Rotas de relatórios
-app.get('/api/reports/stats', authenticateToken, (_, res) => {
-  const monitors = monitoringService.getMonitors()
-  const stats = {
-    avg_uptime: Math.round(monitors.reduce((acc, m) => acc + m.uptime_30d, 0) / monitors.length * 100) / 100,
-    total_checks: monitors.length * 30 * 24, // Simulado
-    total_incidents: 5, // Simulado
-    avg_response_time: Math.round(monitors.reduce((acc, m) => acc + (m.response_time || 0), 0) / monitors.length)
+app.get('/api/reports/stats', authenticateToken, async (req, res) => {
+  try {
+    const { period = '7d' } = req.query
+    const monitors = await databaseService.getMonitors()
+    
+    // Calcular período em dias
+    const periodDays = {
+      '24h': 1,
+      '7d': 7,
+      '30d': 30,
+      '90d': 90
+    }[period as string] || 7
+    
+    let totalChecks = 0
+    let totalIncidents = 0
+    let totalUptime = 0
+    let totalResponseTime = 0
+    let monitorsWithData = 0
+    
+    for (const monitor of monitors) {
+      // Buscar checks do período
+      const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
+      
+      // Filtrar checks do período
+      const periodStart = new Date()
+      periodStart.setDate(periodStart.getDate() - periodDays)
+      
+      const periodChecks = checks.filter(check => 
+        new Date(check.checked_at) >= periodStart
+      )
+      
+      if (periodChecks.length > 0) {
+        monitorsWithData++
+        totalChecks += periodChecks.length
+        
+        // Calcular uptime
+        const successfulChecks = periodChecks.filter(check => check.status === 'online').length
+        const uptimePercentage = (successfulChecks / periodChecks.length) * 100
+        totalUptime += uptimePercentage
+        
+        // Calcular tempo de resposta médio
+        const responseTimes = periodChecks
+          .filter(check => check.response_time !== null)
+          .map(check => check.response_time)
+        
+        if (responseTimes.length > 0) {
+          const avgResponseTime = responseTimes.reduce((acc, time) => acc + time, 0) / responseTimes.length
+          totalResponseTime += avgResponseTime
+        }
+        
+        // Contar incidentes
+        let incidents = 0
+        let inIncident = false
+        
+        for (const check of periodChecks.reverse()) {
+          if (check.status !== 'online' && !inIncident) {
+            incidents++
+            inIncident = true
+          } else if (check.status === 'online' && inIncident) {
+            inIncident = false
+          }
+        }
+        
+        totalIncidents += incidents
+      }
+    }
+    
+    const stats = {
+      avg_uptime: monitorsWithData > 0 ? Math.round((totalUptime / monitorsWithData) * 100) / 100 : 0,
+      total_checks: totalChecks,
+      total_incidents: totalIncidents,
+      avg_response_time: monitorsWithData > 0 ? Math.round(totalResponseTime / monitorsWithData) : 0
+    }
+    
+    res.json(stats)
+  } catch (error) {
+    console.error('Erro ao buscar estatísticas de relatórios:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
   }
-  res.json(stats)
 })
 
-app.get('/api/reports/monitors', authenticateToken, (_, res) => {
-  const monitors = monitoringService.getMonitors()
-  const detailedMonitors = monitors.map(monitor => ({
-    ...monitor,
-    incidents_count: Math.floor(Math.random() * 3), // Simulado
-    avg_response_time: monitor.response_time,
-    total_checks: 30 * 24 // Simulado
-  }))
-  res.json(detailedMonitors)
+app.get('/api/reports/monitors', authenticateToken, async (req, res) => {
+  try {
+    const { period = '7d' } = req.query
+    const monitors = await databaseService.getMonitors()
+    
+    // Calcular período em dias
+    const periodDays = {
+      '24h': 1,
+      '7d': 7,
+      '30d': 30,
+      '90d': 90
+    }[period as string] || 7
+    
+    const detailedMonitors = await Promise.all(monitors.map(async (monitor) => {
+      // Buscar checks do período
+      const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
+      
+      // Filtrar checks do período
+      const periodStart = new Date()
+      periodStart.setDate(periodStart.getDate() - periodDays)
+      
+      const periodChecks = checks.filter(check => 
+        new Date(check.checked_at) >= periodStart
+      )
+      
+      const totalChecks = periodChecks.length
+      
+      // Calcular tempos de resposta
+      const responseTimes = periodChecks
+        .filter(check => check.response_time !== null)
+        .map(check => check.response_time)
+      
+      const avgResponseTime = responseTimes.length > 0 
+        ? responseTimes.reduce((acc, time) => acc + time, 0) / responseTimes.length
+        : 0
+      
+      // Contar incidentes (sequências de falhas)
+      let incidents = 0
+      let inIncident = false
+      
+      for (const check of periodChecks.reverse()) {
+        if (check.status !== 'online' && !inIncident) {
+          incidents++
+          inIncident = true
+        } else if (check.status === 'online' && inIncident) {
+          inIncident = false
+        }
+      }
+      
+      return {
+        ...monitor,
+        incidents_count: incidents,
+        avg_response_time: Math.round(avgResponseTime),
+        total_checks: totalChecks
+      }
+    }))
+    
+    res.json(detailedMonitors)
+  } catch (error) {
+    console.error('Erro ao buscar monitores detalhados:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
 })
 
 // Endpoint principal de relatórios

@@ -156,7 +156,7 @@ class MonitoringService extends EventEmitter {
       
       for (const monitorId of monitors) {
         // Carregar verificações das últimas 24 horas para cada monitor
-        const checks = await databaseService.getMonitorChecks(monitorId, 200)
+        const checks = await databaseService.getMonitorChecks(monitorId, 500000)
         
         // Converter para o formato interno e adicionar ao array
         const recentChecks = checks.map((check: any) => ({
