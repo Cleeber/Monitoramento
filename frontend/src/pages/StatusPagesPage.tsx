@@ -5,6 +5,7 @@ import { Button } from '../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import useGroups from '../hooks/useGroups';
 import useMonitors from '../hooks/useMonitors';
+import { getAllStatusPageUrl, getStatusPageUrl } from '../utils/urlUtils';
 
 type SortOption = 'recent' | 'alphabetical' | 'status';
 
@@ -161,12 +162,12 @@ const StatusPagesPage: React.FC = () => {
                   Página de status geral com todos os serviços monitorados
                 </p>
                 <p className="text-xs text-gray-500 mt-1">
-                  URL: http://localhost:3000/status/all
+                  URL: {getAllStatusPageUrl()}
                 </p>
               </div>
             </div>
             <button
-              onClick={() => handleOpenStatusPage('http://localhost:3000/status/all')}
+              onClick={() => handleOpenStatusPage(getAllStatusPageUrl())}
               className="flex items-center space-x-2 px-4 py-2 text-white rounded-lg transition-colors"
               style={{backgroundColor: '#1e3a8a'}}
               onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e40af'}
@@ -217,12 +218,12 @@ const StatusPagesPage: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-gray-300">
                         <code className="text-xs bg-gray-800 px-2 py-1 rounded">
-                          http://localhost:3000/status/{group.slug}
+                          {getStatusPageUrl(group.slug)}
                         </code>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
-                          onClick={() => handleOpenStatusPage(`http://localhost:3000/status/${group.slug}`)}
+                          onClick={() => handleOpenStatusPage(getStatusPageUrl(group.slug))}
                           className="bg-green-600 hover:bg-green-700 text-white"
                           size="sm"
                         >
@@ -280,12 +281,12 @@ const StatusPagesPage: React.FC = () => {
                       </TableCell>
                       <TableCell className="text-gray-300">
                         <code className="text-xs bg-gray-800 px-2 py-1 rounded">
-                          http://localhost:3000/status/{monitor.slug}
+                          {getStatusPageUrl(monitor.slug)}
                         </code>
                       </TableCell>
                       <TableCell className="text-right">
                         <Button
-                          onClick={() => handleOpenStatusPage(`http://localhost:3000/status/${monitor.slug}`)}
+                          onClick={() => handleOpenStatusPage(getStatusPageUrl(monitor.slug))}
                           className="bg-green-600 hover:bg-green-700 text-white"
                           size="sm"
                         >
