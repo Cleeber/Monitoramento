@@ -1,0 +1,15 @@
+NOVO TESTE - Deploy Automático GitHub Actions
+Data/Hora: 2025-01-26 15:42:46
+Commit ID: Novo teste após correção do workflow
+Status: Testando deploy automático
+Objetivo: Verificar se GitHub Actions está funcionando corretamente
+
+Este arquivo foi criado para testar o deploy automático via GitHub Actions.
+Se este arquivo aparecer na VPS, significa que o deploy está funcionando.
+
+Alterações aplicadas no workflow:
+- Corrigido caminho do projeto para /root/uptime-monitor
+- Atualizado comandos docker-compose para docker compose
+- Removido cache problemático do NPM
+
+Teste realizado em: 26/01/2025 às 15:42:46
