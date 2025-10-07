@@ -261,6 +261,12 @@ export class EmailService {
                 </p>
               </div>` : ''}
 
+              ${reportContent ? `
+              <div style="background-color: #ffffff; padding: 20px; margin: 16px 0; border-radius: 6px; border: 1px solid #e5e7eb;">
+                <h3 style="margin: 0 0 15px 0; color: #374151; font-size: 16px;">📋 Resumo do Relatório</h3>
+                <pre style="white-space: pre-wrap; font-family: 'Courier New', monospace; font-size: 13px; line-height: 1.5; color: #374151; margin: 0; background-color: #f8fafc; padding: 15px; border-radius: 4px; border-left: 3px solid #2563eb;">${reportContent}</pre>
+              </div>` : ''}
+
               ${pdfBuffer ? `
               <p style="margin-top: 16px; color: #374151;">Caso não consiga abrir o link acima, enviamos uma versão em PDF em anexo.</p>` : ''}
 
