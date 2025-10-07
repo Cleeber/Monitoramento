@@ -58,7 +58,7 @@ export class DatabaseService {
   }
 
   async updateUser(id: string, updates: Updates<'users'>) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('users')
       .update({
         ...updates,
@@ -73,7 +73,7 @@ export class DatabaseService {
   }
 
   async deleteUser(id: string) {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('users')
       .delete()
       .eq('id', id)
@@ -83,7 +83,7 @@ export class DatabaseService {
 
   // ===== GROUPS =====
   async getGroups() {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('groups')
       .select(`
         *,
@@ -94,14 +94,14 @@ export class DatabaseService {
     if (error) throw error
     
     // Adicionar contagem de monitores
-    return (data || []).map(group => ({
+    return (data || []).map((group: any) => ({
       ...group,
       monitor_count: group.monitors?.[0]?.count || 0
     }))
   }
 
   async getGroupById(id: string) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('groups')
       .select('*')
       .eq('id', id)
@@ -112,7 +112,7 @@ export class DatabaseService {
   }
 
   async createGroup(groupData: { name: string; description?: string; slug?: string }) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('groups')
       .insert({
         id: uuidv4(),
@@ -130,7 +130,7 @@ export class DatabaseService {
   }
 
   async updateGroup(id: string, updates: { name?: string; description?: string; slug?: string }) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('groups')
       .update({
         ...updates,
@@ -146,7 +146,7 @@ export class DatabaseService {
 
   async deleteGroup(id: string) {
     // Verificar se há monitores usando este grupo
-    const { data: monitors } = await supabase
+    const { data: monitors } = await (supabase as any)
       .from('monitors')
       .select('id')
       .eq('group_id', id)
@@ -155,7 +155,7 @@ export class DatabaseService {
       throw new Error('Não é possível excluir grupo com monitores associados')
     }
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('groups')
       .delete()
       .eq('id', id)
