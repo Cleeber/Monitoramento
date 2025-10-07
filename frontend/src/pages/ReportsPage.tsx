@@ -5,7 +5,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Badge } from '../components/ui/badge'
 import { 
   Download, 
-  Calendar, 
   Clock, 
   TrendingUp, 
   Activity,
@@ -15,6 +14,8 @@ import {
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
 import { apiGet, apiPost } from '../utils/apiUtils'
+import { PeriodFilter, DEFAULT_TIME_RANGE } from '../components/shared/PeriodFilter'
+import { calculatePeriodRange, formatDateForAPI, getPeriodLabel } from '../utils/periodUtils'
 // Importações removidas: formatDuration, calculateUptime não utilizadas
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -60,11 +61,7 @@ interface ReportData {
   last_incident: string | null
 }
 
-interface TimeRange {
-  label: string
-  value: string
-  days: number
-}
+
 
 
 
@@ -93,12 +90,7 @@ interface MonitorCheck {
   checked_at: string
 }
 
-const timeRanges: TimeRange[] = [
-  { label: 'Últimas 24 horas', value: '24h', days: 1 },
-  { label: 'Últimos 7 dias', value: '7d', days: 7 },
-  { label: 'Últimos 30 dias', value: '30d', days: 30 },
-  { label: 'Últimos 90 dias', value: '90d', days: 90 }
-]
+
 
 export function ReportsPage() {
   const [reports, setReports] = useState<ReportData[]>([])
@@ -106,7 +98,7 @@ export function ReportsPage() {
   const [selectedMonitor, setSelectedMonitor] = useState('all')
   const [monitorChecks, setMonitorChecks] = useState<MonitorCheck[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedTimeRange, setSelectedTimeRange] = useState('7d')
+  const [selectedTimeRange, setSelectedTimeRange] = useState(DEFAULT_TIME_RANGE)
   const [exporting, setExporting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const { addToast } = useToast()
@@ -148,10 +140,11 @@ export function ReportsPage() {
 
   const fetchMonitorChecks = async (monitorId: string) => {
     try {
-      const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
-      const limit = selectedRange ? selectedRange.days * 24 * 2 : 200 // 2 checks por hora aproximadamente
+      const periodRange = calculatePeriodRange(selectedTimeRange)
+      const startDate = formatDateForAPI(periodRange.startDate)
+      const endDate = formatDateForAPI(periodRange.endDate)
       
-      const result = await apiGet(`/monitors/${monitorId}/checks?limit=${limit}`)
+      const result = await apiGet(`/monitors/${monitorId}/checks?start_date=${startDate}&end_date=${endDate}&limit=1000`)
 
       if (result.success) {
         setMonitorChecks(result.data)
@@ -620,7 +613,7 @@ export function ReportsPage() {
       }
     } else {
       // Dados históricos do monitor selecionado
-      const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
+      const periodRange = calculatePeriodRange(selectedTimeRange)
       
       // Agrupar checks por dia
       const dailyData: { [key: string]: { total: number, successful: number } } = {}
@@ -710,7 +703,7 @@ export function ReportsPage() {
         return { labels: [], datasets: [] }
       }
       
-      const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
+      const periodRange = calculatePeriodRange(selectedTimeRange)
       const labels: string[] = []
       const responseTimeData: number[] = []
       
@@ -721,8 +714,8 @@ export function ReportsPage() {
         let groupKey: string
         const checkDate = new Date(check.checked_at)
         
-        if (selectedRange?.days === 1) {
-          // Para 24h, agrupar por hora
+        if (selectedTimeRange === 'yesterday') {
+          // Para ontem, agrupar por hora
           groupKey = checkDate.toISOString().slice(0, 13) // YYYY-MM-DDTHH
         } else {
           // Para outros períodos, agrupar por dia
@@ -744,8 +737,8 @@ export function ReportsPage() {
         
         // Formatar label baseado no período
         let label: string
-        if (selectedRange?.days === 1) {
-          // Para 24h, mostrar hora
+        if (selectedTimeRange === 'yesterday') {
+          // Para ontem, mostrar hora
           const date = new Date(key + ':00:00')
           label = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         } else {
@@ -811,7 +804,7 @@ export function ReportsPage() {
   }
 
   const overallStats = calculateOverallStats()
-  const selectedRange = timeRanges.find(range => range.value === selectedTimeRange)
+  const periodRange = calculatePeriodRange(selectedTimeRange)
 
   if (loading) {
     return (
@@ -859,19 +852,11 @@ export function ReportsPage() {
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
-        <Select value={selectedTimeRange} onValueChange={setSelectedTimeRange}>
-          <SelectTrigger className="w-full sm:w-[180px]">
-            <Calendar className="h-4 w-4" />
-            <SelectValue placeholder="Período" />
-          </SelectTrigger>
-          <SelectContent>
-            {timeRanges.map((range) => (
-              <SelectItem key={range.value} value={range.value}>
-                {range.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <PeriodFilter 
+          selectedTimeRange={selectedTimeRange} 
+          onTimeRangeChange={setSelectedTimeRange}
+          className="w-full sm:w-auto"
+        />
         
         <Select value={selectedMonitor} onValueChange={setSelectedMonitor}>
           <SelectTrigger className="w-full sm:w-[200px]">
@@ -902,7 +887,7 @@ export function ReportsPage() {
                 {overallStats.avgUptime?.toFixed(2) || '0.00'}%
               </div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
-                {selectedMonitor !== 'all' ? 'Monitor selecionado' : selectedRange?.label.toLowerCase()}
+                {selectedMonitor !== 'all' ? 'Monitor selecionado' : getPeriodLabel(selectedTimeRange).toLowerCase()}
               </p>
             </CardContent>
           </Card>
