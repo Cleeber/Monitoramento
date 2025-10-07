@@ -278,7 +278,7 @@ export class PDFService {
     try {
       // Buscar dados do monitor
       const monitors = await databaseService.getMonitors()
-      const monitor = monitors.find(m => m.id === monitorId)
+      const monitor = monitors.find((m: any) => m.id === monitorId)
       
       if (!monitor) {
         throw new Error('Monitor não encontrado')
@@ -317,7 +317,7 @@ export class PDFService {
 
         // Buscar dados do monitor
         const monitors = await databaseService.getMonitors()
-        const monitor = monitors.find(m => m.id === monitorId)
+        const monitor = monitors.find((m: any) => m.id === monitorId)
         
         if (!monitor) {
           reject(new Error('Monitor não encontrado'))

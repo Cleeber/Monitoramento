@@ -49,7 +49,7 @@ export class ReportService {
     try {
       // Buscar dados do monitor
       const monitors = await databaseService.getMonitors()
-      const monitor = monitors.find(m => m.id === monitorId)
+      const monitor = monitors.find((m: any) => m.id === monitorId)
       
       if (!monitor) {
         console.error(`Monitor ${monitorId} não encontrado`)
@@ -93,7 +93,7 @@ export class ReportService {
     try {
       // Buscar dados do monitor
       const monitors = await databaseService.getMonitors()
-      const monitor = monitors.find(m => m.id === monitorId)
+      const monitor = monitors.find((m: any) => m.id === monitorId)
       
       if (!monitor) {
         throw new Error(`Monitor ${monitorId} não encontrado`)
@@ -413,7 +413,7 @@ ${this.generateAnalysis(stats)}
       
       // Buscar dados do monitor
       const monitors = await databaseService.getMonitors()
-      const monitor = monitors.find(m => m.id === monitorId)
+      const monitor = monitors.find((m: any) => m.id === monitorId)
       if (!monitor) {
         throw new Error('Monitor não encontrado')
       }
@@ -543,7 +543,7 @@ ${this.generateAnalysis(stats)}
       
       // Buscar dados do monitor
       const monitors = await databaseService.getMonitors()
-      const monitor = monitors.find(m => m.id === monitorId)
+      const monitor = monitors.find((m: any) => m.id === monitorId)
       
       if (!monitor) {
         const error = `Monitor não encontrado: ${monitorId}`

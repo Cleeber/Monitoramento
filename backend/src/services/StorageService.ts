@@ -24,7 +24,7 @@ export class StorageService {
     }
 
     // Verificar tipo MIME
-    if (!this.ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+    if (!this.ALLOWED_MIME_TYPES.includes((file as any).mimetype)) {
       return {
         valid: false,
         error: 'Formato de arquivo não suportado. Formatos aceitos: PNG, JPG, JPEG, SVG'

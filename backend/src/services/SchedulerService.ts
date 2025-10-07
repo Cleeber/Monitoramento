@@ -124,13 +124,13 @@ export class SchedulerService {
       // Verificar se já foi enviado HOJE (não apenas este mês)
       const history = await databaseService.getMonthlyReportHistory({
         monitor_id: monitor.id,
-        report_year: reportYear,
-        report_month: reportMonth,
+        year: reportYear,
+        month: reportMonth,
         limit: 10 // Buscar mais registros para verificar hoje
       })
       
       // Verificar se algum relatório foi enviado hoje
-      const sentToday = history.some(report => {
+      const sentToday = history.some((report: any) => {
         const reportDate = new Date(report.sent_at).toISOString().split('T')[0]
         return reportDate === todayStr && report.status === 'sent'
       })
@@ -147,9 +147,9 @@ export class SchedulerService {
         // Registrar no histórico
         await databaseService.createMonthlyReportHistory({
           monitor_id: monitor.id,
-          email_sent_to: monitor.report_email,
-          report_year: reportYear,
-          report_month: reportMonth,
+          email: monitor.report_email,
+          year: reportYear,
+          month: reportMonth,
           report_data: { success: true, sent_at: new Date().toISOString() },
           sent_at: new Date().toISOString(),
           status: 'sent'
@@ -162,9 +162,9 @@ export class SchedulerService {
         // Registrar erro no histórico
         await databaseService.createMonthlyReportHistory({
           monitor_id: monitor.id,
-          email_sent_to: monitor.report_email,
-          report_year: reportYear,
-          report_month: reportMonth,
+          email: monitor.report_email,
+          year: reportYear,
+          month: reportMonth,
           report_data: { success: false, error: error instanceof Error ? error.message : 'Erro desconhecido' },
           sent_at: new Date().toISOString(),
           status: 'failed'
