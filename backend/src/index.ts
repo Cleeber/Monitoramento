@@ -1080,7 +1080,7 @@ app.get('/api/reports/stats', authenticateToken, async (req, res) => {
         
         // Calcular tempo de resposta médio
         const responseTimes = periodChecks
-          .filter(check => check.response_time !== null)
+          .filter((check: any) => check.response_time !== null)
           .map((check: any) => check.response_time)
         
         if (responseTimes.length > 0) {
@@ -1152,7 +1152,7 @@ app.get('/api/reports/monitors', authenticateToken, async (req, res) => {
         .map((check: any) => check.response_time)
       
       const avgResponseTime = responseTimes.length > 0 
-        ? responseTimes.reduce((acc, time) => acc + time, 0) / responseTimes.length
+        ? responseTimes.reduce((acc: number, time: number) => acc + time, 0) / responseTimes.length
         : 0
       
       // Contar incidentes (sequências de falhas)
@@ -1224,7 +1224,7 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
       // Calcular tempos de resposta
       const responseTimes = periodChecks
         .filter(check => check.response_time !== null)
-        .map(check => check.response_time)
+        .map((check: any) => check.response_time)
       
       const avgResponseTime = responseTimes.length > 0 
         ? responseTimes.reduce((acc, time) => acc + time, 0) / responseTimes.length
@@ -1294,7 +1294,7 @@ app.get('/api/reports/export', authenticateToken, (_, res) => {
 app.get('/api/public/groups', async (_, res) => {
   try {
     const groups = await databaseService.getGroups()
-    res.json(groups.map(g => ({
+    res.json(groups.map((g: any) => ({
       id: g.id,
       name: g.name,
       description: g.description,
@@ -1310,7 +1310,7 @@ app.get('/api/public/groups', async (_, res) => {
 app.get('/api/public/monitors', async (_, res) => {
   try {
     const monitors = await databaseService.getMonitors()
-    res.json(monitors.map(m => ({
+    res.json(monitors.map((m: any) => ({
       id: m.id,
       name: m.name,
       url: m.url,
@@ -1369,14 +1369,14 @@ app.get('/api/public/status/group/:slug', async (req, res) => {
     
     // Buscar grupo pelo slug
     const groups = await databaseService.getGroups()
-    const group = groups.find(g => g.slug === slug)
+    const group = groups.find((g: any) => g.slug === slug)
     
     if (!group) {
       return res.status(404).json({ error: 'Grupo não encontrado' })
     }
     
     let monitors = monitoringService.getMonitors()
-    monitors = monitors.filter(m => m.group_id === group.id)
+    monitors = monitors.filter((m: any) => m.group_id === group.id)
     
     const onlineCount = monitors.filter(m => m.status === 'online').length
     const totalCount = monitors.length
@@ -1422,7 +1422,7 @@ app.get('/api/public/status/monitor/:slug', async (req, res) => {
     
     // Buscar monitor pelo slug
     const monitors = await databaseService.getMonitors()
-    const monitor = monitors.find(m => m.slug === slug)
+    const monitor = monitors.find((m: any) => m.slug === slug)
     
     if (!monitor) {
       return res.status(404).json({ error: 'Monitor não encontrado' })
@@ -1469,7 +1469,7 @@ app.get('/api/public/monitors/:id/checks', async (req, res) => {
     const checks = await databaseService.getMonitorChecks(id, Number(limit))
     
     // Filtrar apenas dados necessários para o público
-    const publicChecks = checks.map(check => ({
+    const publicChecks = checks.map((check: any) => ({
       status: check.status,
       response_time: check.response_time,
       checked_at: check.checked_at
@@ -1700,7 +1700,7 @@ app.get('/api/public/monitor-stats/:monitorId', async (req, res) => {
     
     // Calcular estatísticas
     const totalChecks = checks.length
-    const successfulChecks = checks.filter(check => check.status === 'online').length
+    const successfulChecks = checks.filter((check: any) => check.status === 'online').length
     const failedChecks = totalChecks - successfulChecks
     
     // Calcular tempos de resposta (apenas para checks bem-sucedidos)
