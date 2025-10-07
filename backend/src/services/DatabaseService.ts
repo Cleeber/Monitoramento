@@ -165,7 +165,7 @@ export class DatabaseService {
 
   // ===== MONITORS =====
   async getMonitors() {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monitors')
       .select(`
         *,
@@ -176,7 +176,7 @@ export class DatabaseService {
     if (error) throw error
     
     // Adicionar nome do grupo
-    return (data || []).map(monitor => ({
+    return (data || []).map((monitor: any) => ({
       ...monitor,
       group_name: monitor.groups?.name || 'Sem grupo',
       enabled: monitor.is_active
@@ -184,7 +184,7 @@ export class DatabaseService {
   }
 
   async getMonitorById(id: string) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monitors')
       .select('*')
       .eq('id', id)
@@ -208,7 +208,7 @@ export class DatabaseService {
     report_send_day?: number
     report_send_time?: string
   }) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monitors')
       .insert({
         id: uuidv4(),
@@ -239,7 +239,7 @@ export class DatabaseService {
   }
 
   async updateMonitor(id: string, updates: Updates<'monitors'>) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monitors')
       .update({
         ...updates,
@@ -255,12 +255,12 @@ export class DatabaseService {
 
   async deleteMonitor(id: string) {
     // Deletar checks relacionados primeiro
-    await supabase
+    await (supabase as any)
       .from('monitor_checks')
       .delete()
       .eq('monitor_id', id)
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('monitors')
       .delete()
       .eq('id', id)
@@ -284,7 +284,7 @@ export class DatabaseService {
   async getMonitorChecksForPeriod(monitorId: string, startDate: Date, endDate: Date) {
     // Remover limitação padrão de 1000 linhas do Supabase
     // Definir um limite maior para obter todos os registros do período
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monitor_checks')
       .select('*')
       .eq('monitor_id', monitorId)
@@ -303,7 +303,7 @@ export class DatabaseService {
     response_time?: number
     error_message?: string
   }) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monitor_checks')
       .insert({
         id: uuidv4(),
