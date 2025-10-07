@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid'
 export class DatabaseService {
   // ===== USERS =====
   async getUsers() {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('users')
       .select('*')
       .order('created_at', { ascending: false })
@@ -15,7 +15,7 @@ export class DatabaseService {
   }
 
   async getUserByEmail(email: string) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('users')
       .select('*')
       .eq('email', email)
@@ -26,7 +26,7 @@ export class DatabaseService {
   }
 
   async getUserById(id: string) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('users')
       .select('*')
       .eq('id', id)
@@ -39,7 +39,7 @@ export class DatabaseService {
   async createUser(userData: { email: string; password: string; name: string; role?: 'admin' | 'user' }) {
     const passwordHash = await bcrypt.hash(userData.password, 10)
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('users')
       .insert({
         id: uuidv4(),
@@ -602,7 +602,7 @@ export class DatabaseService {
   }
 
   async deleteOldMonitoringLogs(beforeDate: Date): Promise<number> {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monitor_checks')
       .delete()
       .lt('checked_at', beforeDate.toISOString())

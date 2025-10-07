@@ -1081,7 +1081,7 @@ app.get('/api/reports/stats', authenticateToken, async (req, res) => {
         // Calcular tempo de resposta médio
         const responseTimes = periodChecks
           .filter(check => check.response_time !== null)
-          .map(check => check.response_time)
+          .map((check: any) => check.response_time)
         
         if (responseTimes.length > 0) {
           const avgResponseTime = responseTimes.reduce((acc, time) => acc + time, 0) / responseTimes.length
@@ -1706,7 +1706,7 @@ app.get('/api/public/monitor-stats/:monitorId', async (req, res) => {
     
     // Calcular tempos de resposta (apenas para checks bem-sucedidos)
     const responseTimes = checks
-      .filter(check => check.status === 'online' && check.response_time)
+      .filter((check: any) => check.status === 'online' && check.response_time)
       .map(check => check.response_time)
     
     let minResponseTime = 0
@@ -1716,7 +1716,7 @@ app.get('/api/public/monitor-stats/:monitorId', async (req, res) => {
     if (responseTimes.length > 0) {
       minResponseTime = Math.min(...responseTimes)
       maxResponseTime = Math.max(...responseTimes)
-      avgResponseTime = Math.round(responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length)
+      avgResponseTime = Math.round(responseTimes.reduce((sum: number, time: number) => sum + time, 0) / responseTimes.length)
     }
     
     res.json({

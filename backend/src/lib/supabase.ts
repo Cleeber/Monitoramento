@@ -28,7 +28,7 @@ function getSupabaseClient() {
 }
 
 // Cliente Supabase com service role para operações administrativas
-export const supabase = new Proxy({}, {
+export const supabase = new Proxy({} as any, {
   get(target, prop) {
     return getSupabaseClient()[prop]
   }
