@@ -1065,7 +1065,7 @@ app.get('/api/reports/stats', authenticateToken, async (req, res) => {
       const periodStart = new Date()
       periodStart.setDate(periodStart.getDate() - periodDays)
       
-      const periodChecks = checks.filter(check => 
+      const periodChecks = checks.filter((check: any) => 
         new Date(check.checked_at) >= periodStart
       )
       
@@ -1074,7 +1074,7 @@ app.get('/api/reports/stats', authenticateToken, async (req, res) => {
         totalChecks += periodChecks.length
         
         // Calcular uptime
-        const successfulChecks = periodChecks.filter(check => check.status === 'online').length
+        const successfulChecks = periodChecks.filter((check: any) => check.status === 'online').length
         const uptimePercentage = (successfulChecks / periodChecks.length) * 100
         totalUptime += uptimePercentage
         
@@ -1140,7 +1140,7 @@ app.get('/api/reports/monitors', authenticateToken, async (req, res) => {
       const periodStart = new Date()
       periodStart.setDate(periodStart.getDate() - periodDays)
       
-      const periodChecks = checks.filter(check => 
+      const periodChecks = checks.filter((check: any) => 
         new Date(check.checked_at) >= periodStart
       )
       
@@ -1148,7 +1148,7 @@ app.get('/api/reports/monitors', authenticateToken, async (req, res) => {
       
       // Calcular tempos de resposta
       const responseTimes = periodChecks
-        .filter(check => check.response_time !== null)
+        .filter((check: any) => check.response_time !== null)
         .map((check: any) => check.response_time)
       
       const avgResponseTime = responseTimes.length > 0 
@@ -1191,7 +1191,7 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
     
     // Filtrar por grupo se especificado
     const filteredMonitors = group_id && group_id !== 'all' 
-      ? monitors.filter(m => m.group_id === group_id)
+      ? monitors.filter((m: any) => m.group_id === group_id)
       : monitors
     
     // Calcular período em dias
@@ -1202,7 +1202,7 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
       '90d': 90
     }[period as string] || 7
     
-    const reports = await Promise.all(filteredMonitors.map(async (monitor) => {
+    const reports = await Promise.all(filteredMonitors.map(async (monitor: any) => {
       // Buscar checks do período
       const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
       
@@ -1706,7 +1706,7 @@ app.get('/api/public/monitor-stats/:monitorId', async (req, res) => {
     // Calcular tempos de resposta (apenas para checks bem-sucedidos)
     const responseTimes = checks
       .filter((check: any) => check.status === 'online' && check.response_time)
-      .map(check => check.response_time)
+      .map((check: any) => check.response_time)
     
     let minResponseTime = 0
     let maxResponseTime = 0
