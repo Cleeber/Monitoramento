@@ -1149,7 +1149,7 @@ app.get('/api/reports/monitors', authenticateToken, async (req, res) => {
       // Calcular tempos de resposta
       const responseTimes = periodChecks
         .filter(check => check.response_time !== null)
-        .map(check => check.response_time)
+        .map((check: any) => check.response_time)
       
       const avgResponseTime = responseTimes.length > 0 
         ? responseTimes.reduce((acc, time) => acc + time, 0) / responseTimes.length
@@ -1489,14 +1489,13 @@ app.get('/api/public/uptime-history', async (req, res) => {
     const daysNumber = parseInt(days as string)
     
     // Calcular data de início
-    const endDate = new Date()
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - daysNumber)
     
     // Obter monitores
     let monitors = await databaseService.getMonitors()
     if (group_id && group_id !== 'all') {
-      monitors = monitors.filter(m => m.group_id === group_id)
+      monitors = monitors.filter((m: any) => m.group_id === group_id)
     }
     
     // Gerar dados para cada dia
@@ -1525,7 +1524,7 @@ app.get('/api/public/uptime-history', async (req, res) => {
         )
         
         if (checks.length > 0) {
-          const onlineChecks = checks.filter(c => c.status === 'online').length
+          const onlineChecks = checks.filter((c: any) => c.status === 'online').length
           const uptimePercentage = (onlineChecks / checks.length) * 100
           totalUptime += uptimePercentage
           monitorCount++
@@ -1554,12 +1553,12 @@ app.get('/api/public/incidents', async (req, res) => {
     
     // Filtrar monitores por grupo se especificado
     if (group_id && group_id !== 'all') {
-      monitors = monitors.filter(m => m.group_id === group_id)
+      monitors = monitors.filter((m: any) => m.group_id === group_id)
     }
     
     // Filtrar por monitor específico se especificado
     if (monitor_id) {
-      monitors = monitors.filter(m => m.id === monitor_id)
+      monitors = monitors.filter((m: any) => m.id === monitor_id)
     }
     
     const incidents = []
@@ -1571,7 +1570,7 @@ app.get('/api/public/incidents', async (req, res) => {
       if (checks.length === 0) continue
       
       // Ordenar checks por data (mais antigos primeiro)
-      const sortedChecks = checks.sort((a, b) => new Date(a.checked_at).getTime() - new Date(b.checked_at).getTime())
+      const sortedChecks = checks.sort((a: any, b: any) => new Date(a.checked_at).getTime() - new Date(b.checked_at).getTime())
       
       let currentIncident = null
       let incidentId = 1
