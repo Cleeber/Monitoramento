@@ -270,7 +270,7 @@ export class DatabaseService {
 
   // ===== MONITOR CHECKS =====
   async getMonitorChecks(monitorId: string, limit: number = 50) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monitor_checks')
       .select('*')
       .eq('monitor_id', monitorId)
@@ -504,7 +504,7 @@ export class DatabaseService {
     const existing = await this.getSmtpConfig()
     
     if (existing) {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('smtp_config')
         .update({
           host: config.host,
@@ -524,7 +524,7 @@ export class DatabaseService {
       if (error) throw error
       return data
     } else {
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .from('smtp_config')
         .insert({
           id: uuidv4(),
@@ -549,7 +549,7 @@ export class DatabaseService {
 
   // ===== REPORTS =====
   async getReports(filters?: { group_id?: string; period?: string }) {
-    let query = supabase
+    let query = (supabase as any)
       .from('reports')
       .select(`
         *,
@@ -577,7 +577,7 @@ export class DatabaseService {
     successful_checks: number
     avg_response_time: number
   }) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('reports')
       .insert({
         id: uuidv4(),
@@ -593,7 +593,7 @@ export class DatabaseService {
 
   // ===== MONITORING LOGS =====
   async countMonitoringLogs(): Promise<number> {
-    const { count, error } = await supabase
+    const { count, error } = await (supabase as any)
       .from('monitor_checks')
       .select('*', { count: 'exact', head: true })
     

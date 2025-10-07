@@ -22,7 +22,7 @@ export class PDFService {
       
       // Configurar puppeteer com otimizações
       browser = await puppeteer.launch({
-        headless: 'new',
+        headless: true,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -84,7 +84,7 @@ export class PDFService {
       })
       
       console.log(`✅ Captura concluída (${Math.round(screenshot.length / 1024)}KB)`)
-      return screenshot
+      return screenshot as Buffer
       
     } catch (error) {
       console.error('❌ Erro ao capturar página de status:', error)
@@ -217,7 +217,7 @@ export class PDFService {
       const groups = await databaseService.getGroups()
       
       // Verificar se existe um grupo principal ou monitor com página de status geral
-      const mainGroup = groups.find(g => g.name.toLowerCase().includes('principal') || g.name.toLowerCase().includes('geral'))
+      const mainGroup = groups.find((g: any) => g.name.toLowerCase().includes('principal') || g.name.toLowerCase().includes('geral'))
       
       if (mainGroup && mainGroup.slug) {
         console.log(`📄 Gerando PDF de status otimizado com captura de página para grupo: ${mainGroup.name}`)

@@ -641,7 +641,7 @@ ${this.generateAnalysis(stats)}
       
       // Buscar dados do monitor
       const monitors = await databaseService.getMonitors()
-      const monitor = monitors.find(m => m.id === monitorId)
+      const monitor = monitors.find((m: any) => m.id === monitorId)
       
       if (!monitor) {
         const error = `Monitor não encontrado: ${monitorId}`
