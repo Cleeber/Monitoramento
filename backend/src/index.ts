@@ -113,7 +113,7 @@ async function createRequiredTables() {
       console.log('⚠️ Não foi possível verificar tabelas, tentando criar...')
     }
     
-    const existingTables = tables?.map(t => t.table_name) || []
+    const existingTables = tables?.map((t: any) => t.table_name) || []
     
     // Criar monthly_report_configs se não existir
     if (!existingTables.includes('monthly_report_configs')) {
@@ -198,7 +198,7 @@ async function initializeDefaultData() {
     
     // Carregar monitores existentes do banco de dados
     const monitors = await databaseService.getMonitors()
-    monitors.forEach(monitor => {
+    monitors.forEach((monitor: any) => {
       monitoringService.addMonitor({
         ...monitor,
         enabled: monitor.is_active,
