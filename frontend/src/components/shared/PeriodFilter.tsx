@@ -1,6 +1,5 @@
 import React from 'react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select'
-import { Calendar } from 'lucide-react'
 
 export interface TimeRange {
   value: string
@@ -27,10 +26,9 @@ interface PeriodFilterProps {
 
 export function PeriodFilter({ selectedTimeRange, onTimeRangeChange, className }: PeriodFilterProps) {
   return (
-    <div className={`flex items-center gap-2 ${className || ''}`}>
-      <Calendar className="h-4 w-4 text-muted-foreground" />
+    <div className={className || ''}>
       <Select value={selectedTimeRange} onValueChange={onTimeRangeChange}>
-        <SelectTrigger className="w-[200px]">
+        <SelectTrigger className="w-[280px]">
           <SelectValue placeholder="Selecione o período" />
         </SelectTrigger>
         <SelectContent>
