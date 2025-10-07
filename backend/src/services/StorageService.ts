@@ -50,7 +50,7 @@ export class StorageService {
     const filePath = `monitors/${fileName}`
 
     // Fazer upload para o Supabase Storage
-    const { error } = await supabase.storage
+    const { error } = await (supabase as any).storage
       .from(this.BUCKET_NAME)
       .upload(filePath, file.buffer, {
         contentType: file.mimetype,
@@ -62,7 +62,7 @@ export class StorageService {
     }
 
     // Obter URL pública do arquivo
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = (supabase as any).storage
       .from(this.BUCKET_NAME)
       .getPublicUrl(filePath)
 
@@ -76,7 +76,7 @@ export class StorageService {
    * Remove um arquivo do storage
    */
   async deleteLogo(filePath: string): Promise<void> {
-    const { error } = await supabase.storage
+    const { error } = await (supabase as any).storage
       .from(this.BUCKET_NAME)
       .remove([filePath])
 

@@ -104,14 +104,14 @@ export class ReportService {
       
       // Calcular estatísticas
       const totalChecks = checks.length
-      const successfulChecks = checks.filter(check => check.status === 'up').length
+      const successfulChecks = checks.filter((check: any) => check.status === 'up').length
       const failedChecks = totalChecks - successfulChecks
       const uptimePercentage = totalChecks > 0 ? (successfulChecks / totalChecks) * 100 : 0
       
       // Calcular tempo médio de resposta
-      const responseTimes = checks.filter(check => check.response_time > 0).map(check => check.response_time)
+      const responseTimes = checks.filter((check: any) => check.response_time > 0).map((check: any) => check.response_time)
       const avgResponseTime = responseTimes.length > 0 
-        ? responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length 
+        ? responseTimes.reduce((sum: any, time: any) => sum + time, 0) / responseTimes.length 
         : 0
 
       // Identificar incidentes (períodos de downtime)
@@ -154,7 +154,7 @@ export class ReportService {
       console.log(`📈 Encontrados ${checks.length} checks reais no período`)
       
       // Converter status para formato esperado (online/offline -> up/down)
-      return checks.map(check => ({
+      return checks.map((check: any) => ({
         ...check,
         status: check.status === 'online' ? 'up' : 'down'
       }))
