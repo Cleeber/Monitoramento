@@ -343,7 +343,7 @@ app.get('/api/monitors', authenticateToken, async (_, res) => {
     const monitors = await databaseService.getMonitors()
     
     // Combinar dados do banco com dados em tempo real do MonitoringService
-    const monitorsWithRealTimeStatus = await Promise.all(monitors.map(async monitor => {
+    const monitorsWithRealTimeStatus = await Promise.all(monitors.map(async (monitor: any) => {
       const realTimeMonitor = monitoringService.getMonitor(monitor.id)
       const reportConfig = await databaseService.getMonthlyReportConfigByMonitor(monitor.id)
       
@@ -1084,7 +1084,7 @@ app.get('/api/reports/stats', authenticateToken, async (req, res) => {
           .map((check: any) => check.response_time)
         
         if (responseTimes.length > 0) {
-          const avgResponseTime = responseTimes.reduce((acc, time) => acc + time, 0) / responseTimes.length
+          const avgResponseTime = responseTimes.reduce((acc: number, time: number) => acc + time, 0) / responseTimes.length
           totalResponseTime += avgResponseTime
         }
         
@@ -1132,7 +1132,7 @@ app.get('/api/reports/monitors', authenticateToken, async (req, res) => {
       '90d': 90
     }[period as string] || 7
     
-    const detailedMonitors = await Promise.all(monitors.map(async (monitor) => {
+    const detailedMonitors = await Promise.all(monitors.map(async (monitor: any) => {
       // Buscar checks do período
       const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
       
@@ -1227,7 +1227,7 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
         .map((check: any) => check.response_time)
       
       const avgResponseTime = responseTimes.length > 0 
-        ? responseTimes.reduce((acc, time) => acc + time, 0) / responseTimes.length
+        ? responseTimes.reduce((acc: number, time: number) => acc + time, 0) / responseTimes.length
         : 0
       
       const minResponseTime = responseTimes.length > 0 ? Math.min(...responseTimes) : 0

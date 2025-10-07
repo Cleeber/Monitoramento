@@ -114,6 +114,10 @@ export interface Database {
           created_at: string
           is_active: boolean
           updated_at: string
+          logo_url: string | null
+          report_email: string | null
+          report_send_day: number
+          report_send_time: string
         }
         Insert: {
           id?: string
@@ -134,6 +138,10 @@ export interface Database {
           created_at?: string
           is_active?: boolean
           updated_at?: string
+          logo_url?: string | null
+          report_email?: string | null
+          report_send_day?: number
+          report_send_time?: string
         }
         Update: {
           id?: string
@@ -153,6 +161,10 @@ export interface Database {
           error_message?: string | null
           is_active?: boolean
           updated_at?: string
+          logo_url?: string | null
+          report_email?: string | null
+          report_send_day?: number
+          report_send_time?: string
         }
       }
       monitor_checks: {
