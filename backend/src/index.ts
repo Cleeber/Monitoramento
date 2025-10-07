@@ -1210,12 +1210,12 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
       const periodStart = new Date()
       periodStart.setDate(periodStart.getDate() - periodDays)
       
-      const periodChecks = checks.filter(check => 
+      const periodChecks = checks.filter((check: any) => 
         new Date(check.checked_at) >= periodStart
       )
       
       const totalChecks = periodChecks.length
-      const successfulChecks = periodChecks.filter(check => check.status === 'online').length
+      const successfulChecks = periodChecks.filter((check: any) => check.status === 'online').length
       const failedChecks = totalChecks - successfulChecks
       
       // Calcular uptime
@@ -1223,7 +1223,7 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
       
       // Calcular tempos de resposta
       const responseTimes = periodChecks
-        .filter(check => check.response_time !== null)
+        .filter((check: any) => check.response_time !== null)
         .map((check: any) => check.response_time)
       
       const avgResponseTime = responseTimes.length > 0 
