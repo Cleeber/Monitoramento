@@ -146,3 +146,11 @@ export function getPeriodDescription(timeRange: string): string {
     return `${range.label} (período completo)`
   }
 }
+
+/**
+ * Obtém o label do período para exibição
+ */
+export function getPeriodLabel(timeRange: string): string {
+  const range = calculatePeriodRange(timeRange)
+  return range.label
+}
