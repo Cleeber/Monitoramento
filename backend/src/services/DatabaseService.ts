@@ -322,7 +322,7 @@ export class DatabaseService {
 
   // ===== MONTHLY REPORT CONFIGS =====
   async getMonthlyReportConfigs() {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monthly_report_configs')
       .select('*')
       .order('created_at', { ascending: false })
@@ -333,7 +333,7 @@ export class DatabaseService {
 
   // Adicionado: buscar configuração de relatório mensal por ID (necessário para reagendamento após delete/update)
   async getMonthlyReportConfigById(id: string) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monthly_report_configs')
       .select('*')
       .eq('id', id)
@@ -344,7 +344,7 @@ export class DatabaseService {
   }
 
   async getMonthlyReportConfigByMonitor(monitorId: string) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monthly_report_configs')
       .select('*')
       .eq('monitor_id', monitorId)
@@ -360,7 +360,7 @@ export class DatabaseService {
     send_day: number
     is_active?: boolean
   }) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monthly_report_configs')
       .insert({
         id: uuidv4(),
@@ -383,7 +383,7 @@ export class DatabaseService {
     send_day?: number
     is_active?: boolean
   }) {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monthly_report_configs')
       .update({
         ...updates,
@@ -398,7 +398,7 @@ export class DatabaseService {
   }
 
   async deleteMonthlyReportConfig(id: string) {
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from('monthly_report_configs')
       .delete()
       .eq('id', id)
@@ -413,7 +413,7 @@ export class DatabaseService {
     month?: number
     limit?: number
   }) {
-    let query = supabase
+    let query = (supabase as any)
       .from('monthly_report_history')
       .select('*')
       .order('sent_at', { ascending: false })
@@ -460,7 +460,7 @@ export class DatabaseService {
     const startDate = new Date(historyData.year, historyData.month - 1, 1)
     const endDate = new Date(historyData.year, historyData.month, 0)
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('monthly_report_history')
       .insert({
         id: uuidv4(),
@@ -481,7 +481,7 @@ export class DatabaseService {
 
   // ===== SMTP CONFIG =====
   async getSmtpConfig() {
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from('smtp_config')
       .select('*')
       .single()
