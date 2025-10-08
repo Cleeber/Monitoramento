@@ -24,7 +24,7 @@ FROM node:18-alpine AS production
 WORKDIR /app
 
 # Install runtime dependencies including Chrome dependencies
-RUN apk add --no-cache \
+RUN apk update && apk add --no-cache \
     curl \
     dumb-init \
     chromium \
@@ -42,9 +42,6 @@ COPY package*.json ./
 
 # Install only production dependencies
 RUN npm install --only=production && npm cache clean --force
-
-# Install Chrome for Puppeteer
-RUN npx puppeteer browsers install chrome
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
