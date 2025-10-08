@@ -466,6 +466,8 @@ export class DatabaseService {
         id: uuidv4(),
         monitor_id: historyData.monitor_id,
         email: historyData.email,
+        report_month: historyData.month,
+        report_year: historyData.year,
         report_period_start: startDate.toISOString().split('T')[0],
         report_period_end: endDate.toISOString().split('T')[0],
         sent_at: historyData.sent_at,
