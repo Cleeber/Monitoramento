@@ -442,57 +442,29 @@ ${this.generateAnalysis(stats)}
       
       try {
         if (monitor.slug) {
-          // Tentar gerar PDF como captura da página de status do monitor
-          const candidateBaseUrls: string[] = []
-          if (process.env.FRONTEND_BASE_URL) candidateBaseUrls.push(process.env.FRONTEND_BASE_URL)
-          candidateBaseUrls.push('http://frontend:3001', 'http://localhost:3000', 'http://localhost:3001')
+          console.log(`📄 Gerando PDF otimizado para monitor: ${monitor.name} (${monitor.slug})`)
           
-          let success = false
-          for (const baseUrl of candidateBaseUrls) {
-            if (success) break
-            try {
-              console.log(`🖼️ Tentando captura via generateOptimizedStatusPDF usando baseUrl: ${baseUrl}`)
-              pdfBuffer = await pdfService.generateOptimizedStatusPDF(
-                monitor.slug,
-                monitor.name,
-                baseUrl
-              )
-              console.log('✅ Captura otimizada bem-sucedida')
-              success = true
-              break
-            } catch (optErr) {
-              console.warn('⚠️ Falha na captura otimizada, tentando dinâmica...', optErr)
-              try {
-                console.log(`🖼️ Tentando captura via generateDynamicStatusPDF usando baseUrl: ${baseUrl}`)
-                pdfBuffer = await pdfService.generateDynamicStatusPDF(
-                  monitor.slug,
-                  monitor.name,
-                  baseUrl
-                )
-                console.log('✅ Captura dinâmica bem-sucedida')
-                success = true
-                break
-              } catch (dynErr) {
-                console.warn('⚠️ Falha na captura dinâmica com esta baseUrl, tentando próxima...', dynErr)
-              }
-            }
-          }
+          // Usar o mesmo método que funciona na exportação manual
+          pdfBuffer = await pdfService.generateOptimizedStatusPDF(
+            monitor.slug, 
+            `${monitor.name} - Relatório Mensal`,
+            process.env.FRONTEND_BASE_URL || 'http://frontend:3001'
+          )
           
-          if (!success) {
-            // ALTERAÇÃO: Removido fallback para PDF geral conforme solicitação do usuário.
-            // O relatório deve ser exclusivamente a cópia/print da página de status do monitor.
-            console.warn('⚠️ Não foi possível capturar a página de status após todas as tentativas. Enviaremos o e-mail sem anexo de PDF, conforme especificação.')
+          if (pdfBuffer && pdfBuffer.length > 10000) { // Verificar se o PDF tem tamanho razoável (>10KB)
+            console.log(`✅ PDF otimizado gerado com sucesso (${Math.round(pdfBuffer.length / 1024)}KB)`)
+          } else {
+            console.warn('⚠️ PDF gerado muito pequeno, enviando e-mail sem anexo')
             pdfBuffer = undefined
           }
         } else {
-          // Fallback se o monitor não possuir slug
-          // ALTERAÇÃO: Evitar envio do PDF geral de 5KB. Sem slug, não é possível capturar a página de status.
-          console.warn('⚠️ Monitor sem slug de status. Enviaremos o e-mail sem anexo de PDF para evitar o relatório geral.')
+          console.warn('⚠️ Monitor sem slug de status. Enviaremos o e-mail sem anexo de PDF.')
           pdfBuffer = undefined
         }
         console.log('📄 Processo de geração de PDF concluído')
       } catch (pdfError) {
-        console.warn('⚠️ Erro inesperado na geração do PDF. O e-mail poderá ser enviado sem anexo:', pdfError)
+        console.warn('⚠️ Erro inesperado na geração do PDF. O e-mail será enviado sem anexo:', pdfError)
+        pdfBuffer = undefined
       }
       
       // Montar link da página de status (se disponível)
