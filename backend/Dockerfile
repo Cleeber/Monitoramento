@@ -23,10 +23,17 @@ FROM node:18-alpine AS production
 
 WORKDIR /app
 
-# Install runtime dependencies
+# Install runtime dependencies including Chrome dependencies
 RUN apk add --no-cache \
     curl \
     dumb-init \
+    chromium \
+    nss \
+    freetype \
+    freetype-dev \
+    harfbuzz \
+    ca-certificates \
+    ttf-freefont \
     && addgroup -g 1001 -S nodejs \
     && adduser -S nodejs -u 1001
 
@@ -35,6 +42,9 @@ COPY package*.json ./
 
 # Install only production dependencies
 RUN npm install --only=production && npm cache clean --force
+
+# Install Chrome for Puppeteer
+RUN npx puppeteer browsers install chrome
 
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
@@ -45,6 +55,10 @@ COPY --from=builder /app/database ./database
 # Create necessary directories
 RUN mkdir -p uploads reports logs \
     && chown -R nodejs:nodejs /app
+
+# Set Puppeteer environment variables
+ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
+ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
 
 # Switch to non-root user
 USER nodejs
