@@ -1044,8 +1044,16 @@ app.post('/api/smtp/test', authenticateToken, async (req, res) => {
 // Rotas de relatórios
 app.get('/api/reports/stats', authenticateToken, async (req, res) => {
   try {
-    const { period = '7d' } = req.query
-    const monitors = await databaseService.getMonitors()
+    const { period = '7d', monitor_id } = req.query
+    
+    // Se monitor_id for fornecido, buscar apenas esse monitor, senão buscar todos
+    let monitors
+    if (monitor_id) {
+      const monitor = await databaseService.getMonitorById(monitor_id as string)
+      monitors = monitor ? [monitor] : []
+    } else {
+      monitors = await databaseService.getMonitors()
+    }
     
     // Calcular período em dias
     const periodDays = {

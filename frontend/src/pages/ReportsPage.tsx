@@ -90,13 +90,19 @@ interface MonitorCheck {
   checked_at: string
 }
 
-
+interface OverallStats {
+  avg_uptime: number
+  total_checks: number
+  total_incidents: number
+  avg_response_time: number
+}
 
 export function ReportsPage() {
   const [reports, setReports] = useState<ReportData[]>([])
   const [monitors, setMonitors] = useState<Monitor[]>([])
   const [selectedMonitor, setSelectedMonitor] = useState('all')
   const [monitorChecks, setMonitorChecks] = useState<MonitorCheck[]>([])
+  const [overallStats, setOverallStats] = useState<OverallStats | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedTimeRange, setSelectedTimeRange] = useState(DEFAULT_TIME_RANGE)
   const [exporting, setExporting] = useState(false)
@@ -105,6 +111,7 @@ export function ReportsPage() {
 
   useEffect(() => {
     fetchData()
+    fetchOverallStats()
     if (selectedMonitor !== 'all') {
       fetchMonitorChecks(selectedMonitor)
     }
@@ -174,6 +181,28 @@ export function ReportsPage() {
       addToast({ title: 'Erro ao carregar relatórios', variant: 'destructive' })
     } finally {
       setLoading(false)
+    }
+  }
+
+  const fetchOverallStats = async () => {
+    try {
+      const params = new URLSearchParams({
+        period: selectedTimeRange
+      })
+      
+      if (selectedMonitor !== 'all') {
+        params.append('monitor_id', selectedMonitor)
+      }
+      
+      const result = await apiGet(`/reports/stats?${params}`)
+
+      if (result.success) {
+        setOverallStats(result.data)
+      } else {
+        console.error('Erro ao buscar estatísticas:', result.error)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar estatísticas:', error)
     }
   }
 
@@ -555,37 +584,15 @@ export function ReportsPage() {
   // Função removida: getUptimeBadgeColor não utilizada
 
   const calculateOverallStats = () => {
-    if (reports.length === 0) return null
-
-    // Se um monitor específico está selecionado, mostrar apenas suas estatísticas
-    if (selectedMonitor !== 'all') {
-      const selectedReport = reports.find(report => report.monitor_id === selectedMonitor)
-      if (!selectedReport) return null
-      
-      return {
-        totalChecks: selectedReport.total_checks,
-        totalSuccessful: selectedReport.successful_checks,
-        totalIncidents: selectedReport.incidents,
-        avgUptime: selectedReport.uptime_percentage,
-        avgResponseTime: selectedReport.avg_response_time,
-        monitorsCount: 1
-      }
-    }
-
-    // Caso contrário, calcular estatísticas agregadas
-    const totalChecks = reports.reduce((sum, report) => sum + report.total_checks, 0)
-    const totalSuccessful = reports.reduce((sum, report) => sum + report.successful_checks, 0)
-    const totalIncidents = reports.reduce((sum, report) => sum + report.incidents, 0)
-    const avgUptime = reports.reduce((sum, report) => sum + report.uptime_percentage, 0) / reports.length
-    const avgResponseTime = reports.reduce((sum, report) => sum + report.avg_response_time, 0) / reports.length
+    if (!overallStats) return null
 
     return {
-      totalChecks,
-      totalSuccessful,
-      totalIncidents,
-      avgUptime,
-      avgResponseTime,
-      monitorsCount: reports.length
+      totalChecks: overallStats.total_checks,
+      totalSuccessful: overallStats.total_checks - overallStats.total_incidents, // Aproximação baseada nos dados disponíveis
+      totalIncidents: overallStats.total_incidents,
+      avgUptime: overallStats.avg_uptime,
+      avgResponseTime: overallStats.avg_response_time,
+      monitorsCount: selectedMonitor !== 'all' ? 1 : reports.length
     }
   }
 
