@@ -18,7 +18,8 @@ export default defineConfig({
       'localhost',
       '127.0.0.1',
       '85.31.62.181',
-      'monitor.pagina1digital.com.br'
+      'monitor.pagina1digital.com.br',
+      'frontend'
     ],
     proxy: {
       '/api': {
