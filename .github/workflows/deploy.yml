@@ -46,36 +46,5 @@ jobs:
           # Navegar para o diretório do projeto
           cd ${{ secrets.PROJECT_PATH || '/root/uptime-monitor' }}
           
-          # Fazer backup do .env se existir
-          if [ -f .env ]; then
-            cp .env .env.backup
-          fi
-          
-          # Fazer pull das alterações
-          git pull origin master
-          
-          # Restaurar .env se foi feito backup
-          if [ -f .env.backup ]; then
-            mv .env.backup .env
-          fi
-          
-          # Parar containers
-          docker compose down
-          
-          # Rebuild containers (sem cache para garantir atualizações)
-          docker compose build --no-cache
-          
-          # Subir containers
-          docker compose up -d
-          
-          # Aguardar containers iniciarem
-          sleep 10
-          
-          # Verificar status dos containers
-          docker compose ps
-          
-          # Limpar imagens não utilizadas para economizar espaço
-          docker image prune -f
-          
-          # Log de sucesso
-          echo "Deploy concluído com sucesso em $(date)"
+          # Executar o script de deploy robusto
+          ./deploy.sh

@@ -6,6 +6,8 @@ Dados SSH
 root@85.31.62.181
 Senha:Mlez1HO;4xNsbuxF4u5@
 
+#Sempre que for fazer um novo deploy no servidor, confirme se você está conectado no terminal do servidor da VPS,e não no terminal local do Windows.
+
 #3 Para validações em tabelas e tudo relacionado ao banco de dados, você pode usar o MCP do Supabase.
 Caso o MCP não funcione, acesse o supabase e faça as validações manualmente.
 Link: https://supabase.com/dashboard/
