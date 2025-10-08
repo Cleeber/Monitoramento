@@ -39,7 +39,8 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 const monitoringService = new MonitoringService()
 
 // Configurar trust proxy para funcionar corretamente com proxies reversos (nginx, docker, etc)
-app.set('trust proxy', true)
+// Usar configuração mais específica para segurança
+app.set('trust proxy', 1)
 
 // Middlewares
 app.use(helmet())
