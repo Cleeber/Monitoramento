@@ -522,8 +522,44 @@ ${this.generateAnalysis(stats)}
       
       console.log(`✅ Relatório mensal dinâmico enviado com sucesso para ${email}`)
       
+      // Salvar histórico do envio
+      try {
+        const now = new Date()
+        await databaseService.createMonthlyReportHistory({
+          monitor_id: monitorId,
+          email: email,
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+          report_data: JSON.stringify(stats),
+          sent_at: now.toISOString(),
+          status: 'sent'
+        })
+        console.log(`💾 Histórico do relatório dinâmico salvo no banco de dados`)
+      } catch (historyError) {
+        console.warn(`⚠️ Erro ao salvar histórico (e-mail foi enviado com sucesso):`, historyError)
+      }
+      
     } catch (error) {
       console.error('❌ Erro ao enviar relatório mensal dinâmico:', error)
+      
+      // Salvar histórico de erro
+      try {
+        const now = new Date()
+        await databaseService.createMonthlyReportHistory({
+          monitor_id: monitorId,
+          email: email,
+          year: now.getFullYear(),
+          month: now.getMonth() + 1,
+          report_data: JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
+          sent_at: now.toISOString(),
+          status: 'failed',
+          error_message: error instanceof Error ? error.message : 'Erro desconhecido'
+        })
+        console.log(`💾 Histórico de erro salvo no banco de dados`)
+      } catch (historyError) {
+        console.warn(`⚠️ Erro ao salvar histórico de erro:`, historyError)
+      }
+      
       throw error
     }
   }
