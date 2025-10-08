@@ -15,7 +15,7 @@ export class PDFService {
   /**
    * Captura página de status pública usando puppeteer com configurações otimizadas
    */
-  async captureStatusPage(monitorSlug: string, baseUrl: string = 'http://localhost:3001'): Promise<Buffer> {
+  async captureStatusPage(monitorSlug: string, baseUrl: string = 'http://frontend:3001'): Promise<Buffer> {
     let browser
     try {
       console.log(`📸 Iniciando captura da página de status: ${monitorSlug}`)

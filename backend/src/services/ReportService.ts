@@ -445,7 +445,7 @@ ${this.generateAnalysis(stats)}
           // Tentar gerar PDF como captura da página de status do monitor
           const candidateBaseUrls: string[] = []
           if (process.env.FRONTEND_BASE_URL) candidateBaseUrls.push(process.env.FRONTEND_BASE_URL)
-          candidateBaseUrls.push('http://localhost:3000', 'http://localhost:3001')
+          candidateBaseUrls.push('http://frontend:3001', 'http://localhost:3000', 'http://localhost:3001')
           
           let success = false
           for (const baseUrl of candidateBaseUrls) {
