@@ -9,7 +9,7 @@ import { DomainsPage } from './pages/DomainsPage'
 import { GroupsPage } from './pages/GroupsPage'
 import { StatusPage } from './pages/StatusPage'
 import { SmtpConfigPage } from './pages/SmtpConfigPage'
-import { ReportsPage } from './pages/ReportsPage'
+import ReportsPage from './pages/ReportsPage'
 import StatusPagesPage from './pages/StatusPagesPage'
 import { Toaster } from './components/ui/toaster'
 
