@@ -97,7 +97,7 @@ interface OverallStats {
   avg_response_time: number
 }
 
-export function ReportsPage() {
+function ReportsPage() {
   const [reports, setReports] = useState<ReportData[]>([])
   const [monitors, setMonitors] = useState<Monitor[]>([])
   const [selectedMonitor, setSelectedMonitor] = useState('all')
@@ -1294,4 +1294,4 @@ export function ReportsPage() {
   )
 }
 
-export default ReportsPage
+export default ReportsPage;
