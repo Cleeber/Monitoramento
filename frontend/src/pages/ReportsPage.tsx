@@ -8,6 +8,7 @@ import { PeriodFilter, DEFAULT_TIME_RANGE } from '@/components/shared/PeriodFilt
 import { toast } from 'sonner'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
+import { apiGet, apiPost } from '@/utils/apiUtils'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -168,14 +169,13 @@ function ReportsPage() {
         params.append('monitor_id', selectedMonitor)
       }
       
-      const response = await fetch(`/api/reports?${params}`)
-      if (!response.ok) {
-        throw new Error('Erro ao carregar relatórios')
+      const result = await apiGet(`/reports?${params}`)
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao carregar relatórios')
       }
       
-      const data = await response.json()
-      setReports(data.reports || [])
-      setOverallStats(data.overall_stats || null)
+      setReports(result.data.reports || [])
+      setOverallStats(result.data.overall_stats || null)
     } catch (error) {
       console.error('Erro ao carregar relatórios:', error)
       toast.error('Erro ao carregar relatórios')
@@ -186,13 +186,12 @@ function ReportsPage() {
 
   const fetchMonitors = async () => {
     try {
-      const response = await fetch('/api/monitors')
-      if (!response.ok) {
-        throw new Error('Erro ao carregar monitores')
+      const result = await apiGet('/monitors')
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao carregar monitores')
       }
       
-      const data = await response.json()
-      setMonitors(data)
+      setMonitors(result.data)
     } catch (error) {
       console.error('Erro ao carregar monitores:', error)
       toast.error('Erro ao carregar monitores')
@@ -215,13 +214,12 @@ function ReportsPage() {
         limit: '1000'
       })
       
-      const response = await fetch(`/api/monitor-checks?${params}`)
-      if (!response.ok) {
-        throw new Error('Erro ao carregar verificações do monitor')
+      const result = await apiGet(`/monitor-checks?${params}`)
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao carregar verificações do monitor')
       }
       
-      const data = await response.json()
-      setMonitorChecks(data)
+      setMonitorChecks(result.data)
     } catch (error) {
       console.error('Erro ao carregar verificações do monitor:', error)
       toast.error('Erro ao carregar verificações do monitor')
@@ -382,16 +380,10 @@ function ReportsPage() {
         generated_at: new Date().toLocaleString('pt-BR')
       }
       
-      const response = await fetch('/api/reports/send-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(emailData),
-      })
+      const result = await apiPost('/reports/send-email', emailData)
       
-      if (!response.ok) {
-        throw new Error('Erro ao enviar e-mail')
+      if (!result.success) {
+        throw new Error(result.error || 'Erro ao enviar e-mail')
       }
       
       toast.success('Relatório enviado por e-mail com sucesso!')
