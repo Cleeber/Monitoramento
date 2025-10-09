@@ -1,85 +1,61 @@
-import { useState, useEffect } from 'react'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Button } from '../components/ui/button'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
-import { Badge } from '../components/ui/badge'
-import { 
-  Download, 
-  Clock, 
-  TrendingUp, 
-  Activity,
-  AlertTriangle,
-  PieChart,
-  Mail
-} from 'lucide-react'
-import { useToast } from '../contexts/ToastContext'
-import { apiGet, apiPost } from '../utils/apiUtils'
-import { PeriodFilter, DEFAULT_TIME_RANGE } from '../components/shared/PeriodFilter'
-import { calculatePeriodRange, formatDateForAPI, getPeriodLabel } from '../utils/periodUtils'
-// Importações removidas: formatDuration, calculateUptime não utilizadas
+import React, { useState, useEffect } from 'react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Badge } from '@/components/ui/badge'
+import { Download, Mail, Activity, TrendingUp, Clock, AlertTriangle, PieChart } from 'lucide-react'
+import { PeriodFilter, DEFAULT_TIME_RANGE } from '@/components/shared/PeriodFilter'
+import { toast } from 'sonner'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import {
   Chart as ChartJS,
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
   BarElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
   Legend,
   ArcElement,
+  Filler,
 } from 'chart.js'
 import { Bar, Line, Doughnut } from 'react-chartjs-2'
 
 ChartJS.register(
   CategoryScale,
   LinearScale,
-  PointElement,
-  LineElement,
   BarElement,
+  LineElement,
+  PointElement,
   Title,
   Tooltip,
   Legend,
-  ArcElement
+  ArcElement,
+  Filler
 )
-
-interface ReportData {
-  monitor_id: string
-  monitor_name: string
-  monitor_url: string
-  group_name: string
-  total_checks: number
-  successful_checks: number
-  failed_checks: number
-  uptime_percentage: number
-  avg_response_time: number
-  min_response_time: number
-  max_response_time: number
-  incidents: number
-  last_incident: string | null
-}
-
-
-
-
 
 interface Monitor {
   id: string
   name: string
   url: string
   status: string
-  group_id: string
-  group_name: string
-  report_email?: string
-  report_send_day?: number
-  slug: string
+  group_name?: string
 }
 
-interface ChartData {
-  labels: string[]
-  datasets: any[]
+interface Report {
+  monitor_id: string
+  monitor_name: string
+  uptime_percentage: number
+  total_checks: number
+  successful_checks: number
+  failed_checks: number
+  avg_response_time: number
+  min_response_time: number
+  max_response_time: number
+  incidents: number
+  last_incident?: string
 }
 
 interface MonitorCheck {
@@ -88,441 +64,272 @@ interface MonitorCheck {
   status: string
   response_time: number
   checked_at: string
+  error_message?: string
 }
 
 interface OverallStats {
-  avg_uptime: number
   total_checks: number
   total_incidents: number
+  avg_uptime: number
   avg_response_time: number
 }
 
+interface ChartData {
+  labels: string[]
+  datasets: any[]
+}
+
+type TimeRange = 'today' | 'yesterday' | 'last7days' | 'last30days' | 'last90days'
+
 function ReportsPage() {
-  const [reports, setReports] = useState<ReportData[]>([])
+  const [reports, setReports] = useState<Report[]>([])
   const [monitors, setMonitors] = useState<Monitor[]>([])
-  const [selectedMonitor, setSelectedMonitor] = useState('all')
+  const [selectedMonitor, setSelectedMonitor] = useState<string>('all')
+  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>('last7days')
   const [monitorChecks, setMonitorChecks] = useState<MonitorCheck[]>([])
   const [overallStats, setOverallStats] = useState<OverallStats | null>(null)
   const [loading, setLoading] = useState(true)
-  const [selectedTimeRange, setSelectedTimeRange] = useState(DEFAULT_TIME_RANGE)
   const [exporting, setExporting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
-  const { addToast } = useToast()
 
-  useEffect(() => {
-    fetchData()
-    fetchOverallStats()
-    if (selectedMonitor !== 'all') {
-      fetchMonitorChecks(selectedMonitor)
+  const calculatePeriodRange = (timeRange: TimeRange) => {
+    const now = new Date()
+    const start = new Date()
+    
+    switch (timeRange) {
+      case 'today':
+        start.setHours(0, 0, 0, 0)
+        break
+      case 'yesterday':
+        start.setDate(now.getDate() - 1)
+        start.setHours(0, 0, 0, 0)
+        now.setDate(now.getDate() - 1)
+        now.setHours(23, 59, 59, 999)
+        break
+      case 'last7days':
+        start.setDate(now.getDate() - 7)
+        break
+      case 'last30days':
+        start.setDate(now.getDate() - 30)
+        break
+      case 'last90days':
+        start.setDate(now.getDate() - 90)
+        break
     }
-  }, [selectedTimeRange, selectedMonitor])
+    
+    return { start, end: now }
+  }
 
-  useEffect(() => {
-    fetchMonitors()
-  }, [])
-
-
-
-
-
-
-
-  const fetchMonitors = async () => {
-    try {
-      const result = await apiGet('/monitors')
-
-      if (result.success) {
-        setMonitors(result.data)
-        // Seleciona automaticamente o primeiro monitor da lista
-        if (result.data.length > 0 && selectedMonitor === 'all') {
-          setSelectedMonitor(result.data[0].id)
-        }
-      } else {
-        console.error('Erro ao buscar monitores:', result.error)
-      }
-    } catch (error) {
-      console.error('Erro ao buscar monitores:', error)
+  const getPeriodLabel = (timeRange: TimeRange): string => {
+    switch (timeRange) {
+      case 'today':
+        return 'Hoje'
+      case 'yesterday':
+        return 'Ontem'
+      case 'last7days':
+        return 'Últimos 7 dias'
+      case 'last30days':
+        return 'Últimos 30 dias'
+      case 'last90days':
+        return 'Últimos 90 dias'
+      default:
+        return 'Período selecionado'
     }
   }
 
-  const fetchMonitorChecks = async (monitorId: string) => {
+  const fetchReports = async () => {
     try {
-      const periodRange = calculatePeriodRange(selectedTimeRange)
-      const startDate = formatDateForAPI(periodRange.startDate)
-      const endDate = formatDateForAPI(periodRange.endDate)
+      setLoading(true)
+      const { start, end } = calculatePeriodRange(selectedTimeRange)
       
-      const result = await apiGet(`/monitors/${monitorId}/checks?start_date=${startDate}&end_date=${endDate}&limit=1000`)
-
-      if (result.success) {
-        setMonitorChecks(result.data)
-      } else {
-        console.error('Erro ao buscar checks do monitor:', result.error)
-      }
-    } catch (error) {
-      console.error('Erro ao buscar checks do monitor:', error)
-    }
-  }
-
-  const fetchData = async () => {
-    try {
       const params = new URLSearchParams({
-        period: selectedTimeRange
-      })
-      
-      const result = await apiGet(`/reports?${params}`)
-
-      if (result.success) {
-        setReports(result.data)
-      } else {
-        addToast({ title: 'Erro ao carregar relatórios', description: result.error, variant: 'destructive' })
-      }
-    } catch (error) {
-      console.error('Erro ao buscar relatórios:', error)
-      addToast({ title: 'Erro ao carregar relatórios', variant: 'destructive' })
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchOverallStats = async () => {
-    try {
-      const params = new URLSearchParams({
-        period: selectedTimeRange
+        start_date: start.toISOString(),
+        end_date: end.toISOString()
       })
       
       if (selectedMonitor !== 'all') {
         params.append('monitor_id', selectedMonitor)
       }
       
-      const result = await apiGet(`/reports/stats?${params}`)
-
-      if (result.success) {
-        setOverallStats(result.data)
-      } else {
-        console.error('Erro ao buscar estatísticas:', result.error)
+      const response = await fetch(`/api/reports?${params}`)
+      if (!response.ok) {
+        throw new Error('Erro ao carregar relatórios')
       }
+      
+      const data = await response.json()
+      setReports(data.reports || [])
+      setOverallStats(data.overall_stats || null)
     } catch (error) {
-      console.error('Erro ao buscar estatísticas:', error)
+      console.error('Erro ao carregar relatórios:', error)
+      toast.error('Erro ao carregar relatórios')
+    } finally {
+      setLoading(false)
     }
   }
 
-  // Função captureChart removida por não ser utilizada
-
-  const captureStatusPage = async (monitorSlug: string): Promise<string[] | null> => {
+  const fetchMonitors = async () => {
     try {
-      // Construir URL da página de status pública
-      const statusUrl = `${window.location.origin}/status/${monitorSlug}?forceMonitor=1`
+      const response = await fetch('/api/monitors')
+      if (!response.ok) {
+        throw new Error('Erro ao carregar monitores')
+      }
+      
+      const data = await response.json()
+      setMonitors(data)
+    } catch (error) {
+      console.error('Erro ao carregar monitores:', error)
+      toast.error('Erro ao carregar monitores')
+    }
+  }
 
-      // Criar iframe invisível para carregar a página
-      const iframe = document.createElement('iframe')
-      iframe.style.position = 'absolute'
-      iframe.style.left = '-9999px'
-      iframe.style.top = '-9999px'
-      iframe.style.width = '1920px'
-      iframe.style.height = '1080px'
-      iframe.style.border = 'none'
-      iframe.src = statusUrl
+  const fetchMonitorChecks = async () => {
+    if (selectedMonitor === 'all') {
+      setMonitorChecks([])
+      return
+    }
+    
+    try {
+      const { start, end } = calculatePeriodRange(selectedTimeRange)
       
-      document.body.appendChild(iframe)
-      
-      // Aguardar a página carregar completamente
-      await new Promise((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          document.body.removeChild(iframe)
-          reject(new Error('Timeout ao carregar página de status'))
-        }, 15000) // 15 segundos de timeout
-        
-        iframe.onload = () => {
-          clearTimeout(timeout)
-          resolve(void 0)
-        }
-        
-        iframe.onerror = () => {
-          clearTimeout(timeout)
-          document.body.removeChild(iframe)
-          reject(new Error('Erro ao carregar página de status'))
-        }
+      const params = new URLSearchParams({
+        monitor_id: selectedMonitor,
+        start_date: start.toISOString(),
+        end_date: end.toISOString(),
+        limit: '1000'
       })
       
-      // Aguardar mais tempo para garantir que gráficos e componentes dinâmicos sejam renderizados
-      await new Promise(resolve => setTimeout(resolve, 3000))
-      
-      const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document
-      if (!iframeDoc) {
-        document.body.removeChild(iframe)
-        throw new Error('Não foi possível acessar o documento da página de status')
+      const response = await fetch(`/api/monitor-checks?${params}`)
+      if (!response.ok) {
+        throw new Error('Erro ao carregar verificações do monitor')
       }
-
-      // Aguardar todas as imagens carregarem no documento do iframe (inclui a logo)
-      const waitForAllImages = async (doc: Document, timeoutMs = 15000) => {
-        const imgs = Array.from(doc.images) as HTMLImageElement[]
-        if (imgs.length === 0) return
-        await Promise.all(
-          imgs.map((img) =>
-            new Promise<void>((resolve) => {
-              try {
-                // Garantir CORS anônimo quando aplicável
-                if (!img.crossOrigin) img.crossOrigin = 'anonymous'
-              } catch {}
-              if (img.complete && img.naturalWidth > 0) return resolve()
-              const to = setTimeout(() => resolve(), timeoutMs)
-              const done = () => {
-                clearTimeout(to)
-                resolve()
-              }
-              img.addEventListener('load', done, { once: true })
-              img.addEventListener('error', done, { once: true })
-            })
-          )
-        )
-      }
-      await waitForAllImages(iframeDoc, 15000)
-
-      // Determinar dimensões completas da página dentro do iframe (sem recorte)
-      const docEl = iframeDoc.documentElement
-      const bodyEl = iframeDoc.body
-      const fullWidth = Math.ceil(Math.max(
-        docEl?.scrollWidth || 0,
-        bodyEl?.scrollWidth || 0,
-        docEl?.clientWidth || 0,
-        1920
-      ))
-      const fullHeight = Math.ceil(Math.max(
-        docEl?.scrollHeight || 0,
-        bodyEl?.scrollHeight || 0,
-        docEl?.clientHeight || 0,
-        1080
-      ))
-
-      // Ajustar o tamanho do iframe para abranger todo o conteúdo antes da captura
-      iframe.style.width = `${fullWidth}px`
-      iframe.style.height = `${fullHeight}px`
-
-      // Configurações base de captura; os offsets/alturas serão ajustados por fatia
-      const baseOptions = {
-        useCORS: true,
-        allowTaint: false,
-        scale: 1.5, // Qualidade alta
-        width: fullWidth,
-        height: fullHeight, // será sobrescrito por fatia
-        windowWidth: fullWidth,
-        windowHeight: fullHeight, // será sobrescrito por fatia
-        x: 0,
-        y: 0, // será sobrescrito por fatia
-        scrollX: 0,
-        scrollY: 0,
-        backgroundColor: '#ffffff',
-        removeContainer: false,
-        logging: false,
-        imageTimeout: 15000,
-        cacheBust: true,
-        foreignObjectRendering: false, // Alterado para evitar problemas de imagem quebrada em alguns navegadores
-        onclone: (clonedDoc: Document) => {
-          const clonedBody = clonedDoc.body
-          if (clonedBody) {
-            clonedBody.style.transform = 'none'
-            clonedBody.style.transformOrigin = 'top left'
-            clonedBody.style.overflow = 'visible'
-            clonedBody.style.height = 'auto'
-            clonedBody.style.minHeight = 'auto'
-          }
-          const clonedHtml = clonedDoc.documentElement as HTMLElement
-          if (clonedHtml) {
-            clonedHtml.style.overflow = 'visible'
-            clonedHtml.style.height = 'auto'
-            clonedHtml.style.minHeight = 'auto'
-            clonedHtml.style.width = 'auto'
-          }
-          const rootEl = clonedDoc.getElementById('root') as HTMLElement | null
-          if (rootEl) {
-            rootEl.style.overflow = 'visible'
-            rootEl.style.height = 'auto'
-            rootEl.style.minHeight = 'auto'
-            rootEl.style.transform = 'none'
-          }
-          const styleEl = clonedDoc.createElement('style')
-          styleEl.textContent = `
-            *, *::before, *::after { overflow: visible !important; }
-            html, body { height: auto !important; min-height: auto !important; margin: 0 !important; padding: 0 !important; }
-            #root { margin: 0 !important; padding: 0 !important; }
-            [style*="overflow"] { overflow: visible !important; }
-            section, div { max-height: none !important; }
-          `
-          clonedDoc.head.appendChild(styleEl)
- 
-          // Garantir atributos CORS nas imagens do DOM clonado
-          try {
-            const imgs = Array.from(clonedDoc.images) as HTMLImageElement[]
-            const apiBase = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
-            const appOrigin = window.location.origin
-            const apiIsAbsolute = /^https?:\/\//i.test(apiBase)
-            imgs.forEach((img) => {
-              // Forçar atributos seguros
-              img.referrerPolicy = 'no-referrer'
-
-              const currentSrc = img.getAttribute('src') || img.src
-              if (!currentSrc || currentSrc.startsWith('data:')) return
-
-              const isAbsolute = /^https?:\/\//i.test(currentSrc)
-              const isSameOrigin = isAbsolute ? currentSrc.startsWith(appOrigin) : true
-
-              // 1) Qualquer imagem absoluta de outra origem -> proxy do backend
-              if (isAbsolute && !isSameOrigin) {
-                const proxied = `/api/proxy/html2canvas?url=${encodeURIComponent(currentSrc)}&cb=${Date.now()}`
-                img.removeAttribute('crossorigin')
-                img.setAttribute('src', proxied)
-                return
-              }
-
-              // 2) Imagens apontando para a API base (quando relativo, ex.: /api/...)
-              if (apiBase && currentSrc.startsWith(apiBase)) {
-                let rewritten: string
-                if (apiIsAbsolute) {
-                  // Se for absoluto e chegou aqui, é mesma origem; mantém apenas o caminho
-                  const apiPath = new URL(apiBase).pathname || ''
-                  const rest = currentSrc.substring(apiBase.length)
-                  rewritten = appOrigin + apiPath + rest
-                } else {
-                  // apiBase relativo (ex.: "/api") -> mantém o prefixo /api
-                  rewritten = appOrigin + currentSrc
-                }
-                img.removeAttribute('crossorigin')
-                const withBust = rewritten + (rewritten.includes('?') ? '&' : '?') + 'cb=' + Date.now()
-                img.setAttribute('src', withBust)
-                return
-              }
-
-              // 3) Demais casos (relativas da própria aplicação)
-              if (!img.crossOrigin) img.crossOrigin = 'anonymous'
-            })
-          } catch {}
-        }
-      }
-
-      // Substituição: captura única para seguir o padrão do PDF do backend (modo contain, sem fatias)
-      // Ajuste dinâmico de escala para não exceder limites de canvas do navegador
-      const MAX_DIMENSION = 12000
-      const adaptiveScale = Math.min(1, MAX_DIMENSION / fullWidth, MAX_DIMENSION / fullHeight)
-      const singleOptions = {
-        ...baseOptions,
-        scale: adaptiveScale,
-        width: fullWidth,
-        height: fullHeight,
-        windowWidth: fullWidth,
-        windowHeight: fullHeight,
-        y: 0,
-      } as any
-
-      const canvas = await html2canvas(iframeDoc.documentElement, singleOptions)
-      const images: string[] = [canvas.toDataURL('image/png')]
       
-      // Remover o iframe
-      document.body.removeChild(iframe)
-      
-      return images
+      const data = await response.json()
+      setMonitorChecks(data)
     } catch (error) {
-      console.error('Erro ao capturar página de status:', error)
-      return null
+      console.error('Erro ao carregar verificações do monitor:', error)
+      toast.error('Erro ao carregar verificações do monitor')
     }
   }
+
+  useEffect(() => {
+    fetchMonitors()
+  }, [])
+
+  useEffect(() => {
+    fetchReports()
+    fetchMonitorChecks()
+  }, [selectedTimeRange, selectedMonitor])
 
   const handleExport = async () => {
-    setExporting(true)
     try {
-      // Verificar se um monitor específico foi selecionado
-      if (selectedMonitor === 'all') {
-        addToast({ 
-          title: 'Selecione um monitor específico', 
-          description: 'Para exportar a página de status, você deve selecionar um monitor específico.',
-          variant: 'destructive' 
-        })
-        return
-      }
+      setExporting(true)
       
-      // Buscar o monitor selecionado para obter o slug
-      const monitor = monitors.find(m => m.id === selectedMonitor)
-      if (!monitor || !monitor.slug) {
-        addToast({ 
-          title: 'Monitor não encontrado', 
-          description: 'Não foi possível encontrar o monitor selecionado ou ele não possui uma página de status.',
-          variant: 'destructive' 
-        })
-        return
-      }
+      const pdf = new jsPDF('p', 'mm', 'a4')
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      const margin = 20
       
-      addToast({ 
-        title: 'Gerando PDF otimizado...', 
-        description: 'Capturando e processando a página de status para um PDF profissional.',
-        variant: 'default' 
-      })
+      pdf.setFontSize(20)
+      pdf.text('Relatório de Monitoramento', margin, 30)
       
-      // Capturar a página de status pública (captura única, sem fatias) para seguir o mesmo padrão do backend
-      const statusPageImages = await captureStatusPage(monitor.slug)
+      pdf.setFontSize(12)
+      pdf.text(`Período: ${getPeriodLabel(selectedTimeRange)}`, margin, 45)
+      pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, margin, 55)
       
-      if (!statusPageImages || statusPageImages.length === 0) {
-        addToast({ 
-          title: 'Erro ao capturar página', 
-          description: 'Não foi possível capturar a página de status. Verifique se a página está acessível.',
-          variant: 'destructive' 
-        })
-        return
-      }
-      
-      // Criar novo documento PDF otimizado
-      const doc = new jsPDF('p', 'mm', 'a4')
-      const pageWidth = doc.internal.pageSize.getWidth()
-      const pageHeight = doc.internal.pageSize.getHeight()
-      
-      const margin = 0 // sem margens para usar 100% da página
-      const availableWidth = pageWidth - (margin * 2)
-      const availableHeight = pageHeight - (margin * 2)
-
-      // Adicionar cada imagem (fatia) como uma página sem qualquer corte, modo contain centralizado
-      for (let i = 0; i < statusPageImages.length; i++) {
-        const statusPageImage = statusPageImages[i]
-        if (i > 0) doc.addPage('a4', 'p')
-
-        const img = new Image()
-        img.src = statusPageImage
-        await new Promise((resolve) => (img.onload = resolve))
-        const imgWidth = (img as HTMLImageElement).naturalWidth || img.width
-        const imgHeight = (img as HTMLImageElement).naturalHeight || img.height
-
-        const imgRatio = imgWidth / imgHeight
-        const targetRatio = availableWidth / availableHeight
-        let renderWidth = 0
-        let renderHeight = 0
-        if (imgRatio > targetRatio) {
-          renderWidth = availableWidth
-          renderHeight = renderWidth / imgRatio
-        } else {
-          renderHeight = availableHeight
-          renderWidth = renderHeight * imgRatio
+      if (selectedMonitor !== 'all') {
+        const monitor = monitors.find(m => m.id === selectedMonitor)
+        if (monitor) {
+          pdf.text(`Monitor: ${monitor.name}`, margin, 65)
         }
-
-        const posX = margin + (availableWidth - renderWidth) / 2
-        const posY = margin // alinhar ao topo para evitar faixa branca superior
-
-        // Inserir fatia sem recorte, centralizada
-        doc.addImage(statusPageImage, 'PNG', Number(posX.toFixed(2)), Number(posY.toFixed(2)), Number(renderWidth.toFixed(2)), Number(renderHeight.toFixed(2)))
       }
       
-      // Salvar o PDF com nome apropriado e otimizado
-      const fileName = `status-${monitor.name.replace(/[^a-zA-Z0-9]/g, '-')}-${new Date().toISOString().split('T')[0]}.pdf`
-      doc.save(fileName)
+      let yPosition = 80
       
-      addToast({ 
-        title: 'Página de status exportada com sucesso!', 
-        description: `O PDF foi salvo como: ${fileName}`,
-        variant: 'success' 
-      })
+      if (overallStats) {
+        pdf.setFontSize(16)
+        pdf.text('Estatísticas Gerais', margin, yPosition)
+        yPosition += 15
+        
+        pdf.setFontSize(12)
+        pdf.text(`Uptime Médio: ${overallStats.avg_uptime?.toFixed(2) || '0.00'}%`, margin, yPosition)
+        yPosition += 10
+        pdf.text(`Total de Verificações: ${overallStats.total_checks.toLocaleString()}`, margin, yPosition)
+        yPosition += 10
+        pdf.text(`Total de Incidentes: ${overallStats.total_incidents}`, margin, yPosition)
+        yPosition += 10
+        pdf.text(`Tempo de Resposta Médio: ${Math.round(overallStats.avg_response_time)}ms`, margin, yPosition)
+        yPosition += 20
+      }
+      
+      const chartElements = ['uptime-chart', 'response-time-chart', 'status-distribution-chart']
+      
+      for (const elementId of chartElements) {
+        const element = document.getElementById(elementId)
+        if (element && yPosition < pageHeight - 100) {
+          try {
+            const canvas = await html2canvas(element, {
+              backgroundColor: '#181b20',
+              scale: 1,
+              logging: false
+            })
+            
+            const imgData = canvas.toDataURL('image/png')
+            const imgWidth = pageWidth - (margin * 2)
+            const imgHeight = (canvas.height * imgWidth) / canvas.width
+            
+            if (yPosition + imgHeight > pageHeight - margin) {
+              pdf.addPage()
+              yPosition = margin
+            }
+            
+            pdf.addImage(imgData, 'PNG', margin, yPosition, imgWidth, imgHeight)
+            yPosition += imgHeight + 15
+          } catch (error) {
+            console.error(`Erro ao capturar gráfico ${elementId}:`, error)
+          }
+        }
+      }
+      
+      if (reports.length > 0) {
+        if (yPosition > pageHeight - 100) {
+          pdf.addPage()
+          yPosition = margin
+        }
+        
+        pdf.setFontSize(16)
+        pdf.text('Detalhes dos Monitores', margin, yPosition)
+        yPosition += 15
+        
+        pdf.setFontSize(10)
+        
+        reports.forEach((report, index) => {
+          if (yPosition > pageHeight - 40) {
+            pdf.addPage()
+            yPosition = margin
+          }
+          
+          pdf.text(`${index + 1}. ${report.monitor_name}`, margin, yPosition)
+          yPosition += 8
+          pdf.text(`   Uptime: ${report.uptime_percentage.toFixed(2)}%`, margin + 5, yPosition)
+          yPosition += 6
+          pdf.text(`   Verificações: ${report.total_checks} (${report.successful_checks} sucesso, ${report.failed_checks} falha)`, margin + 5, yPosition)
+          yPosition += 6
+          pdf.text(`   Tempo de Resposta: ${report.avg_response_time.toFixed(0)}ms (min: ${report.min_response_time.toFixed(0)}ms, max: ${report.max_response_time.toFixed(0)}ms)`, margin + 5, yPosition)
+          yPosition += 6
+          pdf.text(`   Incidentes: ${report.incidents}`, margin + 5, yPosition)
+          yPosition += 12
+        })
+      }
+      
+      const fileName = selectedMonitor === 'all' 
+        ? `relatorio-geral-${selectedTimeRange}-${new Date().toISOString().slice(0, 10)}.pdf`
+        : `relatorio-${monitors.find(m => m.id === selectedMonitor)?.name || 'monitor'}-${selectedTimeRange}-${new Date().toISOString().slice(0, 10)}.pdf`
+      
+      pdf.save(fileName)
+      toast.success('Relatório exportado com sucesso!')
     } catch (error) {
-      console.error('Erro ao exportar página de status:', error)
-      addToast({ 
-        title: 'Erro ao exportar página de status', 
-        description: 'Ocorreu um erro inesperado durante a exportação.',
-        variant: 'destructive' 
-      })
+      console.error('Erro ao exportar relatório:', error)
+      toast.error('Erro ao exportar relatório')
     } finally {
       setExporting(false)
     }
@@ -530,46 +337,50 @@ function ReportsPage() {
 
   const handleSendEmail = async () => {
     if (selectedMonitor === 'all') {
-      addToast({ title: 'Selecione um monitor específico para enviar o relatório por e-mail', variant: 'destructive' })
+      toast.error('Selecione um monitor específico para enviar por e-mail')
       return
     }
-
-    // Buscar o monitor selecionado e seu e-mail cadastrado
-    const monitor = monitors.find(m => m.id === selectedMonitor)
-    if (!monitor) {
-      addToast({ title: 'Monitor não encontrado', variant: 'destructive' })
-      return
-    }
-
-    if (!monitor.report_email) {
-      addToast({ title: 'E-mail não configurado para este monitor', description: 'Configure o e-mail do relatório nas configurações do monitor', variant: 'destructive' })
-      return
-    }
-
-    const email = monitor.report_email
-
-    setSendingEmail(true)
+    
     try {
-      const currentDate = new Date()
-      const year = currentDate.getFullYear()
-      const month = currentDate.getMonth() + 1
+      setSendingEmail(true)
       
-      const result = await apiPost('/reports/send-monthly', {
-        monitor_id: selectedMonitor,
-        email: email,
-        year: year,
-        month: month,
-        includePdf: true
-      })
-
-      if (result.success) {
-        addToast({ title: 'Relatório enviado por e-mail com sucesso!', description: `O relatório foi enviado para ${email}`, variant: 'success' })
-      } else {
-        addToast({ title: 'Erro ao enviar relatório por e-mail', description: result.error, variant: 'destructive' })
+      const monitor = monitors.find(m => m.id === selectedMonitor)
+      const report = reports.find(r => r.monitor_id === selectedMonitor)
+      
+      if (!monitor || !report) {
+        toast.error('Monitor ou relatório não encontrado')
+        return
       }
+      
+      const emailData = {
+        monitor_name: monitor.name,
+        monitor_url: monitor.url,
+        period: getPeriodLabel(selectedTimeRange),
+        uptime_percentage: report.uptime_percentage,
+        total_checks: report.total_checks,
+        successful_checks: report.successful_checks,
+        failed_checks: report.failed_checks,
+        avg_response_time: report.avg_response_time,
+        incidents: report.incidents,
+        generated_at: new Date().toLocaleString('pt-BR')
+      }
+      
+      const response = await fetch('/api/reports/send-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(emailData),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Erro ao enviar e-mail')
+      }
+      
+      toast.success('Relatório enviado por e-mail com sucesso!')
     } catch (error) {
-      console.error('Erro ao enviar relatório por e-mail:', error)
-      addToast({ title: 'Erro ao enviar relatório por e-mail', description: error instanceof Error ? error.message : 'Erro desconhecido', variant: 'destructive' })
+      console.error('Erro ao enviar e-mail:', error)
+      toast.error('Erro ao enviar relatório por e-mail')
     } finally {
       setSendingEmail(false)
     }
@@ -581,14 +392,12 @@ function ReportsPage() {
     return 'text-red-600'
   }
 
-  // Função removida: getUptimeBadgeColor não utilizada
-
   const calculateOverallStats = () => {
     if (!overallStats) return null
 
     return {
       totalChecks: overallStats.total_checks,
-      totalSuccessful: overallStats.total_checks - overallStats.total_incidents, // Aproximação baseada nos dados disponíveis
+      totalSuccessful: overallStats.total_checks - overallStats.total_incidents,
       totalIncidents: overallStats.total_incidents,
       avgUptime: overallStats.avg_uptime,
       avgResponseTime: overallStats.avg_response_time,
@@ -598,7 +407,6 @@ function ReportsPage() {
 
   const generateUptimeChartData = (): ChartData => {
     if (selectedMonitor === 'all') {
-      // Dados agregados de todos os monitores
       const labels = reports.map(report => report.monitor_name)
       return {
         labels,
@@ -619,14 +427,12 @@ function ReportsPage() {
         ],
       }
     } else {
-      // Dados históricos do monitor selecionado
       const periodRange = calculatePeriodRange(selectedTimeRange)
       
-      // Agrupar checks por dia
       const dailyData: { [key: string]: { total: number, successful: number } } = {}
       
       monitorChecks.forEach(check => {
-        const day = new Date(check.checked_at).toISOString().slice(0, 10) // YYYY-MM-DD
+        const day = new Date(check.checked_at).toISOString().slice(0, 10)
         if (!dailyData[day]) {
           dailyData[day] = { total: 0, successful: 0 }
         }
@@ -636,13 +442,11 @@ function ReportsPage() {
         }
       })
       
-      // Obter apenas os dias que realmente têm dados
       const availableDays = Object.keys(dailyData).sort()
       
       const labels: string[] = []
       const uptimeData: number[] = []
       
-      // Mostrar apenas os dias com dados reais disponíveis
       availableDays.forEach(day => {
         const date = new Date(day + 'T00:00:00')
         const label = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
@@ -705,7 +509,6 @@ function ReportsPage() {
         ],
       }
     } else {
-      // Para monitor específico, usar dados reais dos monitorChecks
       if (monitorChecks.length === 0) {
         return { labels: [], datasets: [] }
       }
@@ -714,7 +517,6 @@ function ReportsPage() {
       const labels: string[] = []
       const responseTimeData: number[] = []
       
-      // Agrupar dados por período baseado no timeRange selecionado
       const groupedData: { [key: string]: number[] } = {}
       
       monitorChecks.forEach(check => {
@@ -722,11 +524,9 @@ function ReportsPage() {
         const checkDate = new Date(check.checked_at)
         
         if (selectedTimeRange === 'yesterday') {
-          // Para ontem, agrupar por hora
-          groupKey = checkDate.toISOString().slice(0, 13) // YYYY-MM-DDTHH
+          groupKey = checkDate.toISOString().slice(0, 13)
         } else {
-          // Para outros períodos, agrupar por dia
-          groupKey = checkDate.toISOString().slice(0, 10) // YYYY-MM-DD
+          groupKey = checkDate.toISOString().slice(0, 10)
         }
         
         if (!groupedData[groupKey]) {
@@ -735,21 +535,17 @@ function ReportsPage() {
         groupedData[groupKey].push(check.response_time)
       })
       
-      // Ordenar as chaves por data e criar labels e dados
       const sortedKeys = Object.keys(groupedData).sort()
       
       sortedKeys.forEach(key => {
         const responseTimes = groupedData[key]
         const avgResponseTime = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
         
-        // Formatar label baseado no período
         let label: string
         if (selectedTimeRange === 'yesterday') {
-          // Para ontem, mostrar hora
           const date = new Date(key + ':00:00')
           label = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         } else {
-          // Para outros períodos, mostrar data
           const date = new Date(key)
           label = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
         }
@@ -810,7 +606,7 @@ function ReportsPage() {
     }
   }
 
-  const overallStats = calculateOverallStats()
+  const overallStatsCalculated = calculateOverallStats()
   const periodRange = calculatePeriodRange(selectedTimeRange)
 
   if (loading) {
@@ -823,7 +619,6 @@ function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold" style={{ color: '#ffffff' }}>Relatórios</h1>
@@ -857,7 +652,6 @@ function ReportsPage() {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
         <PeriodFilter 
           selectedTimeRange={selectedTimeRange} 
@@ -881,8 +675,7 @@ function ReportsPage() {
         </Select>
       </div>
 
-      {/* Overall Stats */}
-      {overallStats && (
+      {overallStatsCalculated && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -890,8 +683,8 @@ function ReportsPage() {
               <TrendingUp className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${getUptimeColor(overallStats.avgUptime)}`}>
-                {overallStats.avgUptime?.toFixed(2) || '0.00'}%
+              <div className={`text-2xl font-bold ${getUptimeColor(overallStatsCalculated.avgUptime)}`}>
+                {overallStatsCalculated.avgUptime?.toFixed(2) || '0.00'}%
               </div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
                 {selectedMonitor !== 'all' ? 'Monitor selecionado' : getPeriodLabel(selectedTimeRange).toLowerCase()}
@@ -905,9 +698,9 @@ function ReportsPage() {
               <Activity className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{overallStats.totalChecks.toLocaleString()}</div>
+              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{overallStatsCalculated.totalChecks.toLocaleString()}</div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
-                {overallStats.totalSuccessful.toLocaleString()} bem-sucedidas
+                {overallStatsCalculated.totalSuccessful.toLocaleString()} bem-sucedidas
               </p>
             </CardContent>
           </Card>
@@ -918,9 +711,9 @@ function ReportsPage() {
               <AlertTriangle className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{overallStats.totalIncidents}</div>
+              <div className="text-2xl font-bold text-red-600">{overallStatsCalculated.totalIncidents}</div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
-                {selectedMonitor !== 'all' ? 'Incidentes do monitor' : `${overallStats.monitorsCount} monitores`}
+                {selectedMonitor !== 'all' ? 'Incidentes do monitor' : `${overallStatsCalculated.monitorsCount} monitores`}
               </p>
             </CardContent>
           </Card>
@@ -931,7 +724,7 @@ function ReportsPage() {
               <Clock className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{Math.round(overallStats.avgResponseTime)}ms</div>
+              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{Math.round(overallStatsCalculated.avgResponseTime)}ms</div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
                 {selectedMonitor !== 'all' ? 'Tempo médio do monitor' : 'Média geral'}
               </p>
@@ -940,12 +733,9 @@ function ReportsPage() {
         </div>
       )}
 
-      {/* Gráficos */}
       {(reports.length > 0 || monitorChecks.length > 0) && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Coluna Esquerda - Cards Menores */}
           <div className="lg:col-span-1 space-y-6">
-            {/* Gráfico de Uptime */}
             <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }} id="uptime-chart">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
@@ -1012,7 +802,6 @@ function ReportsPage() {
               </CardContent>
             </Card>
 
-            {/* Gráfico de Tempo de Resposta */}
             <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }} id="response-time-chart">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
@@ -1072,7 +861,6 @@ function ReportsPage() {
               </CardContent>
             </Card>
 
-            {/* Gráfico de Distribuição de Status */}
             <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }} id="status-distribution-chart">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
@@ -1096,7 +884,6 @@ function ReportsPage() {
             </Card>
           </div>
 
-          {/* Coluna Direita - Card Maior */}
           {selectedMonitor !== 'all' && (
             <div className="lg:col-span-1">
               <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
@@ -1141,7 +928,6 @@ function ReportsPage() {
                     
                     return (
                       <div className="space-y-6">
-                        {/* Informações Básicas */}
                         <div>
                           <h3 className="text-lg font-semibold mb-3" style={{ color: '#ffffff' }}>Informações Básicas</h3>
                           <div className="overflow-x-auto">
@@ -1177,7 +963,6 @@ function ReportsPage() {
                           </div>
                         </div>
                         
-                        {/* Estatísticas de Performance */}
                         <div>
                           <h3 className="text-lg font-semibold mb-3" style={{ color: '#ffffff' }}>Estatísticas de Performance</h3>
                           <div className="overflow-x-auto">
@@ -1214,7 +999,6 @@ function ReportsPage() {
                           </div>
                         </div>
                         
-                        {/* Tempos de Resposta */}
                         <div>
                           <h3 className="text-lg font-semibold mb-3" style={{ color: '#ffffff' }}>Tempos de Resposta</h3>
                           <div className="overflow-x-auto">
@@ -1243,7 +1027,6 @@ function ReportsPage() {
                           </div>
                         </div>
                         
-                        {/* Incidentes e Problemas */}
                         <div>
                           <h3 className="text-lg font-semibold mb-3" style={{ color: '#ffffff' }}>Incidentes e Problemas</h3>
                           <div className="overflow-x-auto">
@@ -1288,10 +1071,8 @@ function ReportsPage() {
           )}
         </div>
       )}
-
-
     </div>
   )
 }
 
-export default ReportsPage;
+export default ReportsPage
