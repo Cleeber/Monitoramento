@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge'
 import { Download, Mail, Activity, TrendingUp, Clock, AlertTriangle, PieChart } from 'lucide-react'
 import { PeriodFilter, DEFAULT_TIME_RANGE } from '@/components/shared/PeriodFilter'
+import { calculatePeriodRange, getPeriodLabel } from '@/utils/periodUtils'
 import { toast } from 'sonner'
 import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
@@ -93,76 +94,18 @@ function ReportsPage() {
   const [exporting, setExporting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
 
-  const calculatePeriodRange = (timeRange: TimeRange) => {
-    const now = new Date()
-    const start = new Date()
-    
-    switch (timeRange) {
-      case 'yesterday':
-        start.setDate(now.getDate() - 1)
-        start.setHours(0, 0, 0, 0)
-        now.setDate(now.getDate() - 1)
-        now.setHours(23, 59, 59, 999)
-        break
-      case 'last_week':
-        // Semana passada (segunda a domingo)
-        const lastWeekEnd = new Date()
-        lastWeekEnd.setDate(now.getDate() - now.getDay()) // Domingo da semana atual
-        lastWeekEnd.setHours(23, 59, 59, 999)
-        
-        start.setDate(lastWeekEnd.getDate() - 6) // Segunda da semana passada
-        start.setHours(0, 0, 0, 0)
-        
-        now.setTime(lastWeekEnd.getTime())
-        break
-      case 'last_month':
-        // Mês passado completo
-        start.setMonth(now.getMonth() - 1, 1)
-        start.setHours(0, 0, 0, 0)
-        now.setDate(0) // Último dia do mês passado
-        now.setHours(23, 59, 59, 999)
-        break
-      case '7d':
-        start.setDate(now.getDate() - 7)
-        break
-      case '30d':
-        start.setDate(now.getDate() - 30)
-        break
-      case '90d':
-        start.setDate(now.getDate() - 90)
-        break
-    }
-    
-    return { start, end: now }
-  }
 
-  const getPeriodLabel = (timeRange: TimeRange): string => {
-    switch (timeRange) {
-      case 'yesterday':
-        return 'Ontem'
-      case 'last_week':
-        return 'Semana passada'
-      case 'last_month':
-        return 'Mês passado'
-      case '7d':
-        return 'Últimos 7 dias'
-      case '30d':
-        return 'Últimos 30 dias'
-      case '90d':
-        return 'Últimos 3 meses'
-      default:
-        return 'Período selecionado'
-    }
-  }
+
+
 
   const fetchReports = async () => {
     try {
       setLoading(true)
-      const { start, end } = calculatePeriodRange(selectedTimeRange)
+      const periodRange = calculatePeriodRange(selectedTimeRange)
       
       const params = new URLSearchParams({
-        start_date: start.toISOString(),
-        end_date: end.toISOString()
+        start_date: periodRange.startDate.toISOString(),
+        end_date: periodRange.endDate.toISOString()
       })
       
       if (selectedMonitor !== 'all') {
@@ -205,12 +148,12 @@ function ReportsPage() {
     }
     
     try {
-      const { start, end } = calculatePeriodRange(selectedTimeRange)
+      const periodRange = calculatePeriodRange(selectedTimeRange)
       
       const params = new URLSearchParams({
         monitor_id: selectedMonitor,
-        start_date: start.toISOString(),
-        end_date: end.toISOString(),
+        start_date: periodRange.startDate.toISOString(),
+        end_date: periodRange.endDate.toISOString(),
         limit: '1000'
       })
       
@@ -228,6 +171,8 @@ function ReportsPage() {
 
   useEffect(() => {
     fetchMonitors()
+    // Carregar relatórios iniciais com configuração padrão
+    fetchReports()
   }, [])
 
   useEffect(() => {
