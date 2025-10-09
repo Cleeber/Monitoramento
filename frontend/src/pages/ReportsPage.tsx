@@ -79,13 +79,13 @@ interface ChartData {
   datasets: any[]
 }
 
-type TimeRange = 'today' | 'yesterday' | 'last7days' | 'last30days' | 'last90days'
+type TimeRange = 'yesterday' | 'last_week' | 'last_month' | '7d' | '30d' | '90d'
 
 function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([])
   const [monitors, setMonitors] = useState<Monitor[]>([])
   const [selectedMonitor, setSelectedMonitor] = useState<string>('all')
-  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>('last7days')
+  const [selectedTimeRange, setSelectedTimeRange] = useState<TimeRange>(DEFAULT_TIME_RANGE as TimeRange)
   const [monitorChecks, setMonitorChecks] = useState<MonitorCheck[]>([])
   const [overallStats, setOverallStats] = useState<OverallStats | null>(null)
   const [loading, setLoading] = useState(true)
@@ -97,22 +97,37 @@ function ReportsPage() {
     const start = new Date()
     
     switch (timeRange) {
-      case 'today':
-        start.setHours(0, 0, 0, 0)
-        break
       case 'yesterday':
         start.setDate(now.getDate() - 1)
         start.setHours(0, 0, 0, 0)
         now.setDate(now.getDate() - 1)
         now.setHours(23, 59, 59, 999)
         break
-      case 'last7days':
+      case 'last_week':
+        // Semana passada (segunda a domingo)
+        const lastWeekEnd = new Date()
+        lastWeekEnd.setDate(now.getDate() - now.getDay()) // Domingo da semana atual
+        lastWeekEnd.setHours(23, 59, 59, 999)
+        
+        start.setDate(lastWeekEnd.getDate() - 6) // Segunda da semana passada
+        start.setHours(0, 0, 0, 0)
+        
+        now.setTime(lastWeekEnd.getTime())
+        break
+      case 'last_month':
+        // Mês passado completo
+        start.setMonth(now.getMonth() - 1, 1)
+        start.setHours(0, 0, 0, 0)
+        now.setDate(0) // Último dia do mês passado
+        now.setHours(23, 59, 59, 999)
+        break
+      case '7d':
         start.setDate(now.getDate() - 7)
         break
-      case 'last30days':
+      case '30d':
         start.setDate(now.getDate() - 30)
         break
-      case 'last90days':
+      case '90d':
         start.setDate(now.getDate() - 90)
         break
     }
@@ -122,16 +137,18 @@ function ReportsPage() {
 
   const getPeriodLabel = (timeRange: TimeRange): string => {
     switch (timeRange) {
-      case 'today':
-        return 'Hoje'
       case 'yesterday':
         return 'Ontem'
-      case 'last7days':
+      case 'last_week':
+        return 'Semana passada'
+      case 'last_month':
+        return 'Mês passado'
+      case '7d':
         return 'Últimos 7 dias'
-      case 'last30days':
+      case '30d':
         return 'Últimos 30 dias'
-      case 'last90days':
-        return 'Últimos 90 dias'
+      case '90d':
+        return 'Últimos 3 meses'
       default:
         return 'Período selecionado'
     }
