@@ -1279,7 +1279,29 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
       }
     }))
     
-    res.json(reports)
+    // Calcular estatísticas gerais
+    const totalMonitors = reports.length
+    const totalChecks = reports.reduce((sum, report) => sum + report.total_checks, 0)
+    const totalSuccessfulChecks = reports.reduce((sum, report) => sum + report.successful_checks, 0)
+    const totalFailedChecks = reports.reduce((sum, report) => sum + report.failed_checks, 0)
+    const avgUptime = totalMonitors > 0 ? reports.reduce((sum, report) => sum + report.uptime_percentage, 0) / totalMonitors : 0
+    const avgResponseTime = totalMonitors > 0 ? reports.reduce((sum, report) => sum + report.avg_response_time, 0) / totalMonitors : 0
+    const totalIncidents = reports.reduce((sum, report) => sum + report.incidents, 0)
+    
+    const overall_stats = {
+      total_monitors: totalMonitors,
+      total_checks: totalChecks,
+      successful_checks: totalSuccessfulChecks,
+      failed_checks: totalFailedChecks,
+      avg_uptime: Math.round(avgUptime * 100) / 100,
+      avg_response_time: Math.round(avgResponseTime),
+      total_incidents: totalIncidents
+    }
+    
+    res.json({
+      reports,
+      overall_stats
+    })
   } catch (error) {
     console.error('Erro ao buscar relatórios:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
