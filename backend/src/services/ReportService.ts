@@ -232,41 +232,7 @@ export class ReportService {
     return incidents
   }
 
-  /**
-   * Gera conteúdo textual do relatório dinâmico
-   */
-  private generateDynamicReportContent(
-    stats: any,
-    monitor: any,
-    startDate: Date,
-    endDate: Date
-  ): string {
-    return `
-📊 RELATÓRIO DINÂMICO - ÚLTIMOS 30 DIAS
 
-🔍 Monitor: ${monitor.name}
-🌐 URL: ${monitor.url}
-📅 Período: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}
-
-📈 ESTATÍSTICAS DO PERÍODO:
-• Total de verificações: ${stats.total_checks?.toLocaleString() || 'N/A'}
-• Verificações bem-sucedidas: ${stats.successful_checks?.toLocaleString() || 'N/A'}
-• Verificações com falha: ${stats.failed_checks?.toLocaleString() || 'N/A'}
-• Uptime: ${stats.uptime_30d?.toFixed(2) || '0.00'}%
-• Tempo de resposta médio: ${stats.avg_response_time || 0}ms
-
-🚨 INCIDENTES (${stats.incidents?.length || 0}):
-${stats.incidents && stats.incidents.length > 0 
-  ? stats.incidents.map((incident: any, index: number) => 
-      `${index + 1}. ${new Date(incident.startTime).toLocaleString('pt-BR')} - ${new Date(incident.endTime).toLocaleString('pt-BR')} (${incident.duration || 'N/A'})`
-    ).join('\n')
-  : '• Nenhum incidente registrado no período'
-}
-
----
-Relatório gerado automaticamente em ${new Date().toLocaleString('pt-BR')}
-    `.trim()
-  }
 
   /**
    * Gera o conteúdo em texto do relatório
