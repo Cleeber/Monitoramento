@@ -482,7 +482,6 @@ ${this.generateAnalysis(stats)}
       const result = await emailService.sendMonthlyReport(
         email,
         monitor.name,
-        content,
         pdfBuffer,
         pdfBuffer ? friendlyFileName : undefined,
         statusLink
@@ -600,7 +599,6 @@ ${this.generateAnalysis(stats)}
       const result = await emailService.sendMonthlyReport(
         toEmail,
         monitor.name,
-        reportContent,
         pdfBuffer,
         fileName,
         statusLink
