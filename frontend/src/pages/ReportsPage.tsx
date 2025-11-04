@@ -7,8 +7,6 @@ import { Download, Mail, Activity, TrendingUp, Clock, AlertTriangle, PieChart } 
 import { PeriodFilter, DEFAULT_TIME_RANGE } from '@/components/shared/PeriodFilter'
 import { calculatePeriodRange, getPeriodLabel } from '@/utils/periodUtils'
 import { toast } from 'sonner'
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
 import { apiGet, apiPost } from '@/utils/apiUtils'
 import {
   Chart as ChartJS,
@@ -184,112 +182,50 @@ function ReportsPage() {
     try {
       setExporting(true)
       
-      const pdf = new jsPDF('p', 'mm', 'a4')
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-      const margin = 20
+      if (selectedMonitor === 'all') {
+        toast.error('Selecione um monitor específico para exportar PDF')
+        return
+      }
       
-      pdf.setFontSize(20)
-      pdf.text('Relatório de Monitoramento', margin, 30)
+      // Definir ano e mês com base no período selecionado
+      const { startDate, endDate } = calculatePeriodRange(selectedTimeRange)
+      const targetDate = selectedTimeRange === 'last_month' ? startDate : endDate
+      const year = targetDate.getFullYear()
+      const month = targetDate.getMonth() + 1
       
-      pdf.setFontSize(12)
-      pdf.text(`Período: ${getPeriodLabel(selectedTimeRange)}`, margin, 45)
-      pdf.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, margin, 55)
+      const token = localStorage.getItem('auth_token')
+      const apiUrl = `/api/pdf/monthly-report/${selectedMonitor}?year=${year}&month=${month}`
       
-      if (selectedMonitor !== 'all') {
-        const monitor = monitors.find(m => m.id === selectedMonitor)
-        if (monitor) {
-          pdf.text(`Monitor: ${monitor.name}`, margin, 65)
+      const response = await fetch(apiUrl, {
+        method: 'GET',
+        headers: {
+          ...(token ? { Authorization: `Bearer ${token}` } : {})
         }
+      })
+      
+      if (!response.ok) {
+        const text = await response.text()
+        throw new Error(text || `Erro ${response.status}`)
       }
       
-      let yPosition = 80
+      const blob = await response.blob()
+      const monitor = monitors.find(m => m.id === selectedMonitor)
+      const safeName = (monitor?.name || 'monitor').replace(/[^a-zA-Z0-9]/g, '-')
+      const fileName = `relatorio-mensal-${safeName}-${month}-${year}.pdf`
       
-      if (overallStats) {
-        pdf.setFontSize(16)
-        pdf.text('Estatísticas Gerais', margin, yPosition)
-        yPosition += 15
-        
-        pdf.setFontSize(12)
-        pdf.text(`Uptime Médio: ${overallStats.avg_uptime?.toFixed(2) || '0.00'}%`, margin, yPosition)
-        yPosition += 10
-        pdf.text(`Total de Verificações: ${overallStats.total_checks.toLocaleString()}`, margin, yPosition)
-        yPosition += 10
-        pdf.text(`Total de Incidentes: ${overallStats.total_incidents}`, margin, yPosition)
-        yPosition += 10
-        pdf.text(`Tempo de Resposta Médio: ${Math.round(overallStats.avg_response_time)}ms`, margin, yPosition)
-        yPosition += 20
-      }
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = fileName
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
       
-      const chartElements = ['uptime-chart', 'response-time-chart', 'status-distribution-chart']
-      
-      for (const elementId of chartElements) {
-        const element = document.getElementById(elementId)
-        if (element && yPosition < pageHeight - 100) {
-          try {
-            const canvas = await html2canvas(element, {
-              backgroundColor: '#181b20',
-              scale: 1,
-              logging: false
-            })
-            
-            const imgData = canvas.toDataURL('image/png')
-            const imgWidth = pageWidth - (margin * 2)
-            const imgHeight = (canvas.height * imgWidth) / canvas.width
-            
-            if (yPosition + imgHeight > pageHeight - margin) {
-              pdf.addPage()
-              yPosition = margin
-            }
-            
-            pdf.addImage(imgData, 'PNG', margin, yPosition, imgWidth, imgHeight)
-            yPosition += imgHeight + 15
-          } catch (error) {
-            console.error(`Erro ao capturar gráfico ${elementId}:`, error)
-          }
-        }
-      }
-      
-      if (reports.length > 0) {
-        if (yPosition > pageHeight - 100) {
-          pdf.addPage()
-          yPosition = margin
-        }
-        
-        pdf.setFontSize(16)
-        pdf.text('Detalhes dos Monitores', margin, yPosition)
-        yPosition += 15
-        
-        pdf.setFontSize(10)
-        
-        reports.forEach((report, index) => {
-          if (yPosition > pageHeight - 40) {
-            pdf.addPage()
-            yPosition = margin
-          }
-          
-          pdf.text(`${index + 1}. ${report.monitor_name}`, margin, yPosition)
-          yPosition += 8
-          pdf.text(`   Uptime: ${report.uptime_percentage.toFixed(2)}%`, margin + 5, yPosition)
-          yPosition += 6
-          pdf.text(`   Verificações: ${report.total_checks} (${report.successful_checks} sucesso, ${report.failed_checks} falha)`, margin + 5, yPosition)
-          yPosition += 6
-          pdf.text(`   Tempo de Resposta: ${report.avg_response_time.toFixed(0)}ms (min: ${report.min_response_time.toFixed(0)}ms, max: ${report.max_response_time.toFixed(0)}ms)`, margin + 5, yPosition)
-          yPosition += 6
-          pdf.text(`   Incidentes: ${report.incidents}`, margin + 5, yPosition)
-          yPosition += 12
-        })
-      }
-      
-      const fileName = selectedMonitor === 'all' 
-        ? `relatorio-geral-${selectedTimeRange}-${new Date().toISOString().slice(0, 10)}.pdf`
-        : `relatorio-${monitors.find(m => m.id === selectedMonitor)?.name || 'monitor'}-${selectedTimeRange}-${new Date().toISOString().slice(0, 10)}.pdf`
-      
-      pdf.save(fileName)
       toast.success('Relatório exportado com sucesso!')
     } catch (error) {
       console.error('Erro ao exportar relatório:', error)
-      toast.error('Erro ao exportar relatório')
+      toast.error(error instanceof Error ? error.message : 'Erro ao exportar relatório')
     } finally {
       setExporting(false)
     }
@@ -304,28 +240,27 @@ function ReportsPage() {
     try {
       setSendingEmail(true)
       
-      const monitor = monitors.find(m => m.id === selectedMonitor)
-      const report = reports.find(r => r.monitor_id === selectedMonitor)
-      
-      if (!monitor || !report) {
-        toast.error('Monitor ou relatório não encontrado')
-        return
+      // Obter e-mail configurado para o relatório mensal do monitor
+      const configResult = await apiGet(`/monthly-reports/configs/monitor/${selectedMonitor}`)
+      if (!configResult.success || !configResult.data || !configResult.data.email) {
+        throw new Error(configResult.error || 'E-mail do relatório mensal não configurado para este monitor')
       }
       
-      const emailData = {
-        monitor_name: monitor.name,
-        monitor_url: monitor.url,
-        period: getPeriodLabel(selectedTimeRange),
-        uptime_percentage: report.uptime_percentage,
-        total_checks: report.total_checks,
-        successful_checks: report.successful_checks,
-        failed_checks: report.failed_checks,
-        avg_response_time: report.avg_response_time,
-        incidents: report.incidents,
-        generated_at: new Date().toLocaleString('pt-BR')
-      }
+      const email = configResult.data.email as string
       
-      const result = await apiPost('/reports/send-email', emailData)
+      // Definir ano e mês com base no período selecionado
+      const { startDate, endDate } = calculatePeriodRange(selectedTimeRange)
+      const targetDate = selectedTimeRange === 'last_month' ? startDate : endDate
+      const year = targetDate.getFullYear()
+      const month = targetDate.getMonth() + 1
+      
+      const result = await apiPost('/reports/send-monthly', {
+        monitor_id: selectedMonitor,
+        email,
+        year,
+        month,
+        includePdf: true
+      })
       
       if (!result.success) {
         throw new Error(result.error || 'Erro ao enviar e-mail')
@@ -334,7 +269,7 @@ function ReportsPage() {
       toast.success('Relatório enviado por e-mail com sucesso!')
     } catch (error) {
       console.error('Erro ao enviar e-mail:', error)
-      toast.error('Erro ao enviar relatório por e-mail')
+      toast.error(error instanceof Error ? error.message : 'Erro ao enviar relatório por e-mail')
     } finally {
       setSendingEmail(false)
     }
