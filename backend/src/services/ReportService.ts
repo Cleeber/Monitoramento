@@ -668,9 +668,10 @@ ${this.generateAnalysis(stats)}
       
       console.log(`📧 Enviando relatório com ${attachments.length} anexos PDF para: ${toEmail}`)
 
-      const statusLink = monitor.slug && process.env.FRONTEND_BASE_URL
-        ? `${process.env.FRONTEND_BASE_URL}/status/${monitor.slug}`
-        : undefined
+      // Montar link público da página de status SEM depender de variável de ambiente
+      // Observação: todos os monitores possuem página pública; sempre incluir o link
+      const baseUrl = process.env.FRONTEND_BASE_URL || 'https://monitor.pagina1digital.com.br'
+      const statusLink = `${baseUrl}/status/${monitor.slug}`
       
       // Enviar e-mail com anexos
       const result = await emailService.sendNotificationEmail(
