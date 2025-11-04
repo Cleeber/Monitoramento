@@ -263,7 +263,12 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas' })
     }
 
-    const validPassword = await bcrypt.compare(password, user.password)
+    // Correção: comparar senha com o hash armazenado
+    const passwordHash = (user as any).password_hash
+    if (!passwordHash) {
+      console.warn('Usuário sem password_hash definido, verifique migração/seed')
+    }
+    const validPassword = passwordHash ? await bcrypt.compare(password, passwordHash) : false
     if (!validPassword) {
       return res.status(401).json({ error: 'Credenciais inválidas' })
     }
@@ -565,6 +570,46 @@ app.get('/api/monitors/:id/checks', authenticateToken, (req, res) => {
   
   const checks = monitoringService.getMonitorChecks(id, Number(limit))
   res.json(checks)
+})
+
+// Nova rota compatível com o frontend para obter checks com filtros de período
+app.get('/api/monitor-checks', authenticateToken, async (req, res) => {
+  try {
+    const { monitor_id, start_date, end_date, period = '7d', limit } = req.query as any
+
+    if (!monitor_id) {
+      return res.status(400).json({ error: 'monitor_id é obrigatório' })
+    }
+
+    // Validar monitor existente
+    const monitor = await databaseService.getMonitorById(String(monitor_id))
+    if (!monitor) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
+    }
+
+    const now = new Date()
+    let start: Date
+    let end: Date
+
+    if (start_date && end_date) {
+      start = new Date(String(start_date))
+      end = new Date(String(end_date))
+    } else {
+      const periodDays = ({ '24h': 1, '7d': 7, '30d': 30, '90d': 90 } as Record<string, number>)[String(period)] || 7
+      end = now
+      start = new Date()
+      start.setDate(start.getDate() - periodDays)
+    }
+
+    // Buscar diretamente do banco dentro do período
+    const checks = await databaseService.getMonitorChecksForPeriod(String(monitor_id), start, end)
+    const capped = typeof limit === 'string' || typeof limit === 'number' ? checks.slice(0, Number(limit)) : checks
+
+    return res.json({ monitor_id, start_date: start.toISOString(), end_date: end.toISOString(), count: capped.length, data: capped })
+  } catch (error) {
+    console.error('Erro em /api/monitor-checks:', error)
+    return res.status(500).json({ error: 'Erro interno do servidor' })
+  }
 })
 
 // Rotas de grupos
@@ -1044,7 +1089,7 @@ app.post('/api/smtp/test', authenticateToken, async (req, res) => {
 // Rotas de relatórios
 app.get('/api/reports/stats', authenticateToken, async (req, res) => {
   try {
-    const { period = '7d', monitor_id } = req.query
+    const { period = '7d', monitor_id, start_date, end_date } = req.query as any
     
     // Se monitor_id for fornecido, buscar apenas esse monitor, senão buscar todos
     let monitors
@@ -1071,15 +1116,23 @@ app.get('/api/reports/stats', authenticateToken, async (req, res) => {
     
     for (const monitor of monitors) {
       // Buscar checks do período
-      const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
-      
-      // Filtrar checks do período
-      const periodStart = new Date()
-      periodStart.setDate(periodStart.getDate() - periodDays)
-      
-      const periodChecks = checks.filter((check: any) => 
-        new Date(check.checked_at) >= periodStart
-      )
+      let periodChecks: any[]
+
+      if (start_date && end_date) {
+        const start = new Date(String(start_date))
+        const end = new Date(String(end_date))
+        periodChecks = await databaseService.getMonitorChecksForPeriod(monitor.id, start, end)
+      } else {
+        const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
+        // Filtrar checks do período
+        const periodStart = new Date()
+        periodStart.setDate(periodStart.getDate() - periodDays)
+        const periodEnd = new Date()
+        periodChecks = checks.filter((check: any) => {
+          const ts = new Date(check.checked_at)
+          return ts >= periodStart && ts <= periodEnd
+        })
+      }
       
       if (periodChecks.length > 0) {
         monitorsWithData++
@@ -1198,13 +1251,18 @@ app.get('/api/reports/monitors', authenticateToken, async (req, res) => {
 // Endpoint principal de relatórios
 app.get('/api/reports', authenticateToken, async (req, res) => {
   try {
-    const { period = '7d', group_id } = req.query
+    const { period = '7d', group_id, start_date, end_date, monitor_id } = req.query as any
     const monitors = await databaseService.getMonitors()
     
     // Filtrar por grupo se especificado
     const filteredMonitors = group_id && group_id !== 'all' 
       ? monitors.filter((m: any) => m.group_id === group_id)
       : monitors
+
+    // Filtrar por monitor específico se informado
+    const targetMonitors = monitor_id 
+      ? filteredMonitors.filter((m: any) => m.id === monitor_id)
+      : filteredMonitors
     
     // Calcular período em dias
     const periodDays = {
@@ -1214,17 +1272,26 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
       '90d': 90
     }[period as string] || 7
     
-    const reports = await Promise.all(filteredMonitors.map(async (monitor: any) => {
-      // Buscar checks do período
-      const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
+    const reports = await Promise.all(targetMonitors.map(async (monitor: any) => {
+      let periodChecks: any[]
       
-      // Filtrar checks do período
-      const periodStart = new Date()
-      periodStart.setDate(periodStart.getDate() - periodDays)
-      
-      const periodChecks = checks.filter((check: any) => 
-        new Date(check.checked_at) >= periodStart
-      )
+      if (start_date && end_date) {
+        const start = new Date(String(start_date))
+        const end = new Date(String(end_date))
+        // Busca direta no período informado
+        const checks = await databaseService.getMonitorChecksForPeriod(monitor.id, start, end)
+        periodChecks = checks
+      } else {
+        // Buscar checks aproximados e filtrar pelo período pré-definido
+        const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
+        const periodStart = new Date()
+        periodStart.setDate(periodStart.getDate() - periodDays)
+        const periodEnd = new Date()
+        periodChecks = checks.filter((check: any) => {
+          const ts = new Date(check.checked_at)
+          return ts >= periodStart && ts <= periodEnd
+        })
+      }
       
       const totalChecks = periodChecks.length
       const successfulChecks = periodChecks.filter((check: any) => check.status === 'online').length
