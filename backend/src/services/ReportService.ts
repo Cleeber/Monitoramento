@@ -428,8 +428,10 @@ ${this.generateAnalysis(stats)}
       }
       
       // Montar link da página de status (se disponível)
-      const statusLink = monitor.slug && process.env.FRONTEND_BASE_URL
-        ? `${process.env.FRONTEND_BASE_URL}/status/${monitor.slug}`
+      // Ajuste: adicionar fallback público quando FRONTEND_BASE_URL não estiver definido
+      const baseUrl = process.env.FRONTEND_BASE_URL || 'https://monitor.pagina1digital.com.br'
+      const statusLink = monitor.slug
+        ? `${baseUrl}/status/${monitor.slug}`
         : undefined
       
       // Nome amigável do arquivo: "Relatório Mensal - Nome do monitor - mês de ano"
@@ -550,8 +552,10 @@ ${this.generateAnalysis(stats)}
       console.log(`📧 Enviando relatório para: ${toEmail}`)
 
       // Montar link da página de status (se disponível)
-      const statusLink = monitor.slug && process.env.FRONTEND_BASE_URL
-        ? `${process.env.FRONTEND_BASE_URL}/status/${monitor.slug}`
+      // Ajuste: adicionar fallback público quando FRONTEND_BASE_URL não estiver definido
+      const baseUrl2 = process.env.FRONTEND_BASE_URL || 'https://monitor.pagina1digital.com.br'
+      const statusLink = monitor.slug
+        ? `${baseUrl2}/status/${monitor.slug}`
         : undefined
       
       // Enviar e-mail usando o método específico para relatórios mensais
