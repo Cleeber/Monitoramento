@@ -827,20 +827,43 @@ app.get('/api/pdf/status', authenticateToken, async (req, res) => {
 app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res) => {
   try {
     const { monitorId } = req.params
-    const { year, month } = req.query
-    
+    const { year, month, style } = req.query as { [key: string]: string }
+
     if (!year || !month) {
       return res.status(400).json({ error: 'Ano e mês são obrigatórios' })
     }
-    
+
+    // Novo: opção de layout baseado na página de status pública
+    if (style === 'status') {
+      try {
+        const monitor = await databaseService.getMonitorById(monitorId)
+        if (monitor?.slug) {
+          const pdfBuffer = await pdfService.generateOptimizedStatusPDF(
+            monitor.slug,
+            `${monitor.name} - Relatório Mensal`
+          )
+
+          const filename = `relatorio-mensal-status-${monitor.slug}-${month}-${year}.pdf`
+          res.setHeader('Content-Type', 'application/pdf')
+          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+          return res.send(pdfBuffer)
+        }
+        // Se não houver slug, cai para geração padrão abaixo
+        console.warn(`Monitor ${monitorId} sem slug; usando modelo padrão de relatório mensal`)
+      } catch (innerErr) {
+        console.warn('Falha ao gerar PDF com layout de status; usando modelo padrão.', innerErr)
+      }
+    }
+
+    // Comportamento padrão existente
     const pdfBuffer = await pdfService.generateMonthlyReportPDF(
       monitorId,
       Number(year),
       Number(month)
     )
-    
+
     const filename = `relatorio-mensal-${monitorId}-${year}-${month}.pdf`
-    
+
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
     res.send(pdfBuffer)

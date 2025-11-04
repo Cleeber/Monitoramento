@@ -196,7 +196,8 @@ function ReportsPage() {
       const month = targetDate.getMonth() + 1
       
       const token = localStorage.getItem('auth_token')
-      const apiUrl = `/api/pdf/monthly-report/${selectedMonitor}?year=${year}&month=${month}`
+      // Solicitar geração com o mesmo layout da página de status pública
+      const apiUrl = `/api/pdf/monthly-report/${selectedMonitor}?year=${year}&month=${month}&style=status`
       
       const response = await fetch(apiUrl, {
         method: 'GET',
