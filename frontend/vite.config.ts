@@ -23,7 +23,9 @@ export default defineConfig({
     ],
     proxy: {
       '/api': {
-        target: 'http://localhost:8081',
+        // Aponta para o backend dentro da rede Docker;
+        // usa variável de ambiente quando definida e cai para http://backend:8081
+        target: process.env.VITE_API_URL || 'http://backend:8081',
         changeOrigin: true,
         secure: false,
       },
