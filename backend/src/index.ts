@@ -264,9 +264,10 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     }
 
     // Correção: comparar senha com o hash armazenado
-    const passwordHash = (user as any).password_hash
+    // Retrocompatibilidade: aceitar 'password_hash' (novo) ou 'password' (legado)
+    const passwordHash = (user as any).password_hash || (user as any).password
     if (!passwordHash) {
-      console.warn('Usuário sem password_hash definido, verifique migração/seed')
+      console.warn('Usuário sem campo de senha/hash definido (password_hash/password)')
     }
     const validPassword = passwordHash ? await bcrypt.compare(password, passwordHash) : false
     if (!validPassword) {
