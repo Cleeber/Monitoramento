@@ -22,6 +22,7 @@ import {
   Filler,
 } from 'chart.js'
 import { Bar, Line, Doughnut } from 'react-chartjs-2'
+import { normalizeChecksArray } from '@/lib/adapters/monitorChecksAdapter'
 
 ChartJS.register(
   CategoryScale,
@@ -160,7 +161,8 @@ function ReportsPage() {
         throw new Error(result.error || 'Erro ao carregar verificações do monitor')
       }
       
-      setMonitorChecks(result.data)
+      const normalized = normalizeChecksArray(result.data)
+      setMonitorChecks(normalized)
     } catch (error) {
       console.error('Erro ao carregar verificações do monitor:', error)
       toast.error('Erro ao carregar verificações do monitor')

@@ -176,6 +176,79 @@ npm start
 - `PUT /api/groups/:id` - Atualizar grupo
 - `DELETE /api/groups/:id` - Remover grupo
 
+### Checks
+
+Para obter o histórico de verificações (checks) de monitores, há duas rotas disponíveis e compatíveis entre si. Ambas exigem autenticação via Bearer Token.
+
+- `GET /api/monitors/:id/checks`
+  - Uso: obter checks de um monitor específico pelo `:id`.
+  - Query params:
+    - `limit` (opcional, padrão `100`): número máximo de registros retornados.
+  - Resposta: retorna um array simples de checks no formato:
+    ```json
+    [
+      {
+        "id": "string",
+        "monitor_id": "string",
+        "status": "online|offline|warning",
+        "response_time": 123,
+        "error_message": null,
+        "checked_at": "2024-11-04T12:34:56.000Z"
+      }
+    ]
+    ```
+
+- `GET /api/monitor-checks`
+  - Uso: rota com filtros de período e compatível com o frontend.
+  - Query params:
+    - `monitor_id` (obrigatório): ID do monitor.
+    - `start_date` e `end_date` (opcionais): ISO strings delimitando o período.
+    - `period` (opcional, valores: `24h|7d|30d|90d`, padrão `7d`): se não enviar `start_date/end_date`.
+    - `limit` (opcional): número máximo de registros.
+    - `format` (opcional): `full` para resposta detalhada; padrão retorna array simples.
+    - `full` (opcional, `1` para habilitar): equivalente a `format=full`.
+  - Respostas:
+    - Padrão (array simples):
+      ```json
+      [
+        {
+          "id": "string",
+          "monitor_id": "string",
+          "status": "online|offline|warning",
+          "response_time": 123,
+          "error_message": null,
+          "checked_at": "2024-11-04T12:34:56.000Z"
+        }
+      ]
+      ```
+    - `format=full` ou `full=1` (objeto detalhado):
+      ```json
+      {
+        "monitor_id": "string",
+        "start_date": "2024-11-01T00:00:00.000Z",
+        "end_date": "2024-11-04T23:59:59.000Z",
+        "count": 250,
+        "data": [
+          { "id": "string", "monitor_id": "string", "status": "online", "response_time": 123, "error_message": null, "checked_at": "2024-11-04T12:34:56.000Z" }
+        ]
+      }
+      ```
+
+Exemplos de uso (PowerShell):
+
+```powershell
+$token = "SEU_TOKEN_JWT"
+
+# /api/monitors/:id/checks
+Invoke-RestMethod -Method GET -Uri "https://monitor.pagina1digital.com.br/api/monitors/abc123/checks?limit=200" -Headers @{ Authorization = "Bearer $token" }
+
+# /api/monitor-checks (array simples)
+Invoke-RestMethod -Method GET -Uri "https://monitor.pagina1digital.com.br/api/monitor-checks?monitor_id=abc123&period=7d&limit=500" -Headers @{ Authorization = "Bearer $token" }
+
+# /api/monitor-checks (formato completo)
+Invoke-RestMethod -Method GET -Uri "https://monitor.pagina1digital.com.br/api/monitor-checks?monitor_id=abc123&period=7d&limit=500&format=full" -Headers @{ Authorization = "Bearer $token" }
+```
+
 ## Contribuição
 
 1. Faça um fork do projeto
