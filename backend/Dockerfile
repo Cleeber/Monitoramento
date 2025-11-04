@@ -23,17 +23,11 @@ FROM node:18-alpine AS production
 
 WORKDIR /app
 
-# Install runtime dependencies including Chrome dependencies
+# Install minimal runtime dependencies
 RUN apk update && apk add --no-cache \
     curl \
     dumb-init \
-    chromium \
-    nss \
-    freetype \
-    freetype-dev \
-    harfbuzz \
     ca-certificates \
-    ttf-freefont \
     && addgroup -g 1001 -S nodejs \
     && adduser -S nodejs -u 1001
 
@@ -53,9 +47,7 @@ COPY --from=builder /app/database ./database
 RUN mkdir -p uploads reports logs \
     && chown -R nodejs:nodejs /app
 
-# Set Puppeteer environment variables
-ENV PUPPETEER_SKIP_CHROMIUM_DOWNLOAD=true
-ENV PUPPETEER_EXECUTABLE_PATH=/usr/bin/chromium-browser
+# Puppeteer removido: geração de PDF não usa mais navegador
 
 # Switch to non-root user
 USER nodejs

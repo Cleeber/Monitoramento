@@ -1,7 +1,6 @@
 import PDFDocument from 'pdfkit'
 import fs from 'fs'
 import path from 'path'
-import puppeteer from 'puppeteer'
 import { databaseService } from './DatabaseService.js'
 
 export interface PDFReportOptions {
@@ -12,217 +11,125 @@ export interface PDFReportOptions {
 }
 
 export class PDFService {
-  /**
-   * Captura página de status pública usando puppeteer com configurações otimizadas
-   */
-  async captureStatusPage(monitorSlug: string, baseUrl: string = 'http://frontend:3001'): Promise<Buffer> {
-    let browser
-    try {
-      console.log(`📸 Iniciando captura da página de status: ${monitorSlug}`)
-
-      // Configurar puppeteer com otimizações
-      browser = await puppeteer.launch({
-        headless: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--no-zygote',
-          '--disable-gpu'
-        ]
-      })
-
-      const page = await browser.newPage()
-
-      // Configurar viewport otimizado
-      await page.setViewport({
-        width: 1200,
-        height: 1600,
-        deviceScaleFactor: 2.5
-      })
-
-      // Lista de bases candidatas para fallback
-      const candidateBases = [
-        baseUrl,
-        process.env.FRONTEND_BASE_URL,
-        'http://frontend:3001',
-        'http://localhost:3001',
-        'https://monitor.pagina1digital.com.br'
-      ].filter(Boolean) as string[]
-
-      let lastError: any = null
-      for (const frontendBaseUrl of candidateBases) {
-        // Forçar modo monitor na renderização da página de Status
-        const statusUrl = `${frontendBaseUrl}/status/${encodeURIComponent(monitorSlug)}?forceMonitor=1`
-        console.log(`🌐 Tentando captura em: ${statusUrl}`)
-
-        try {
-          await page.goto(statusUrl, {
-            // networkidle2 é menos suscetível a websockets do dev server
-            waitUntil: 'networkidle2',
-            timeout: 20000
-          })
-
-          // Pequeno atraso para renderização (compatível com versões atuais de types)
-          await new Promise(resolve => setTimeout(resolve, 3000))
-
-          // Detectar renderização com erro
-          const hasError = await page.evaluate(() => {
-            const text = document.body?.innerText || ''
-            return /Erro ao carregar status/i.test(text)
-          })
-          if (hasError) {
-            console.warn('⚠️ Página de status exibiu erro de carregamento. Tentando próxima base...')
-            continue
-          }
-
-          // Remover elementos que podem gerar espaços
-          await page.evaluate(() => {
-            const elementsToHide = document.querySelectorAll('script, noscript, .hidden, [style*="display: none"]')
-            elementsToHide.forEach(el => {
-              if (el.parentNode) {
-                el.parentNode.removeChild(el)
-              }
-            })
-
-            if (document.body) {
-              document.body.style.transform = 'none'
-              document.body.style.transformOrigin = 'top left'
-              document.body.style.overflow = 'visible'
-            }
-          })
-
-          const screenshot = await page.screenshot({ type: 'png', fullPage: true })
-          console.log(`✅ Captura concluída (${Math.round((screenshot as Buffer).length / 1024)}KB) usando base ${frontendBaseUrl}`)
-          return screenshot as Buffer
-        } catch (err) {
-          console.warn(`⚠️ Falha ao capturar em ${frontendBaseUrl}:`, err)
-          lastError = err
-          // Tenta próximo candidato
-        }
-      }
-
-      // Se nenhuma base funcionar
-      throw lastError || new Error('Falha ao capturar página de status em todas as URLs base')
-
-    } catch (error) {
-      console.error('❌ Erro ao capturar página de status:', error)
-      throw error
-    } finally {
-      if (browser) {
-        await browser.close()
-      }
-    }
-  }
+  // Removido: captura com Puppeteer. A geração agora é totalmente baseada em PDFKit e dados do banco.
   
   /**
    * Gera PDF dinâmico da página de status com dados dos últimos 30 dias
    */
-  async generateDynamicStatusPDF(monitorSlug: string, monitorName: string, baseUrl?: string): Promise<Buffer> {
+  async generateDynamicStatusPDF(monitorSlug: string, monitorName: string): Promise<Buffer> {
     try {
-      console.log(`📊 Gerando PDF dinâmico para monitor: ${monitorName} (${monitorSlug})`);
-      
-      // Capturar a página de status com dados atualizados
-      const screenshot = await this.captureStatusPage(monitorSlug, baseUrl);
-      
-      // Criar PDF com a captura
-      // ALTERAÇÃO: remover margens para a imagem preencher todo o espaço
-      const doc = new PDFDocument({
-        size: 'A4',
-        margin: 0
-      });
-      
-      const chunks: Buffer[] = [];
-      doc.on('data', chunk => chunks.push(chunk));
-      
-      return new Promise((resolve, reject) => {
+      console.log(`📊 Gerando PDF dinâmico (texto) para monitor: ${monitorName} (${monitorSlug})`)
+
+      const doc = new PDFDocument({ size: 'A4', margin: 50 })
+      const chunks: Buffer[] = []
+      doc.on('data', chunk => chunks.push(chunk))
+
+      return new Promise(async (resolve, reject) => {
         doc.on('end', () => {
-          const pdfBuffer = Buffer.concat(chunks);
-          console.log(`✅ PDF dinâmico gerado (${Math.round(pdfBuffer.length / 1024)}KB)`);
-          resolve(pdfBuffer);
-        });
-        
-        doc.on('error', reject);
-        
-        // ALTERAÇÃO: Remover textos/cabeçalhos do topo e preencher a página com a imagem
+          const pdfBuffer = Buffer.concat(chunks)
+          console.log(`✅ PDF dinâmico gerado (${Math.round(pdfBuffer.length / 1024)}KB)`)
+          resolve(pdfBuffer)
+        })
+        doc.on('error', reject)
+
+        // Cabeçalho
+        this.addHeader(doc, monitorName || 'Página de Status')
+
+        // Recuperar monitor por slug
         try {
-          const pageWidth = doc.page.width
-          const pageHeight = doc.page.height
-          // Ajuste: manter proporção (contain) e centralizar, sem esticar
-          doc.image(screenshot, 0, 0, {
-            fit: [pageWidth, pageHeight],
-            align: 'center',
-            valign: 'center'
-          })
-        } catch (imageError) {
-          console.error('Erro ao adicionar imagem ao PDF:', imageError);
-          // Mensagem de fallback mínima, sem cabeçalhos adicionais
+          const monitors = await databaseService.getMonitors()
+          const monitor = monitors.find((m: any) => m.slug === monitorSlug)
+
+          if (monitor) {
+            this.addMonitorDetails(doc, monitor)
+            await this.addMonthlyStats(doc, monitor, new Date().getFullYear(), new Date().getMonth() + 1)
+            this.addUptimeChart(doc, monitor)
+            this.addIncidentsList(doc, monitor)
+          } else {
+            doc.fontSize(12)
+               .fillColor('#dc2626')
+               .text('Monitor não encontrado para o slug informado.', 50, doc.y)
+          }
+
+          this.addFooter(doc)
+        } catch (e) {
           doc.fontSize(12)
-             .fillColor('#ff0000')
-             .text('Erro ao carregar captura da página de status', 20, 20);
+             .fillColor('#dc2626')
+             .text('Erro ao recuperar dados para o PDF.', 50, doc.y)
         }
-        
-        // Finalizar o documento
-        doc.end();
-      });
-      
+
+        doc.end()
+      })
     } catch (error) {
-      console.error('❌ Erro ao gerar PDF dinâmico:', error);
-      throw error;
+      console.error('❌ Erro ao gerar PDF dinâmico:', error)
+      throw error
     }
   }
 
   /**
    * Gera PDF otimizado a partir de captura de página de status
    */
-  async generateOptimizedStatusPDF(monitorSlug: string, monitorName: string, baseUrl?: string): Promise<Buffer> {
+  async generateOptimizedStatusPDF(monitorSlug: string, monitorName: string): Promise<Buffer> {
     try {
-      console.log(`📄 Gerando PDF otimizado para monitor: ${monitorName}`)
-      
-      // Capturar a página de status
-      const imageBuffer = await this.captureStatusPage(monitorSlug, baseUrl)
-      
-      // Criar PDF otimizado usando a mesma lógica do frontend
-      return new Promise((resolve, reject) => {
-        // ALTERAÇÃO: Remover margens e qualquer texto adicional para preencher a página
-        const doc = new PDFDocument({ margin: 0 })
-         const chunks: Buffer[] = []
-         
-         doc.on('data', chunk => chunks.push(chunk))
-         doc.on('end', () => resolve(Buffer.concat(chunks)))
-         doc.on('error', reject)
-         
-         const pageWidth = doc.page.width
-         const pageHeight = doc.page.height
-         
-         // Sem margens para a imagem ocupar toda a página
-         const margin = 0
-         const availableWidth = pageWidth
-         const availableHeight = pageHeight
-         
-         // ALTERAÇÃO: Removido qualquer cabeçalho/texto do topo
-        
-         try {
-           // Ajuste: manter proporção (contain) e centralizar, sem esticar
-           doc.image(imageBuffer, 0, 0, {
-             fit: [availableWidth, availableHeight],
-             align: 'center',
-             valign: 'center'
-           })
-           
-         } catch (imgError) {
-           console.error('Erro ao processar imagem:', imgError)
-           // Fallback: adicionar texto explicativo
-           doc.fontSize(12)
-              .fillColor('#dc2626')
-              .text('Erro ao carregar imagem da página de status', margin + 20, margin + 20)
-          }
-          
+      console.log(`📄 Gerando PDF otimizado (texto) para: ${monitorName}`)
+
+      const doc = new PDFDocument({ margin: 50 })
+      const chunks: Buffer[] = []
+      doc.on('data', chunk => chunks.push(chunk))
+
+      return new Promise(async (resolve, reject) => {
+        doc.on('end', () => resolve(Buffer.concat(chunks)))
+        doc.on('error', reject)
+
+        // Cabeçalho
+        this.addHeader(doc, monitorName || 'Status')
+
+        // Carregar dados
+        const monitors = await databaseService.getMonitors()
+        const groups = await databaseService.getGroups()
+
+        // Tentar encontrar grupo pelo slug
+        const group = groups.find((g: any) => g.slug === monitorSlug)
+        if (group) {
+          // Se for grupo, listar monitores deste grupo
+          const groupMonitors = monitors.filter((m: any) => m.group_id === group.id)
+          this.addGroupSection(doc, group.name, groupMonitors)
+          this.addStatisticsSummary(doc, groupMonitors)
+          this.addFooter(doc)
           doc.end()
-       })
-      
+          return
+        }
+
+        // Tentar encontrar monitor pelo slug
+        const monitor = monitors.find((m: any) => m.slug === monitorSlug)
+        if (monitor) {
+          // Se for monitor, gerar relatório estilo mensal
+          this.addMonitorDetails(doc, monitor)
+          await this.addMonthlyStats(doc, monitor, new Date().getFullYear(), new Date().getMonth() + 1)
+          this.addUptimeChart(doc, monitor)
+          this.addIncidentsList(doc, monitor)
+          this.addFooter(doc)
+          doc.end()
+          return
+        }
+
+        // Fallback: status geral
+        const titleOptions: PDFReportOptions = { title: 'Status dos Monitores' }
+        const buffer = await this.generateBasicStatusPDF(titleOptions, monitors, groups)
+        // Como generateBasicStatusPDF já retorna buffer via eventos, nós apenas finalizamos aqui
+        // Para manter consistência, escrevemos uma página mínima se necessário
+        if (buffer && buffer.length > 0) {
+          resolve(buffer)
+          return
+        }
+
+        // Se chegar aqui, adicionar mensagem mínima
+        doc.fontSize(12)
+           .fillColor('#dc2626')
+           .text('Nenhum dado encontrado para gerar o PDF.', 50, 150)
+        this.addFooter(doc)
+        doc.end()
+      })
     } catch (error) {
       console.error('❌ Erro ao gerar PDF otimizado:', error)
       throw error
@@ -241,9 +148,9 @@ export class PDFService {
       const mainGroup = groups.find((g: any) => g.name.toLowerCase().includes('principal') || g.name.toLowerCase().includes('geral'))
       
       if (mainGroup && mainGroup.slug) {
-        console.log(`📄 Gerando PDF de status otimizado com captura de página para grupo: ${mainGroup.name}`)
+        console.log(`📄 Gerando PDF de status otimizado (texto) para grupo: ${mainGroup.name}`)
         
-        // Usar captura otimizada para o grupo principal
+        // Usar versão otimizada baseada em dados (sem captura)
         return await this.generateOptimizedStatusPDF(mainGroup.slug, options.title || 'Status dos Monitores')
       } else {
         console.log(`📄 Gerando PDF de status básico (sem página de status disponível)`)
@@ -307,9 +214,9 @@ export class PDFService {
 
       // Verificar se o monitor tem slug para página de status
       if (monitor.slug) {
-        console.log(`📄 Gerando relatório mensal otimizado com captura de página para: ${monitor.name}`)
+        console.log(`📄 Gerando relatório mensal otimizado (texto) para: ${monitor.name}`)
         
-        // Usar a nova função de captura otimizada
+        // Usar a versão otimizada baseada em dados (sem captura)
         return await this.generateOptimizedStatusPDF(monitor.slug, `${monitor.name} - Relatório Mensal`)
       } else {
         console.log(`📄 Gerando relatório mensal básico para: ${monitor.name} (sem página de status)`)
