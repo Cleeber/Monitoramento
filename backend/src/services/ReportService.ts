@@ -406,9 +406,8 @@ ${this.generateAnalysis(stats)}
           
           // Usar o mesmo método que funciona na exportação manual
           pdfBuffer = await pdfService.generateOptimizedStatusPDF(
-            monitor.slug, 
-            `${monitor.name} - Relatório Mensal`,
-            process.env.FRONTEND_BASE_URL || 'http://frontend:3001'
+            monitor.slug,
+            `${monitor.name} - Relatório Mensal`
           )
           
           if (pdfBuffer && pdfBuffer.length > 10000) { // Verificar se o PDF tem tamanho razoável (>10KB)
