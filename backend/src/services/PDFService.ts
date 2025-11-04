@@ -88,19 +88,7 @@ export class PDFService {
         const monitors = await databaseService.getMonitors()
         const groups = await databaseService.getGroups()
 
-        // Tentar encontrar grupo pelo slug
-        const group = groups.find((g: any) => g.slug === monitorSlug)
-        if (group) {
-          // Se for grupo, listar monitores deste grupo
-          const groupMonitors = monitors.filter((m: any) => m.group_id === group.id)
-          this.addGroupSection(doc, group.name, groupMonitors)
-          this.addStatisticsSummary(doc, groupMonitors)
-          this.addFooter(doc)
-          doc.end()
-          return
-        }
-
-        // Tentar encontrar monitor pelo slug
+        // Primeiro: tentar encontrar MONITOR pelo slug para evitar colisão com slug de grupo
         const monitor = monitors.find((m: any) => m.slug === monitorSlug)
         if (monitor) {
           // Se for monitor, gerar relatório estilo mensal
@@ -108,6 +96,18 @@ export class PDFService {
           await this.addMonthlyStats(doc, monitor, new Date().getFullYear(), new Date().getMonth() + 1)
           this.addUptimeChart(doc, monitor)
           this.addIncidentsList(doc, monitor)
+          this.addFooter(doc)
+          doc.end()
+          return
+        }
+
+        // Depois: tentar encontrar GRUPO pelo slug
+        const group = groups.find((g: any) => g.slug === monitorSlug)
+        if (group) {
+          // Se for grupo, listar monitores deste grupo
+          const groupMonitors = monitors.filter((m: any) => m.group_id === group.id)
+          this.addGroupSection(doc, group.name, groupMonitors)
+          this.addStatisticsSummary(doc, groupMonitors)
           this.addFooter(doc)
           doc.end()
           return
