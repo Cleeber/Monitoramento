@@ -135,6 +135,52 @@ export class PDFService {
       throw error
     }
   }
+
+  /**
+   * Gera PDF otimizado SOMENTE para um monitor (sem considerar grupos)
+   * Usado para garantir que exportações mensais retornem o PDF do monitor selecionado.
+   */
+  async generateOptimizedMonitorPDF(monitorSlug: string, monitorName: string, year?: number, month?: number): Promise<Buffer> {
+    try {
+      const doc = new PDFDocument({ margin: 50 })
+      const chunks: Buffer[] = []
+      doc.on('data', chunk => chunks.push(chunk))
+
+      return new Promise(async (resolve, reject) => {
+        doc.on('end', () => resolve(Buffer.concat(chunks)))
+        doc.on('error', reject)
+
+        // Cabeçalho
+        this.addHeader(doc, monitorName || 'Status')
+
+        // Carregar dados
+        const monitors = await databaseService.getMonitors()
+
+        // Apenas tentar encontrar MONITOR pelo slug
+        const monitor = monitors.find((m: any) => m.slug === monitorSlug)
+        if (monitor) {
+          // Relatório estilo mensal do monitor
+          this.addMonitorDetails(doc, monitor)
+          await this.addMonthlyStats(doc, monitor, year || new Date().getFullYear(), (month || (new Date().getMonth() + 1)))
+          this.addUptimeChart(doc, monitor)
+          this.addIncidentsList(doc, monitor)
+          this.addFooter(doc)
+          doc.end()
+          return
+        }
+
+        // Se não encontrar monitor pelo slug, deixar o caller decidir o fallback
+        doc.fontSize(12)
+           .fillColor('#dc2626')
+           .text('Monitor não encontrado para o slug informado.', 50, 150)
+        this.addFooter(doc)
+        doc.end()
+      })
+    } catch (error) {
+      console.error('❌ Erro ao gerar PDF otimizado de monitor:', error)
+      throw error
+    }
+  }
   /**
    * Gera PDF com status de todos os monitores usando captura otimizada quando possível
    */
@@ -214,10 +260,15 @@ export class PDFService {
 
       // Verificar se o monitor tem slug para página de status
       if (monitor.slug) {
-        console.log(`📄 Gerando relatório mensal otimizado (texto) para: ${monitor.name}`)
+        console.log(`📄 Gerando relatório mensal otimizado (monitor-only) para: ${monitor.name}`)
         
-        // Usar a versão otimizada baseada em dados (sem captura)
-        return await this.generateOptimizedStatusPDF(monitor.slug, `${monitor.name} - Relatório Mensal`)
+        // Forçar geração apenas do monitor; se falhar, fazer fallback para o básico
+        try {
+          return await this.generateOptimizedMonitorPDF(monitor.slug, `${monitor.name} - Relatório Mensal`, year, month)
+        } catch (e) {
+          console.warn('⚠️ Fallback para relatório mensal básico (slug não encontrado como monitor):', e)
+          return this.generateBasicMonthlyReportPDF(monitorId, year, month)
+        }
       } else {
         console.log(`📄 Gerando relatório mensal básico para: ${monitor.name} (sem página de status)`)
         
