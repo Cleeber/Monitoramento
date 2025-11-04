@@ -65,8 +65,8 @@ export class PDFService {
             timeout: 20000
           })
 
-          // Pequeno atraso para renderização
-          await page.waitForTimeout(3000)
+          // Pequeno atraso para renderização (compatível com versões atuais de types)
+          await new Promise(resolve => setTimeout(resolve, 3000))
 
           // Detectar renderização com erro
           const hasError = await page.evaluate(() => {
