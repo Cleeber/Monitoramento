@@ -53,6 +53,12 @@ uptime-monitor/
 └── README.md
 ```
 
+## Padrões e Convenções
+
+Para garantir consistência em todo o sistema, consulte o documento de padrões:
+
+- `docs/standards.md` — Convenções de API, autenticação, formatos de resposta, adapters no frontend, segurança, deploy e operações.
+
 ## Instalação e Configuração
 
 ### Pré-requisitos

@@ -123,6 +123,28 @@ O frontend se comunica com o backend através de:
 - **WebSocket** - Atualizações em tempo real (futuro)
 - **Proxy Vite** - Desenvolvimento local
 
+### Adapters e Normalização de API
+
+Para manter consistência quando um endpoint pode retornar formatos diferentes (array simples ou objeto completo), use adapters em `src/lib/adapters/`.
+
+- `monitorChecksAdapter.ts`
+  - `normalizeChecksArray(payload)` → Sempre retorna um array de checks.
+  - `normalizeChecksResponse(payload)` → Retorna `{ items, count }`.
+
+Exemplo (ReportsPage):
+
+```ts
+const result = await apiGet(`/monitor-checks?...`)
+const checks = normalizeChecksArray(result.data)
+setMonitorChecks(checks)
+```
+
+Se precisar da contagem:
+
+```ts
+const { items, count } = normalizeChecksResponse(result.data)
+```
+
 ## Build e Deploy
 
 1. **Gerar build:**
