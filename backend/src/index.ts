@@ -605,7 +605,16 @@ app.get('/api/monitor-checks', authenticateToken, async (req, res) => {
     const checks = await databaseService.getMonitorChecksForPeriod(String(monitor_id), start, end)
     const capped = typeof limit === 'string' || typeof limit === 'number' ? checks.slice(0, Number(limit)) : checks
 
-    return res.json({ monitor_id, start_date: start.toISOString(), end_date: end.toISOString(), count: capped.length, data: capped })
+    // Compatibilidade com o frontend: retornar array por padrão
+    // Permitir formato completo opcional via query (full=1 ou format=full)
+    const formatQuery = String((req.query as any).format || '').toLowerCase()
+    const isFull = String((req.query as any).full || '').toLowerCase() === '1' || formatQuery === 'full'
+
+    if (isFull) {
+      return res.json({ monitor_id, start_date: start.toISOString(), end_date: end.toISOString(), count: capped.length, data: capped })
+    }
+
+    return res.json(capped)
   } catch (error) {
     console.error('Erro em /api/monitor-checks:', error)
     return res.status(500).json({ error: 'Erro interno do servidor' })
