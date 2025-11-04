@@ -19,7 +19,7 @@ export class PDFService {
     let browser
     try {
       console.log(`📸 Iniciando captura da página de status: ${monitorSlug}`)
-      
+
       // Configurar puppeteer com otimizações
       browser = await puppeteer.launch({
         headless: true,
@@ -33,59 +33,80 @@ export class PDFService {
           '--disable-gpu'
         ]
       })
-      
+
       const page = await browser.newPage()
-      
+
       // Configurar viewport otimizado
-      // Ajuste fino para PDFs: reduzimos a largura (para cortar espaços laterais)
-      // e aumentamos a densidade (deviceScaleFactor) para manter nitidez ao ampliar no PDF
       await page.setViewport({
-        width: 1200,      // antes: 1920. Largura menor reduz o espaço vazio nas laterais
-        height: 1600,     // altura maior para caber mais conteúdo vertical
-        deviceScaleFactor: 2.5 // antes: 1.5. Aumenta a definição/legibilidade
+        width: 1200,
+        height: 1600,
+        deviceScaleFactor: 2.5
       })
-      
-      // Obter URL base do frontend
-      const frontendBaseUrl = baseUrl || process.env.FRONTEND_BASE_URL || 'http://localhost:3001'
-      // Forçar modo monitor na renderização da página de Status para evitar relatório geral
-      const statusUrl = `${frontendBaseUrl}/status/${encodeURIComponent(monitorSlug)}?forceMonitor=1`
-      console.log(`🌐 Navegando para: ${statusUrl}`)
-      
-      // Navegar para a página com timeout otimizado
-      await page.goto(statusUrl, {
-        waitUntil: 'networkidle0',
-        timeout: 15000 // 15 segundos como no frontend
-      })
-      
-      // Aguardar renderização completa (mesmo tempo do frontend)
-      await new Promise(resolve => setTimeout(resolve, 3000))
-      
-      // Remover elementos desnecessários que podem causar espaços vazios
-      await page.evaluate(() => {
-        const elementsToHide = document.querySelectorAll('script, noscript, .hidden, [style*="display: none"]')
-        elementsToHide.forEach(el => {
-          if (el.parentNode) {
-            el.parentNode.removeChild(el)
+
+      // Lista de bases candidatas para fallback
+      const candidateBases = [
+        baseUrl,
+        process.env.FRONTEND_BASE_URL,
+        'http://frontend:3001',
+        'http://localhost:3001',
+        'https://monitor.pagina1digital.com.br'
+      ].filter(Boolean) as string[]
+
+      let lastError: any = null
+      for (const frontendBaseUrl of candidateBases) {
+        // Forçar modo monitor na renderização da página de Status
+        const statusUrl = `${frontendBaseUrl}/status/${encodeURIComponent(monitorSlug)}?forceMonitor=1`
+        console.log(`🌐 Tentando captura em: ${statusUrl}`)
+
+        try {
+          await page.goto(statusUrl, {
+            // networkidle2 é menos suscetível a websockets do dev server
+            waitUntil: 'networkidle2',
+            timeout: 20000
+          })
+
+          // Pequeno atraso para renderização
+          await page.waitForTimeout(3000)
+
+          // Detectar renderização com erro
+          const hasError = await page.evaluate(() => {
+            const text = document.body?.innerText || ''
+            return /Erro ao carregar status/i.test(text)
+          })
+          if (hasError) {
+            console.warn('⚠️ Página de status exibiu erro de carregamento. Tentando próxima base...')
+            continue
           }
-        })
-        
-        // Otimizar estilos para melhor renderização
-        if (document.body) {
-          document.body.style.transform = 'none'
-          document.body.style.transformOrigin = 'top left'
-          document.body.style.overflow = 'visible'
+
+          // Remover elementos que podem gerar espaços
+          await page.evaluate(() => {
+            const elementsToHide = document.querySelectorAll('script, noscript, .hidden, [style*="display: none"]')
+            elementsToHide.forEach(el => {
+              if (el.parentNode) {
+                el.parentNode.removeChild(el)
+              }
+            })
+
+            if (document.body) {
+              document.body.style.transform = 'none'
+              document.body.style.transformOrigin = 'top left'
+              document.body.style.overflow = 'visible'
+            }
+          })
+
+          const screenshot = await page.screenshot({ type: 'png', fullPage: true })
+          console.log(`✅ Captura concluída (${Math.round((screenshot as Buffer).length / 1024)}KB) usando base ${frontendBaseUrl}`)
+          return screenshot as Buffer
+        } catch (err) {
+          console.warn(`⚠️ Falha ao capturar em ${frontendBaseUrl}:`, err)
+          lastError = err
+          // Tenta próximo candidato
         }
-      })
-      
-      // Capturar screenshot com configurações otimizadas
-      const screenshot = await page.screenshot({
-        type: 'png',
-        fullPage: true
-      })
-      
-      console.log(`✅ Captura concluída (${Math.round(screenshot.length / 1024)}KB)`)
-      return screenshot as Buffer
-      
+      }
+
+      // Se nenhuma base funcionar
+      throw lastError || new Error('Falha ao capturar página de status em todas as URLs base')
+
     } catch (error) {
       console.error('❌ Erro ao capturar página de status:', error)
       throw error
