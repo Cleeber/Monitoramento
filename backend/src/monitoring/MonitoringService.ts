@@ -332,6 +332,14 @@ class MonitoringService extends EventEmitter {
     error: string | null
   }> {
     const startTime = Date.now()
+    // Derivar origem para uso como Referer quando possível
+    let refererOrigin: string | undefined
+    try {
+      const u = new URL(url)
+      refererOrigin = u.origin
+    } catch {
+      refererOrigin = undefined
+    }
     
     try {
       const response = await axios.get(url, {
@@ -342,7 +350,9 @@ class MonitoringService extends EventEmitter {
           'User-Agent': process.env.MONITOR_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache',
+          'Accept-Encoding': 'gzip, deflate, br',
+          ...(refererOrigin ? { 'Referer': refererOrigin } : {})
         }
       })
       
