@@ -352,6 +352,9 @@ class MonitoringService extends EventEmitter {
           'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
           'Cache-Control': 'no-cache',
           'Accept-Encoding': 'gzip, deflate, br',
+          'Connection': 'keep-alive',
+          'Upgrade-Insecure-Requests': '1',
+          ...(refererOrigin ? { 'Origin': refererOrigin } : {}),
           ...(refererOrigin ? { 'Referer': refererOrigin } : {})
         }
       })
