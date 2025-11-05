@@ -351,9 +351,18 @@ class MonitoringService extends EventEmitter {
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
           'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
           'Accept-Encoding': 'gzip, deflate, br',
           'Connection': 'keep-alive',
           'Upgrade-Insecure-Requests': '1',
+          // Cabeçalhos hints de navegador modernos (Chrome) para aumentar a compatibilidade
+          'sec-ch-ua': '"Chromium";v="122", "Not=A?Brand";v="24", "Google Chrome";v="122"',
+          'sec-ch-ua-mobile': '?0',
+          'sec-ch-ua-platform': '"Windows"',
+          'Sec-Fetch-Dest': 'document',
+          'Sec-Fetch-Mode': 'navigate',
+          'Sec-Fetch-Site': 'none',
+          'Sec-Fetch-User': '?1',
           ...(refererOrigin ? { 'Origin': refererOrigin } : {}),
           ...(refererOrigin ? { 'Referer': refererOrigin } : {})
         }
