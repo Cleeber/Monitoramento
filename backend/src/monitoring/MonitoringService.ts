@@ -331,9 +331,10 @@ class MonitoringService extends EventEmitter {
     // Emitir evento de verificação
     this.emit('check', { monitor, check })
 
-    // Log da verificação
+    // Log da verificação (inclui status_code quando disponível)
     const statusEmoji = status === 'online' ? '✅' : status === 'warning' ? '⚠️' : '❌'
-    console.log(`${statusEmoji} ${monitor.name}: ${status} (${responseTime}ms)`)
+    const codeInfo = statusCode != null ? ` [${statusCode}]` : ''
+    console.log(`${statusEmoji} ${monitor.name}: ${status} (${responseTime}ms)${codeInfo}`)
   }
 
   // Verificação HTTP
@@ -357,13 +358,63 @@ class MonitoringService extends EventEmitter {
     // Derivar origem para uso como Referer quando possível
     let refererOrigin: string | undefined
     try {
-      const u = new URL(url)
+      const u = new URL(monitor.url)
       refererOrigin = u.origin
     } catch {
       refererOrigin = undefined
     }
     
     try {
+      // 1) Primeiro tenta HEAD com headers mínimos para evitar bloqueios/WAF
+      let headStatusCode: number | null = null
+      let headResponseTime: number | null = null
+      let headOk = false
+      try {
+        const headStart = Date.now()
+        const headResp = await axios.head(monitor.url, {
+          timeout: monitor.timeout,
+          validateStatus: (status) => status < 500,
+          headers: {
+            'User-Agent': process.env.MONITOR_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept': '*/*',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Encoding': 'identity',
+            'Connection': 'close',
+            ...(refererOrigin ? { 'Origin': refererOrigin } : {}),
+            ...(refererOrigin ? { 'Referer': refererOrigin } : {})
+          }
+        })
+        headResponseTime = Date.now() - headStart
+        headStatusCode = headResp.status
+        headOk = true
+      } catch (headErr: any) {
+        // Se HEAD não é permitido (405/501) ou falhou por reset/timeout, vamos tentar GET
+        headOk = false
+      }
+
+      // Determinar configuração efetiva de validação
+      const validationEnabled = (monitor.content_validation_enabled ?? this.contentValidation.enabled) === true
+      const minContentLength = monitor.min_content_length ?? this.contentValidation.minContentLength
+      const minTextLength = monitor.min_text_length ?? this.contentValidation.minTextLength
+      const ignore403 = monitor.ignore_http_403 === true
+
+      // Se HEAD funcionou e não precisamos validar conteúdo, decidir pelo HEAD
+      if (headOk && !validationEnabled && headStatusCode != null) {
+        const statusCode = headStatusCode
+        const responseTime = headResponseTime
+        if (statusCode >= 200 && statusCode < 400) {
+          return { status: 'online', responseTime, error: null, statusCode }
+        } else if (statusCode >= 400 && statusCode < 500) {
+          if (statusCode === 403 && ignore403) {
+            return { status: 'online', responseTime, error: null, statusCode }
+          }
+          return { status: 'warning', responseTime, error: `HTTP ${statusCode}`, statusCode }
+        } else {
+          return { status: 'offline', responseTime, error: `HTTP ${statusCode}`, statusCode }
+        }
+      }
+
+      // 2) Fallback (ou necessidade de validação): realizar GET completo
       const response = await axios.get(monitor.url, {
         timeout: monitor.timeout,
         validateStatus: (status) => status < 500, // 4xx é warning, 5xx é offline
@@ -392,12 +443,6 @@ class MonitoringService extends EventEmitter {
       
       const responseTime = Date.now() - startTime
       const statusCode = response.status
-
-      // Determinar configuração efetiva de validação
-      const validationEnabled = (monitor.content_validation_enabled ?? this.contentValidation.enabled) === true
-      const minContentLength = monitor.min_content_length ?? this.contentValidation.minContentLength
-      const minTextLength = monitor.min_text_length ?? this.contentValidation.minTextLength
-      const ignore403 = monitor.ignore_http_403 === true
 
       if (statusCode >= 200 && statusCode < 400) {
         // Verificar conteúdo apenas se a validação estiver habilitada
@@ -454,11 +499,44 @@ class MonitoringService extends EventEmitter {
         }
       }
     } catch (error) {
+      // 3) Se GET falhar por ECONNRESET, tentar uma última HEAD para decidir status
       if (axios.isAxiosError(error)) {
         if (error.code === 'ECONNABORTED') {
           return { status: 'offline', responseTime: null, error: 'Timeout' }
         } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
           return { status: 'offline', responseTime: null, error: 'Conexão recusada' }
+        } else if (error.code === 'ECONNRESET') {
+          try {
+            const headStart = Date.now()
+            const headResp = await axios.head(monitor.url, {
+              timeout: monitor.timeout,
+              validateStatus: (status) => status < 500,
+              headers: {
+                'User-Agent': process.env.MONITOR_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                'Accept': '*/*',
+                'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+                'Accept-Encoding': 'identity',
+                'Connection': 'close',
+                ...(refererOrigin ? { 'Origin': refererOrigin } : {}),
+                ...(refererOrigin ? { 'Referer': refererOrigin } : {})
+              }
+            })
+            const responseTime = Date.now() - headStart
+            const statusCode = headResp.status
+            const ignore403 = monitor.ignore_http_403 === true
+            if (statusCode >= 200 && statusCode < 400) {
+              return { status: 'online', responseTime, error: null, statusCode }
+            } else if (statusCode >= 400 && statusCode < 500) {
+              if (statusCode === 403 && ignore403) {
+                return { status: 'online', responseTime, error: null, statusCode }
+              }
+              return { status: 'warning', responseTime, error: `HTTP ${statusCode}`, statusCode }
+            }
+            return { status: 'offline', responseTime, error: `HTTP ${statusCode}`, statusCode }
+          } catch (fallbackErr) {
+            // Mesmo fallback falhou: reporta ECONNRESET
+            return { status: 'offline', responseTime: null, error: 'read ECONNRESET' }
+          }
         }
         const statusCode = error.response?.status
         if (statusCode) {
