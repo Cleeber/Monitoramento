@@ -502,8 +502,18 @@ class MonitoringService extends EventEmitter {
       // 3) Se GET falhar por ECONNRESET, tentar uma última HEAD para decidir status
       if (axios.isAxiosError(error)) {
         if (error.code === 'ECONNABORTED') {
+          // Timeout: verificar se o host responde ao ping para classificar como aviso
+          const pingResult = await this.checkPing(monitor.url, monitor.timeout)
+          if (pingResult.status === 'online') {
+            return { status: 'warning', responseTime: pingResult.responseTime, error: 'Timeout' }
+          }
           return { status: 'offline', responseTime: null, error: 'Timeout' }
         } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
+          // Falha de resolução/recusa de conexão: verificar ping
+          const pingResult = await this.checkPing(monitor.url, monitor.timeout)
+          if (pingResult.status === 'online') {
+            return { status: 'warning', responseTime: pingResult.responseTime, error: 'Conexão recusada' }
+          }
           return { status: 'offline', responseTime: null, error: 'Conexão recusada' }
         } else if (error.code === 'ECONNRESET') {
           try {
@@ -534,7 +544,11 @@ class MonitoringService extends EventEmitter {
             }
             return { status: 'offline', responseTime, error: `HTTP ${statusCode}`, statusCode }
           } catch (fallbackErr) {
-            // Mesmo fallback falhou: reporta ECONNRESET
+            // Mesmo fallback falhou: verificar ping para distinguir bloqueio de WAF/CDN
+            const pingResult = await this.checkPing(monitor.url, monitor.timeout)
+            if (pingResult.status === 'online') {
+              return { status: 'warning', responseTime: pingResult.responseTime, error: 'read ECONNRESET' }
+            }
             return { status: 'offline', responseTime: null, error: 'read ECONNRESET' }
           }
         }
