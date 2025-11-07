@@ -590,7 +590,8 @@ class MonitoringService extends EventEmitter {
   }> {
     // Para TCP, vamos usar uma verificação HTTP simples por enquanto
     // Em uma implementação completa, seria necessário usar net.Socket
-    return this.checkHttpFromConfig({ url, timeout })
+    // Chamamos a versão compatível para manter o método checkHttp em uso
+    return this.checkHttp(url, timeout)
   }
 
   // Job de limpeza para remover checks antigos
