@@ -312,6 +312,15 @@ export class DatabaseService {
     error_message?: string
     status_code?: number
   }) {
+    try {
+      console.log('🗄️ Inserindo monitor_check:', {
+        monitor_id: checkData.monitor_id,
+        status: checkData.status,
+        response_time: checkData.response_time ?? null,
+        error_message: checkData.error_message ?? null,
+        status_code: checkData.status_code ?? null
+      })
+    } catch {}
     const { data, error } = await (supabase as any)
       .from('monitor_checks')
       .insert({
