@@ -379,7 +379,7 @@ app.get('/api/monitors', authenticateToken, async (_, res) => {
 
 app.post('/api/monitors', authenticateToken, async (req, res) => {
   try {
-    const { name, url, type, interval, timeout, group_id, enabled = true, slug, logo_url, report_email, report_send_day, report_send_time } = req.body
+    const { name, url, type, interval, timeout, group_id, enabled = true, slug, logo_url, report_email, report_send_day, report_send_time, ignore_http_403, content_validation_enabled, min_content_length, min_text_length } = req.body
     
     if (!name || !url || !type) {
       return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
@@ -404,7 +404,11 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       logo_url,
       report_email,
       report_send_day,
-      report_send_time
+      report_send_time,
+      ignore_http_403,
+      content_validation_enabled,
+      min_content_length,
+      min_text_length
     })
     
     // Criar configuração de relatório mensal se fornecida

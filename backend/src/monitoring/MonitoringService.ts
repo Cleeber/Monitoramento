@@ -9,6 +9,7 @@ interface MonitorCheck {
   status: 'online' | 'offline' | 'warning'
   response_time: number | null
   error_message: string | null
+  status_code?: number | null
   checked_at: string
 }
 
@@ -28,6 +29,11 @@ interface Monitor {
   uptime_30d: number
   group_id?: string | null
   group_name?: string
+  // Flags específicas por monitor (opcionais)
+  ignore_http_403?: boolean
+  content_validation_enabled?: boolean
+  min_content_length?: number
+  min_text_length?: number
 }
 
 interface ContentValidationConfig {
@@ -165,6 +171,7 @@ class MonitoringService extends EventEmitter {
           status: check.status,
           response_time: check.response_time,
           error_message: check.error_message,
+          status_code: check.status_code ?? null,
           checked_at: check.checked_at
         }))
         
@@ -248,14 +255,16 @@ class MonitoringService extends EventEmitter {
     let status: 'online' | 'offline' | 'warning' = 'offline'
     let responseTime: number | null = null
     let errorMessage: string | null = null
+    let statusCode: number | null = null
 
     try {
       switch (monitor.type) {
         case 'http':
-          const result = await this.checkHttp(monitor.url, monitor.timeout)
+          const result = await this.checkHttpFromConfig(monitor)
           status = result.status
           responseTime = result.responseTime
           errorMessage = result.error
+          statusCode = (result as any).statusCode ?? null
           break
           
         case 'ping':
@@ -285,6 +294,7 @@ class MonitoringService extends EventEmitter {
       status,
       response_time: responseTime,
       error_message: errorMessage,
+      status_code: statusCode,
       checked_at: new Date().toISOString()
     }
 
@@ -297,7 +307,8 @@ class MonitoringService extends EventEmitter {
           monitor_id: monitor.id,
           status,
           response_time: responseTime,
-          error_message: errorMessage
+          error_message: errorMessage,
+          status_code: statusCode ?? undefined
         })
       } catch (error) {
         console.error('❌ Erro ao salvar verificação no banco de dados:', error)
@@ -331,6 +342,17 @@ class MonitoringService extends EventEmitter {
     responseTime: number | null
     error: string | null
   }> {
+    // Mantido para compatibilidade retro, mas não usado após ajuste
+    return this.checkHttpFromConfig({ url, timeout })
+  }
+
+  // Nova versão: usa configuração específica do monitor
+  private async checkHttpFromConfig(monitor: Pick<Monitor, 'url' | 'timeout' | 'ignore_http_403' | 'content_validation_enabled' | 'min_content_length' | 'min_text_length'>): Promise<{
+    status: 'online' | 'offline' | 'warning'
+    responseTime: number | null
+    error: string | null
+    statusCode?: number
+  }> {
     const startTime = Date.now()
     // Derivar origem para uso como Referer quando possível
     let refererOrigin: string | undefined
@@ -342,8 +364,8 @@ class MonitoringService extends EventEmitter {
     }
     
     try {
-      const response = await axios.get(url, {
-        timeout,
+      const response = await axios.get(monitor.url, {
+        timeout: monitor.timeout,
         validateStatus: (status) => status < 500, // 4xx é warning, 5xx é offline
         headers: {
           // Ajuste de headers para reduzir bloqueios por WAF/CDN e parecer um navegador real
@@ -369,19 +391,27 @@ class MonitoringService extends EventEmitter {
       })
       
       const responseTime = Date.now() - startTime
-      
-      if (response.status >= 200 && response.status < 400) {
+      const statusCode = response.status
+
+      // Determinar configuração efetiva de validação
+      const validationEnabled = (monitor.content_validation_enabled ?? this.contentValidation.enabled) === true
+      const minContentLength = monitor.min_content_length ?? this.contentValidation.minContentLength
+      const minTextLength = monitor.min_text_length ?? this.contentValidation.minTextLength
+      const ignore403 = monitor.ignore_http_403 === true
+
+      if (statusCode >= 200 && statusCode < 400) {
         // Verificar conteúdo apenas se a validação estiver habilitada
-        if (this.contentValidation.enabled) {
+        if (validationEnabled) {
           const content = response.data || ''
           const contentLength = typeof content === 'string' ? content.length : JSON.stringify(content).length
           
           // Considerar página vazia ou com menos caracteres que o mínimo como warning
-          if (contentLength < this.contentValidation.minContentLength) {
+          if (contentLength < minContentLength) {
             return { 
               status: 'warning', 
               responseTime, 
-              error: `Página com conteúdo insuficiente (${contentLength} caracteres, mínimo: ${this.contentValidation.minContentLength})` 
+              error: `Página com conteúdo insuficiente (${contentLength} caracteres, mínimo: ${minContentLength})`,
+              statusCode
             }
           }
           
@@ -392,28 +422,35 @@ class MonitoringService extends EventEmitter {
               .replace(/\s+/g, ' ')    // Normaliza espaços
               .trim()
             
-            if (cleanContent.length < this.contentValidation.minTextLength) {
+            if (cleanContent.length < minTextLength) {
               return { 
                 status: 'warning', 
                 responseTime, 
-                error: `Página com conteúdo textual insuficiente (${cleanContent.length} caracteres de texto, mínimo: ${this.contentValidation.minTextLength})` 
+                error: `Página com conteúdo textual insuficiente (${cleanContent.length} caracteres de texto, mínimo: ${minTextLength})`,
+                statusCode
               }
             }
           }
         }
         
-        return { status: 'online', responseTime, error: null }
-      } else if (response.status >= 400 && response.status < 500) {
+        return { status: 'online', responseTime, error: null, statusCode }
+      } else if (statusCode >= 400 && statusCode < 500) {
+        // Se for 403 e a flag estiver ativada, considerar como online
+        if (statusCode === 403 && ignore403) {
+          return { status: 'online', responseTime, error: null, statusCode }
+        }
         return { 
           status: 'warning', 
           responseTime, 
-          error: `HTTP ${response.status}: ${response.statusText}` 
+          error: `HTTP ${statusCode}: ${response.statusText}`,
+          statusCode
         }
       } else {
         return { 
           status: 'offline', 
           responseTime, 
-          error: `HTTP ${response.status}: ${response.statusText}` 
+          error: `HTTP ${statusCode}: ${response.statusText}`,
+          statusCode
         }
       }
     } catch (error) {
@@ -422,6 +459,10 @@ class MonitoringService extends EventEmitter {
           return { status: 'offline', responseTime: null, error: 'Timeout' }
         } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
           return { status: 'offline', responseTime: null, error: 'Conexão recusada' }
+        }
+        const statusCode = error.response?.status
+        if (statusCode) {
+          return { status: 'offline', responseTime: null, error: `HTTP ${statusCode}: ${error.response?.statusText || 'Erro'}`, statusCode }
         }
       }
       
@@ -471,7 +512,7 @@ class MonitoringService extends EventEmitter {
   }> {
     // Para TCP, vamos usar uma verificação HTTP simples por enquanto
     // Em uma implementação completa, seria necessário usar net.Socket
-    return this.checkHttp(url, timeout)
+    return this.checkHttpFromConfig({ url, timeout })
   }
 
   // Job de limpeza para remover checks antigos

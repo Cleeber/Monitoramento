@@ -207,6 +207,10 @@ export class DatabaseService {
     report_email?: string
     report_send_day?: number
     report_send_time?: string
+    ignore_http_403?: boolean
+    content_validation_enabled?: boolean
+    min_content_length?: number
+    min_text_length?: number
   }) {
     const { data, error } = await (supabase as any)
       .from('monitors')
@@ -223,6 +227,10 @@ export class DatabaseService {
         report_email: monitorData.report_email || null,
         report_send_day: monitorData.report_send_day || 1,
         report_send_time: monitorData.report_send_time || '09:00',
+        ignore_http_403: monitorData.ignore_http_403 ?? false,
+        content_validation_enabled: monitorData.content_validation_enabled ?? true,
+        min_content_length: monitorData.min_content_length ?? 100,
+        min_text_length: monitorData.min_text_length ?? 50,
         status: 'unknown',
         uptime_24h: 0,
         uptime_7d: 0,
@@ -302,6 +310,7 @@ export class DatabaseService {
     status: 'online' | 'offline' | 'warning'
     response_time?: number
     error_message?: string
+    status_code?: number
   }) {
     const { data, error } = await (supabase as any)
       .from('monitor_checks')
@@ -311,6 +320,7 @@ export class DatabaseService {
         status: checkData.status,
         response_time: checkData.response_time || null,
         error_message: checkData.error_message || null,
+        status_code: checkData.status_code || null,
         checked_at: new Date().toISOString()
       })
       .select()
