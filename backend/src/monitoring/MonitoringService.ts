@@ -491,6 +491,16 @@ class MonitoringService extends EventEmitter {
           statusCode
         }
       } else {
+        // Para 5xx, validar via ping antes de classificar como offline
+        const pingResult = await this.checkPing(monitor.url, monitor.timeout)
+        if (pingResult.status === 'online') {
+          return { 
+            status: 'online', 
+            responseTime: pingResult.responseTime, 
+            error: `HTTP ${statusCode}: ${response.statusText}`,
+            statusCode
+          }
+        }
         return { 
           status: 'offline', 
           responseTime, 
@@ -505,14 +515,14 @@ class MonitoringService extends EventEmitter {
           // Timeout: verificar se o host responde ao ping para classificar como aviso
           const pingResult = await this.checkPing(monitor.url, monitor.timeout)
           if (pingResult.status === 'online') {
-            return { status: 'warning', responseTime: pingResult.responseTime, error: 'Timeout' }
+            return { status: 'online', responseTime: pingResult.responseTime, error: 'Timeout' }
           }
           return { status: 'offline', responseTime: null, error: 'Timeout' }
         } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
           // Falha de resolução/recusa de conexão: verificar ping
           const pingResult = await this.checkPing(monitor.url, monitor.timeout)
           if (pingResult.status === 'online') {
-            return { status: 'warning', responseTime: pingResult.responseTime, error: 'Conexão recusada' }
+            return { status: 'online', responseTime: pingResult.responseTime, error: 'Conexão recusada' }
           }
           return { status: 'offline', responseTime: null, error: 'Conexão recusada' }
         } else if (error.code === 'ECONNRESET') {
@@ -542,22 +552,37 @@ class MonitoringService extends EventEmitter {
               }
               return { status: 'warning', responseTime, error: `HTTP ${statusCode}`, statusCode }
             }
+            // 5xx em fallback HEAD: validar via ping
+            const pingResult = await this.checkPing(monitor.url, monitor.timeout)
+            if (pingResult.status === 'online') {
+              return { status: 'online', responseTime: pingResult.responseTime, error: `HTTP ${statusCode}`, statusCode }
+            }
             return { status: 'offline', responseTime, error: `HTTP ${statusCode}`, statusCode }
           } catch (fallbackErr) {
             // Mesmo fallback falhou: verificar ping para distinguir bloqueio de WAF/CDN
             const pingResult = await this.checkPing(monitor.url, monitor.timeout)
             if (pingResult.status === 'online') {
-              return { status: 'warning', responseTime: pingResult.responseTime, error: 'read ECONNRESET' }
+              return { status: 'online', responseTime: pingResult.responseTime, error: 'read ECONNRESET' }
             }
             return { status: 'offline', responseTime: null, error: 'read ECONNRESET' }
           }
         }
         const statusCode = error.response?.status
         if (statusCode) {
+          // Erros 5xx lançados: checar ping antes de marcar como offline
+          const pingResult = await this.checkPing(monitor.url, monitor.timeout)
+          if (pingResult.status === 'online') {
+            return { status: 'online', responseTime: pingResult.responseTime, error: `HTTP ${statusCode}: ${error.response?.statusText || 'Erro'}`, statusCode }
+          }
           return { status: 'offline', responseTime: null, error: `HTTP ${statusCode}: ${error.response?.statusText || 'Erro'}`, statusCode }
         }
       }
       
+      // Erro não classificado: checar ping para decidir
+      const pingResult = await this.checkPing(monitor.url, monitor.timeout)
+      if (pingResult.status === 'online') {
+        return { status: 'online', responseTime: pingResult.responseTime, error: error instanceof Error ? error.message : 'Erro desconhecido' }
+      }
       return { 
         status: 'offline', 
         responseTime: null, 
