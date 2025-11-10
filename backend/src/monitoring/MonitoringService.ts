@@ -192,17 +192,26 @@ class MonitoringService extends EventEmitter {
         
         this.checks.push(...recentChecks)
         
-        // Atualizar o status do monitor com base na verificação mais recente
+        // Ajuste: usar a última verificação dentro de 24h; fallback para 'unknown'
         if (recentChecks.length > 0) {
-          const latestCheck = recentChecks.sort((a: MonitorCheck, b: MonitorCheck) => 
-            new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
-          )[0];
-          
+          const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
+          const latestIn24h = recentChecks
+            .filter(c => new Date(c.checked_at) >= cutoff24h)
+            .sort((a: MonitorCheck, b: MonitorCheck) => 
+              new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
+            )[0];
+
           const monitor = this.monitors.get(monitorId);
           if (monitor) {
-            monitor.status = latestCheck.status;
-            monitor.last_check = latestCheck.checked_at;
-            monitor.response_time = latestCheck.response_time;
+            if (latestIn24h) {
+              monitor.status = latestIn24h.status;
+              monitor.last_check = latestIn24h.checked_at;
+              monitor.response_time = latestIn24h.response_time;
+            } else {
+              monitor.status = 'unknown';
+              monitor.last_check = null;
+              monitor.response_time = null;
+            }
             this.monitors.set(monitorId, monitor);
           }
         }
@@ -267,7 +276,8 @@ class MonitoringService extends EventEmitter {
 
   // Realizar verificação de um monitor
   private async performCheck(monitor: Monitor) {
-    let status: 'online' | 'offline' | 'warning' = 'offline'
+    // Ajuste intencional: iniciar como 'warning' para evitar falso 'offline' antes do resultado real
+    let status: 'online' | 'offline' | 'warning' = 'warning'
     let responseTime: number | null = null
     let errorMessage: string | null = null
     let statusCode: number | null = null
