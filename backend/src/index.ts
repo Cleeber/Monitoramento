@@ -1904,10 +1904,8 @@ app.use((err: any, _: any, res: any, __: any) => {
   res.status(500).json({ error: 'Erro interno do servidor' })
 })
 
-// Rota 404
-app.use('*', (_, res) => {
-  res.status(404).json({ error: 'Rota não encontrada' })
-})
+// Ajuste: mover a rota 404 para o final do arquivo
+// para não bloquear rotas adicionadas posteriormente
 
 // Iniciar servidor
 app.listen(PORT, () => {
@@ -1974,18 +1972,7 @@ app.get('/api/proxy/html2canvas', async (req, res) => {
   }
 })
 
-// Rota para executar verificação manual de um monitor
-app.post('/api/monitors/:id/check-now', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params
-    const monitor = monitoringService.getMonitor(id)
-    if (!monitor) {
-      return res.status(404).json({ error: 'Monitor não encontrado' })
-    }
-    const check = await (monitoringService as any).triggerCheck(id)
-    return res.json({ success: true, check })
-  } catch (error) {
-    console.error('Erro ao executar verificação manual:', error)
-    return res.status(500).json({ error: 'Erro interno do servidor' })
-  }
+// Rota 404 (mover para o final para não bloquear rotas adicionadas depois)
+app.use('*', (_, res) => {
+  res.status(404).json({ error: 'Rota não encontrada' })
 })
