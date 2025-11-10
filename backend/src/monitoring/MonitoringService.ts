@@ -159,6 +159,17 @@ class MonitoringService extends EventEmitter {
       .slice(0, limit)
   }
 
+  // Executar verificação manual de um monitor e retornar o último check
+  async triggerCheck(monitorId: string): Promise<MonitorCheck | null> {
+    const monitor = this.monitors.get(monitorId)
+    if (!monitor) {
+      throw new Error('Monitor não encontrado')
+    }
+    await this.performCheck(monitor)
+    const latest = this.getMonitorChecks(monitorId, 1)
+    return latest.length ? latest[0] : null
+  }
+
   // Carregar verificações recentes do banco de dados
   async loadRecentChecks(databaseService: any) {
     try {
