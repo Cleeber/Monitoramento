@@ -180,7 +180,7 @@ class MonitoringService extends EventEmitter {
         const checks = await databaseService.getMonitorChecks(monitorId, 500000)
         
         // Converter para o formato interno e adicionar ao array
-        const recentChecks = checks.map((check: any) => ({
+        const recentChecks: MonitorCheck[] = (checks.map((check: any) => ({
           id: check.id,
           monitor_id: check.monitor_id,
           status: check.status,
@@ -188,7 +188,7 @@ class MonitoringService extends EventEmitter {
           error_message: check.error_message,
           status_code: check.status_code ?? null,
           checked_at: check.checked_at
-        }))
+        })) as MonitorCheck[])
         
         this.checks.push(...recentChecks)
         
@@ -196,7 +196,7 @@ class MonitoringService extends EventEmitter {
         if (recentChecks.length > 0) {
           const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
           const latestIn24h = recentChecks
-            .filter(c => new Date(c.checked_at) >= cutoff24h)
+            .filter((c: MonitorCheck) => new Date(c.checked_at) >= cutoff24h)
             .sort((a: MonitorCheck, b: MonitorCheck) => 
               new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
             )[0];
