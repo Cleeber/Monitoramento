@@ -2,6 +2,7 @@ import axios from 'axios'
 import * as ping from 'ping'
 import * as cron from 'node-cron'
 import { EventEmitter } from 'events'
+import * as net from 'net'
 
 interface MonitorCheck {
   id: string
@@ -600,23 +601,67 @@ class MonitoringService extends EventEmitter {
     try {
       // Extrair hostname da URL se necessário
       const hostname = host.replace(/^https?:\/\//, '').split('/')[0]
-      
-      const result = await ping.promise.probe(hostname, {
-        timeout: timeout / 1000, // ping usa segundos
-        min_reply: 1
+      // Descobrir porta alvo para uma verificação TCP mínima caso ICMP esteja bloqueado
+      let port = 443
+      try {
+        const u = new URL(host)
+        port = u.protocol === 'http:' ? 80 : 443
+      } catch {}
+
+      // 1) Tentar ping forçando IPv4, que é mais comum e reduz falsos negativos em ambientes com IPv6 parcial
+      let result = await ping.promise.probe(hostname, {
+        timeout: Math.max(1, Math.floor(timeout / 1000)), // ping usa segundos
+        min_reply: 1,
+        // Alguns ambientes resolvem AAAA por padrão; forçar IPv4 ajuda quando IPv6 está indisponível
+        extra: ['-4']
       })
-      
+
+      // 2) Se falhar, tentar IPv6 explicitamente (cobre casos raros onde o site só anuncia AAAA)
+      if (!result.alive) {
+        try {
+          result = await ping.promise.probe(hostname, {
+            timeout: Math.max(1, Math.floor(timeout / 1000)),
+            min_reply: 1,
+            extra: ['-6']
+          })
+        } catch {/* ignora erros do ping6 */}
+      }
+
       if (result.alive) {
         const responseTime = parseFloat(result.time as string) || null
         return { status: 'online', responseTime, error: null }
-      } else {
-        return { status: 'offline', responseTime: null, error: 'Host não responde ao ping' }
       }
+
+      // 3) Fallback final: tentativa de conexão TCP simples ao host (porta 80/443)
+      const tcpStart = Date.now()
+      const tcpOk = await new Promise<boolean>((resolve) => {
+        const socket = new net.Socket()
+        let settled = false
+        const done = (ok: boolean) => {
+          if (settled) return
+          settled = true
+          try { socket.destroy() } catch {}
+          resolve(ok)
+        }
+        socket.setTimeout(timeout)
+        socket.once('error', () => done(false))
+        socket.once('timeout', () => done(false))
+        socket.connect({ host: hostname, port }, () => done(true))
+      })
+
+      if (tcpOk) {
+        const responseTime = Date.now() - tcpStart
+        return { status: 'online', responseTime, error: null }
+      }
+
+      // Nenhum método respondeu
+      return { status: 'offline', responseTime: null, error: 'Host não responde a ICMP/TCP' }
     } catch (error) {
       return { 
         status: 'offline', 
         responseTime: null, 
-        error: error instanceof Error ? error.message : 'Erro no ping' 
+        // Mantemos a mensagem, mas indicamos que tentativas ICMP/TCP foram realizadas
+        error: error instanceof Error ? error.message : 'Erro em ping/TCP' 
       }
     }
   }
