@@ -3,6 +3,9 @@ import * as ping from 'ping'
 import * as cron from 'node-cron'
 import { EventEmitter } from 'events'
 import * as net from 'net'
+import { exec } from 'child_process'
+import { promisify } from 'util'
+const execAsync = promisify(exec)
 
 interface MonitorCheck {
   id: string
@@ -608,29 +611,59 @@ class MonitoringService extends EventEmitter {
         port = u.protocol === 'http:' ? 80 : 443
       } catch {}
 
-      // 1) Tentar ping forçando IPv4, que é mais comum e reduz falsos negativos em ambientes com IPv6 parcial
-      let result = await ping.promise.probe(hostname, {
-        timeout: Math.max(1, Math.floor(timeout / 1000)), // ping usa segundos
-        min_reply: 1,
-        // Alguns ambientes resolvem AAAA por padrão; forçar IPv4 ajuda quando IPv6 está indisponível
-        extra: ['-4']
-      })
+      // 1) Primeiro tenta o ping do sistema (busybox/iputils) via exec para evitar incompatibilidades da lib
+      const timeoutSec = Math.max(1, Math.floor(timeout / 1000))
+      const parseTimeMs = (output: string): number | null => {
+        const m = output.match(/time[=|:](\s*?)(\d+(?:\.\d+)?)\s*ms/i)
+        if (m && m[2]) return parseFloat(m[2])
+        // Busybox também pode imprimir "round-trip min/avg/max"; usamos avg se disponível
+        const m2 = output.match(/round-trip.*?=\s*(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)\/(\d+(?:\.\d+)?)/i)
+        if (m2 && m2[2]) return parseFloat(m2[2])
+        return null
+      }
 
-      // 2) Se falhar, tentar IPv6 explicitamente (cobre casos raros onde o site só anuncia AAAA)
-      if (!result.alive) {
+      let sysPingOk = false
+      let sysPingTime: number | null = null
+      try {
+        const { stdout } = await execAsync(`ping -4 -c 1 -W ${timeoutSec} ${hostname}`)
+        sysPingOk = /packets received, 0% packet loss/i.test(stdout) || /1 packets received/i.test(stdout)
+        sysPingTime = parseTimeMs(stdout)
+      } catch {
+        sysPingOk = false
+      }
+      if (!sysPingOk) {
         try {
-          result = await ping.promise.probe(hostname, {
-            timeout: Math.max(1, Math.floor(timeout / 1000)),
+          const { stdout } = await execAsync(`ping -6 -c 1 -W ${timeoutSec} ${hostname}`)
+          sysPingOk = /packets received, 0% packet loss/i.test(stdout) || /1 packets received/i.test(stdout)
+          sysPingTime = parseTimeMs(stdout)
+        } catch {
+          sysPingOk = false
+        }
+      }
+
+      if (sysPingOk) {
+        return { status: 'online', responseTime: sysPingTime, error: null }
+      }
+
+      // 2) Fallback adicional: tentar a lib ping (casos onde exec pode não estar acessível)
+      try {
+        let libResult = await ping.promise.probe(hostname, {
+          timeout: timeoutSec,
+          min_reply: 1,
+          extra: ['-4']
+        })
+        if (!libResult.alive) {
+          libResult = await ping.promise.probe(hostname, {
+            timeout: timeoutSec,
             min_reply: 1,
             extra: ['-6']
           })
-        } catch {/* ignora erros do ping6 */}
-      }
-
-      if (result.alive) {
-        const responseTime = parseFloat(result.time as string) || null
-        return { status: 'online', responseTime, error: null }
-      }
+        }
+        if (libResult.alive) {
+          const responseTime = parseFloat(libResult.time as string) || null
+          return { status: 'online', responseTime, error: null }
+        }
+      } catch {/* ignora erro da lib ping */}
 
       // 3) Fallback final: tentativa de conexão TCP simples ao host (porta 80/443)
       const tcpStart = Date.now()
