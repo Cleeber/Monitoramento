@@ -577,6 +577,24 @@ app.get('/api/monitors/:id/checks', authenticateToken, (req, res) => {
   res.json(checks)
 })
 
+// Executar uma verificação manual imediata de um monitor
+app.post('/api/monitors/:id/check-now', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+
+    const monitor = monitoringService.getMonitor(id)
+    if (!monitor) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
+    }
+
+    const result = await monitoringService.triggerCheck(id)
+    return res.json(result)
+  } catch (error) {
+    console.error('Erro ao executar verificação manual:', error)
+    return res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
 // Nova rota compatível com o frontend para obter checks com filtros de período
 app.get('/api/monitor-checks', authenticateToken, async (req, res) => {
   try {
