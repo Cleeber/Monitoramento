@@ -3,6 +3,8 @@ import * as ping from 'ping'
 import * as cron from 'node-cron'
 import { EventEmitter } from 'events'
 import * as net from 'net'
+import * as http from 'http'
+import * as https from 'https'
 import { exec } from 'child_process'
 import { promisify } from 'util'
 const execAsync = promisify(exec)
@@ -35,6 +37,7 @@ interface Monitor {
   group_name?: string
   // Flags específicas por monitor (opcionais)
   ignore_http_403?: boolean
+  ignore_ssl_errors?: boolean
   content_validation_enabled?: boolean
   min_content_length?: number
   min_text_length?: number
@@ -372,8 +375,75 @@ class MonitoringService extends EventEmitter {
     return this.checkHttpFromConfig({ url, timeout })
   }
 
+  // Helper para realizar requisição com fallback para IPv4
+  private async requestWithFallback(
+    method: 'head' | 'get', 
+    url: string, 
+    config: any, 
+    monitor: Pick<Monitor, 'ignore_ssl_errors'>
+  ): Promise<any> {
+    // Agentes forçando IPv4
+    const ipv4HttpsAgent = new https.Agent({ 
+      keepAlive: true, 
+      family: 4,
+      rejectUnauthorized: !monitor.ignore_ssl_errors 
+    })
+    const ipv4HttpAgent = new http.Agent({ 
+      keepAlive: true, 
+      family: 4 
+    })
+
+    // Configuração para a tentativa padrão
+    // Se precisarmos ignorar SSL, temos que passar um agente customizado.
+    // Caso contrário, deixamos undefined para usar o globalAgent do Node/Axios, 
+    // que provou ser mais robusto em alguns ambientes.
+    let defaultHttpsAgent: https.Agent | undefined = undefined
+    let defaultHttpAgent: http.Agent | undefined = undefined
+
+    if (monitor.ignore_ssl_errors) {
+      defaultHttpsAgent = new https.Agent({ 
+        keepAlive: true, 
+        rejectUnauthorized: false 
+      })
+      defaultHttpAgent = new http.Agent({ keepAlive: true })
+    } else {
+      // Opcional: Se quisermos keepAlive no default, teríamos que instanciar.
+      // Mas como visto nos testes, instanciar um agente pode causar ECONNRESET em alguns casos (IPv4 local).
+      // Então vamos confiar no default do Axios (sem keepAlive por padrão, ou usa globalAgent).
+    }
+
+    // Tentar primeiro com configuração padrão
+    try {
+      return await axios({
+        method,
+        url,
+        ...config,
+        httpAgent: defaultHttpAgent,
+        httpsAgent: defaultHttpsAgent
+      })
+    } catch (error: any) {
+      // Se o servidor respondeu (mesmo com erro 5xx), não precisamos tentar IPv4
+      if (error.response) {
+        throw error
+      }
+      
+      // Se foi erro de rede (DNS, Timeout, Reset), tentar forçar IPv4
+      try {
+        return await axios({
+          method,
+          url,
+          ...config,
+          httpAgent: ipv4HttpAgent,
+          httpsAgent: ipv4HttpsAgent
+        })
+      } catch (retryError) {
+        throw retryError
+      }
+    }
+  }
+
   // Nova versão: usa configuração específica do monitor
-  private async checkHttpFromConfig(monitor: Pick<Monitor, 'url' | 'timeout' | 'ignore_http_403' | 'content_validation_enabled' | 'min_content_length' | 'min_text_length'>): Promise<{
+  private async checkHttpFromConfig(monitor: Pick<Monitor, 'url' | 'timeout' | 'ignore_http_403' | 'ignore_ssl_errors' | 'content_validation_enabled' | 'min_content_length' | 'min_text_length'>): Promise<{
     status: 'online' | 'offline' | 'warning'
     responseTime: number | null
     error: string | null
@@ -396,9 +466,9 @@ class MonitoringService extends EventEmitter {
       let headOk = false
       try {
         const headStart = Date.now()
-        const headResp = await axios.head(monitor.url, {
+        const headResp = await this.requestWithFallback('head', monitor.url, {
           timeout: monitor.timeout,
-          validateStatus: (status) => status < 500,
+          validateStatus: (status: number) => status < 500,
           headers: {
             'User-Agent': process.env.MONITOR_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept': '*/*',
@@ -408,7 +478,7 @@ class MonitoringService extends EventEmitter {
             ...(refererOrigin ? { 'Origin': refererOrigin } : {}),
             ...(refererOrigin ? { 'Referer': refererOrigin } : {})
           }
-        })
+        }, monitor)
         headResponseTime = Date.now() - headStart
         headStatusCode = headResp.status
         headOk = true
@@ -440,9 +510,9 @@ class MonitoringService extends EventEmitter {
       }
 
       // 2) Fallback (ou necessidade de validação): realizar GET completo
-      const response = await axios.get(monitor.url, {
+      const response = await this.requestWithFallback('get', monitor.url, {
         timeout: monitor.timeout,
-        validateStatus: (status) => status < 500, // 4xx é warning, 5xx é offline
+        validateStatus: (status: number) => status < 500, // 4xx é warning, 5xx é offline
         headers: {
           // Ajuste de headers para reduzir bloqueios por WAF/CDN e parecer um navegador real
           'User-Agent': process.env.MONITOR_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
@@ -464,7 +534,7 @@ class MonitoringService extends EventEmitter {
           ...(refererOrigin ? { 'Origin': refererOrigin } : {}),
           ...(refererOrigin ? { 'Referer': refererOrigin } : {})
         }
-      })
+      }, monitor)
       
       const responseTime = Date.now() - startTime
       const statusCode = response.status
