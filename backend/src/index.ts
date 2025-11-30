@@ -361,7 +361,22 @@ app.get('/api/dashboard/monitors', authenticateToken, async (_req, res) => {
 app.get('/api/monitors', authenticateToken, async (_req, res) => {
   try {
     const monitors = await databaseService.getMonitors()
-    res.json(monitors)
+    
+    // Adicionar status em tempo real para o dashboard
+    const monitorsWithStatus = monitors.map((monitor: any) => {
+      const realTimeStatus = monitoringService.getMonitor(monitor.id)
+      return {
+        ...monitor,
+        status: realTimeStatus?.status || monitor.status || 'unknown',
+        last_check: realTimeStatus?.last_check || monitor.last_check,
+        response_time: realTimeStatus?.response_time || monitor.response_time,
+        uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
+        uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
+        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0
+      }
+    })
+    
+    res.json(monitorsWithStatus)
   } catch (error) {
     console.error('Erro ao buscar monitores:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
@@ -1347,9 +1362,9 @@ app.get('/api/public/groups', async (_req, res) => {
 app.get('/api/public/monitors', async (_req, res) => {
   try {
     const monitors = await databaseService.getMonitors()
-    // Filtrar apenas monitores ativos para visualização pública?
-    // Por enquanto retornamos todos, mas idealmente filtraríamos por is_active
-    const activeMonitors = monitors.filter((m: any) => m.enabled)
+    // Filtrar apenas monitores ativos para visualização pública
+    // databaseService.getMonitors retorna um campo 'enabled' mapeado de 'is_active'
+    const activeMonitors = monitors.filter((m: any) => m.enabled === true)
     
     // Adicionar status em tempo real
     const monitorsWithStatus = activeMonitors.map((monitor: any) => {
@@ -1376,7 +1391,8 @@ app.get('/api/public/monitors', async (_req, res) => {
 app.get('/api/public/status/all', async (_req, res) => {
   try {
     const monitors = await databaseService.getMonitors()
-    const activeMonitors = monitors.filter((m: any) => m.enabled)
+    // databaseService.getMonitors retorna um campo 'enabled' mapeado de 'is_active'
+    const activeMonitors = monitors.filter((m: any) => m.enabled === true)
     
     const monitorsWithStatus = activeMonitors.map((monitor: any) => {
       const realTimeStatus = monitoringService.getMonitor(monitor.id)
@@ -1419,7 +1435,8 @@ app.get('/api/public/status/group/:id', async (req, res) => {
   try {
     const { id } = req.params
     const monitors = await databaseService.getMonitors()
-    const groupMonitors = monitors.filter((m: any) => m.group_id === id && m.enabled)
+    // databaseService.getMonitors retorna um campo 'enabled' mapeado de 'is_active'
+    const groupMonitors = monitors.filter((m: any) => m.group_id === id && m.enabled === true)
     
     const monitorsWithStatus = groupMonitors.map((monitor: any) => {
       const realTimeStatus = monitoringService.getMonitor(monitor.id)
