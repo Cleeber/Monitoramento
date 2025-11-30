@@ -619,6 +619,49 @@ export class PDFService {
   }
 
   /**
+   * Gera PDF de status para um monitor específico pelo ID
+   * Garante que não haverá fallback para relatório geral
+   */
+  async generateMonitorStatusPDF(monitorId: string, monitorName: string, year?: number, month?: number): Promise<Buffer> {
+    try {
+      console.log(`📄 Gerando PDF de status (texto) para monitor ID: ${monitorId}`)
+
+      const doc = new PDFDocument({ margin: 50 })
+      const chunks: Buffer[] = []
+      doc.on('data', chunk => chunks.push(chunk))
+
+      return new Promise(async (resolve, reject) => {
+        doc.on('end', () => resolve(Buffer.concat(chunks)))
+        doc.on('error', reject)
+
+        // Cabeçalho
+        this.addHeader(doc, monitorName || 'Status')
+
+        // Buscar monitor pelo ID diretamente
+        const monitor = await databaseService.getMonitorById(monitorId)
+        
+        if (monitor) {
+          // Relatório estilo mensal do monitor
+          this.addMonitorDetails(doc, monitor)
+          await this.addMonthlyStats(doc, monitor, year || new Date().getFullYear(), (month || (new Date().getMonth() + 1)))
+          this.addUptimeChart(doc, monitor)
+          this.addIncidentsList(doc, monitor)
+        } else {
+          doc.fontSize(12)
+             .fillColor('#dc2626')
+             .text('Monitor não encontrado.', 50, 150)
+        }
+
+        this.addFooter(doc)
+        doc.end()
+      })
+    } catch (error) {
+      console.error('❌ Erro ao gerar PDF de status do monitor:', error)
+      throw error
+    }
+  }
+
+  /**
    * Obtém ícone do status
    */
   private getStatusIcon(status: string): string {

@@ -997,19 +997,21 @@ app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res
     if (style === 'status') {
       try {
         const monitor = await databaseService.getMonitorById(monitorId)
-        if (monitor?.slug) {
-          const pdfBuffer = await pdfService.generateOptimizedStatusPDF(
-            monitor.slug,
-            `${monitor.name} - Relatório Mensal`
+        if (monitor) {
+          // Usar método específico que garante busca pelo ID (sem fallback para geral)
+          const pdfBuffer = await pdfService.generateMonitorStatusPDF(
+            monitorId,
+            `${monitor.name} - Relatório Mensal`,
+            Number(year),
+            Number(month)
           )
 
-          const filename = `relatorio-mensal-status-${monitor.slug}-${month}-${year}.pdf`
+          const safeName = (monitor.slug || monitor.name || 'monitor').replace(/[^a-zA-Z0-9]/g, '-')
+          const filename = `relatorio-mensal-status-${safeName}-${month}-${year}.pdf`
           res.setHeader('Content-Type', 'application/pdf')
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
           return res.send(pdfBuffer)
         }
-        // Se não houver slug, cai para geração padrão abaixo
-        console.warn(`Monitor ${monitorId} sem slug; usando modelo padrão de relatório mensal`)
       } catch (innerErr) {
         console.warn('Falha ao gerar PDF com layout de status; usando modelo padrão.', innerErr)
       }
