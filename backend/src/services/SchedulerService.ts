@@ -61,7 +61,7 @@ export class SchedulerService {
   /**
    * Agenda relatório para um monitor específico
    */
-  private async scheduleMonitorReport(monitor: any): Promise<void> {
+  public async scheduleMonitorReport(monitor: any): Promise<void> {
     const jobName = `monthly-report-${monitor.id}`
     
     // Remover job existente se houver

@@ -29,7 +29,6 @@ import { storageService } from './services/StorageService.js'
 import { pdfService } from './services/PDFService.js'
 import { reportService } from './services/ReportService.js'
 import { schedulerService } from './services/SchedulerService.js'
-import axios from 'axios'
 
 // Estender o tipo Request do Express para incluir o usuário
 declare global {
@@ -211,7 +210,7 @@ async function initializeDefaultData() {
     
     // Iniciar o monitoramento
     console.log('🚀 Iniciando serviço de monitoramento...')
-    await monitoringService.startMonitoring()
+    await monitoringService.start()
     console.log('✅ Serviço de monitoramento iniciado')
   } catch (error) {
     console.error('Erro ao inicializar dados padrão:', error)
@@ -266,7 +265,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       // Se a senha não estava hashada, vamos hashar para o futuro
       if (validPassword) {
         const hashedPassword = await bcrypt.hash(password, 10)
-        await databaseService.updateUser(user.id, { password: hashedPassword })
+        await databaseService.updateUser(user.id, { password_hash: hashedPassword })
       }
     }
 
@@ -405,7 +404,7 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
     
     // Agendar relatório mensal se configurado
     if (report_email && report_send_day) {
-      await schedulerService.scheduleMonitorReport(newMonitor.id, report_send_day)
+      await schedulerService.scheduleMonitorReport(newMonitor)
     }
     
     res.status(201).json(newMonitor)

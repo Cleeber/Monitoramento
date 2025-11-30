@@ -118,6 +118,10 @@ export interface Database {
           report_email: string | null
           report_send_day: number
           report_send_time: string
+          ignore_http_403: boolean
+          content_validation_enabled: boolean
+          min_content_length: number
+          min_text_length: number
         }
         Insert: {
           id?: string
@@ -142,6 +146,10 @@ export interface Database {
           report_email?: string | null
           report_send_day?: number
           report_send_time?: string
+          ignore_http_403?: boolean
+          content_validation_enabled?: boolean
+          min_content_length?: number
+          min_text_length?: number
         }
         Update: {
           id?: string
@@ -165,6 +173,10 @@ export interface Database {
           report_email?: string | null
           report_send_day?: number
           report_send_time?: string
+          ignore_http_403?: boolean
+          content_validation_enabled?: boolean
+          min_content_length?: number
+          min_text_length?: number
         }
       }
       monitor_checks: {

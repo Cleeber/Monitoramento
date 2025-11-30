@@ -497,6 +497,20 @@ ${this.generateAnalysis(stats)}
   }
 
   /**
+   * Recarrega configuração SMTP
+   */
+  async reloadSmtpConfig() {
+    await emailService.reloadConfig()
+  }
+
+  /**
+   * Envia email de teste
+   */
+  async sendTestEmail(email: string) {
+    return await emailService.sendTestEmail(email)
+  }
+
+  /**
    * Envia relatório mensal por e-mail
    */
   async sendMonthlyReport(

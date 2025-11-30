@@ -641,6 +641,62 @@ export class DatabaseService {
     if (error) throw error
     return data?.length || 0
   }
+
+  async saveSmtpConfig(config: any) {
+    return this.updateSmtpConfig(config)
+  }
+
+  async getGroupBySlug(slug: string) {
+    const { data, error } = await (supabase as any)
+      .from('groups')
+      .select('*')
+      .eq('slug', slug)
+      .single()
+    
+    if (error && error.code !== 'PGRST116') throw error
+    return data
+  }
+
+  async getMonitorsByGroup(groupId: string) {
+    const { data, error } = await (supabase as any)
+      .from('monitors')
+      .select(`
+        *,
+        groups:group_id(name)
+      `)
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: false })
+    
+    if (error) throw error
+    
+    return (data || []).map((monitor: any) => ({
+      ...monitor,
+      group_name: monitor.groups?.name || 'Sem grupo',
+      enabled: monitor.is_active
+    }))
+  }
+
+  async getMonitorBySlug(slug: string) {
+    const { data, error } = await (supabase as any)
+      .from('monitors')
+      .select(`
+        *,
+        groups:group_id(name)
+      `)
+      .eq('slug', slug)
+      .single()
+    
+    if (error && error.code !== 'PGRST116') throw error
+    
+    if (data) {
+      return {
+        ...data,
+        group_name: data.groups?.name || 'Sem grupo',
+        enabled: data.is_active
+      }
+    }
+    return null
+  }
 }
 
 export const databaseService = new DatabaseService()
