@@ -57,8 +57,20 @@ export function SmtpConfigPage() {
       const result = await apiGet('/smtp/config')
 
       if (result.success && result.data) {
-        setConfig(result.data)
-      } else if (!result.success) {
+        // Mapear dados do backend para o frontend
+        setConfig({
+          host: result.data.host || '',
+          port: result.data.port || 587,
+          username: result.data.user || '',
+          password: '', // Senha não é retornada por segurança
+          from_email: result.data.from_email || '',
+          from_name: result.data.from_name || '',
+          use_tls: result.data.port === 587,
+          use_ssl: result.data.secure || result.data.port === 465,
+          enabled: result.data.is_configured || false
+        })
+      } else if (!result.success && result.status !== 404) {
+        // Ignorar erro 404 (config não encontrada)
         addToast({ title: 'Erro ao carregar configuração SMTP', description: result.error, variant: 'destructive' })
       }
     } catch (error) {
@@ -74,11 +86,24 @@ export function SmtpConfigPage() {
     setSaving(true)
     
     try {
-      const result = await apiPut('/smtp/config', config)
+      // Mapear para o formato esperado pelo backend
+      const payload = {
+        host: config.host,
+        port: config.port,
+        secure: config.use_ssl,
+        user: config.username,
+        pass: config.password,
+        from_name: config.from_name,
+        from_email: config.from_email,
+        is_configured: config.enabled
+      }
+
+      // Usar POST em vez de PUT conforme definido no backend
+      const result = await apiPost('/smtp/config', payload)
 
       if (result.success) {
         addToast({ title: 'Configuração SMTP salva com sucesso', variant: 'success' })
-        fetchConfig() // Recarregar para obter o ID se foi criado
+        fetchConfig()
       } else {
         addToast({ title: 'Erro ao salvar configuração SMTP', description: result.error, variant: 'destructive' })
       }
@@ -228,6 +253,7 @@ export function SmtpConfigPage() {
                         value={config.password}
                         onChange={(e) => setConfig({ ...config, password: e.target.value })}
                         placeholder="Senha ou App Password"
+                        autoComplete="current-password"
                         required
                       />
                       <Button
