@@ -248,8 +248,29 @@ class MonitoringService extends EventEmitter {
     return (successfulChecks / recentChecks.length) * 100
   }
 
+  // Obter estatísticas do monitoramento
+  getStats() {
+    const monitors = this.getMonitors()
+    const total = monitors.length
+    const active = monitors.filter(m => m.is_active).length
+    const paused = total - active
+    const online = monitors.filter(m => m.status === 'online').length
+    const offline = monitors.filter(m => m.status === 'offline').length
+    const warning = monitors.filter(m => m.status === 'warning').length
+    
+    return {
+      total,
+      active,
+      paused,
+      online,
+      offline,
+      warning,
+      last_update: new Date().toISOString()
+    }
+  }
+
   // Iniciar monitoramento de um monitor específico
-  private startMonitoring(monitor: Monitor) {
+  public startMonitoring(monitor: Monitor) {
     if (this.intervals.has(monitor.id)) {
       this.stopMonitoring(monitor.id)
     }
