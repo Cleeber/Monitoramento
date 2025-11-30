@@ -31,6 +31,15 @@ import { reportService } from './services/ReportService.js'
 import { schedulerService } from './services/SchedulerService.js'
 import axios from 'axios'
 
+// Estender o tipo Request do Express para incluir o usuário
+declare global {
+  namespace Express {
+    interface Request {
+      user?: any;
+    }
+  }
+}
+
 const app = express()
 const PORT = process.env.PORT || 8081
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
@@ -200,30 +209,12 @@ async function initializeDefaultData() {
     // Definir referência ao database service
     monitoringService.setDatabaseService(databaseService)
     
-    // Carregar monitores existentes do banco de dados
-    const monitors = await databaseService.getMonitors()
-    monitors.forEach((monitor: any) => {
-      monitoringService.addMonitor({
-        ...monitor,
-        enabled: monitor.is_active,
-        status: 'unknown',
-        last_check: null,
-        response_time: null,
-        uptime_24h: 0,
-        uptime_7d: 0,
-        uptime_30d: 0
-      })
-    })
-    
-    // Carregar verificações recentes do banco de dados
-    await monitoringService.loadRecentChecks(databaseService)
-    
-    // Iniciar o serviço de monitoramento
-    monitoringService.start()
-    
-    console.log(`📊 ${monitors.length} monitores carregados do banco de dados`)
+    // Iniciar o monitoramento
+    console.log('🚀 Iniciando serviço de monitoramento...')
+    await monitoringService.startMonitoring()
+    console.log('✅ Serviço de monitoramento iniciado')
   } catch (error) {
-    console.error('❌ Erro ao inicializar dados padrão:', error)
+    console.error('Erro ao inicializar dados padrão:', error)
   }
 }
 
@@ -249,7 +240,7 @@ const authenticateToken = (req: any, res: any, next: any) => {
   })
 }
 
-// Rotas de autenticação
+// Rotas de Autenticação
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
   try {
     const { email, password } = req.body
@@ -259,17 +250,26 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
     }
 
     const user = await databaseService.getUserByEmail(email)
+
     if (!user) {
       return res.status(401).json({ error: 'Credenciais inválidas' })
     }
 
-    // Correção: comparar senha com o hash armazenado
-    // Retrocompatibilidade: aceitar 'password_hash' (novo) ou 'password' (legado)
-    const passwordHash = (user as any).password_hash || (user as any).password
-    if (!passwordHash) {
-      console.warn('Usuário sem campo de senha/hash definido (password_hash/password)')
+    // Em produção, use bcrypt.compare
+    // Para simplificar neste exemplo, comparamos texto plano se a senha não estiver hashada
+    // ou usamos bcrypt se estiver
+    let validPassword = false
+    if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
+      validPassword = await bcrypt.compare(password, user.password)
+    } else {
+      validPassword = password === user.password
+      // Se a senha não estava hashada, vamos hashar para o futuro
+      if (validPassword) {
+        const hashedPassword = await bcrypt.hash(password, 10)
+        await databaseService.updateUser(user.id, { password: hashedPassword })
+      }
     }
-    const validPassword = passwordHash ? await bcrypt.compare(password, passwordHash) : false
+
     if (!validPassword) {
       return res.status(401).json({ error: 'Credenciais inválidas' })
     }
@@ -280,56 +280,33 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       { expiresIn: '24h' }
     )
 
-    res.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
-    })
+    // Remover senha do objeto retornado
+    const { password: _, ...userWithoutPassword } = user
+
+    res.json({ token, user: userWithoutPassword })
   } catch (error) {
     console.error('Erro no login:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
 
-app.post('/api/auth/verify', authenticateToken, async (req: any, res) => {
+app.get('/api/auth/me', authenticateToken, async (req: any, res) => {
   try {
-    const user = await databaseService.getUserById(req.user.id)
+    const user = await databaseService.getUserByEmail(req.user.email)
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' })
     }
-
-    res.json({
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role
-      }
-    })
+    const { password: _, ...userWithoutPassword } = user
+    res.json(userWithoutPassword)
   } catch (error) {
-    console.error('Erro na verificação:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
 
-// Rotas do dashboard
-app.get('/api/dashboard/stats', authenticateToken, async (_, res) => {
+// Rotas de Dashboard
+app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   try {
-    const monitors = monitoringService.getMonitors()
-    const groups = await databaseService.getGroups()
-    const stats = {
-      total_monitors: monitors.length,
-      online_monitors: monitors.filter(m => m.status === 'online').length,
-      offline_monitors: monitors.filter(m => m.status === 'offline').length,
-      warning_monitors: monitors.filter(m => m.status === 'warning').length,
-      avg_response_time: monitors.length > 0 ? Math.round(monitors.reduce((acc, m) => acc + (m.response_time || 0), 0) / monitors.length) : 0,
-      total_groups: groups.length,
-      avg_uptime: monitors.length > 0 ? Math.round(monitors.reduce((acc, m) => acc + m.uptime_24h, 0) / monitors.length * 100) / 100 : 0
-    }
+    const stats = monitoringService.getStats()
     res.json(stats)
   } catch (error) {
     console.error('Erro ao buscar estatísticas:', error)
@@ -337,34 +314,33 @@ app.get('/api/dashboard/stats', authenticateToken, async (_, res) => {
   }
 })
 
-app.get('/api/dashboard/monitors', authenticateToken, (_, res) => {
-  const monitors = monitoringService.getMonitors()
-  res.json(monitors)
-})
-
-// Rota protegida de verificação (sentinel para testes)
-app.get('/api/protected-route', authenticateToken, (_, res) => {
-  res.json({ message: 'Acesso autorizado' })
-})
-
-// Rotas de monitores
-app.get('/api/monitors', authenticateToken, async (_, res) => {
+app.get('/api/dashboard/monitors', authenticateToken, async (req, res) => {
   try {
     const monitors = await databaseService.getMonitors()
     
-    // Combinar dados do banco com dados em tempo real do MonitoringService
-    const monitorsWithRealTimeStatus = await Promise.all(monitors.map(async (monitor: any) => {
-      const realTimeMonitor = monitoringService.getMonitor(monitor.id)
-      const reportConfig = await databaseService.getMonthlyReportConfigByMonitor(monitor.id)
+    // Adicionar status em tempo real do serviço de monitoramento
+    const monitorsWithStatus = monitors.map((monitor: any) => {
+      const realTimeStatus = monitoringService.getMonitor(monitor.id)
       
+      // Buscar configuração de relatório mensal
+      // Nota: isso pode ser otimizado no futuro com um join no banco
       return {
         ...monitor,
-        status: realTimeMonitor?.status || monitor.status || 'unknown',
-        last_check: realTimeMonitor?.last_check || monitor.last_check,
-        response_time: realTimeMonitor?.response_time || monitor.response_time,
-        uptime_24h: realTimeMonitor?.uptime_24h || monitor.uptime_24h || 0,
-        uptime_7d: realTimeMonitor?.uptime_7d || monitor.uptime_7d || 0,
-        uptime_30d: realTimeMonitor?.uptime_30d || monitor.uptime_30d || 0,
+        status: realTimeStatus?.status || monitor.status || 'unknown',
+        last_check: realTimeStatus?.last_check || monitor.last_check,
+        response_time: realTimeStatus?.response_time || monitor.response_time,
+        uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
+        uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
+        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0
+      }
+    })
+    
+    // Carregar configurações de relatório para cada monitor
+    // Em uma aplicação maior, isso seria feito com JOIN no banco
+    const monitorsWithRealTimeStatus = await Promise.all(monitorsWithStatus.map(async (monitor: any) => {
+      const reportConfig = await databaseService.getMonthlyReportConfigByMonitor(monitor.id)
+      return {
+        ...monitor,
         report_email: reportConfig?.email || '',
         report_send_day: reportConfig?.send_day || 1
       }
@@ -411,7 +387,7 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       min_text_length
     })
     
-    // Criar configuração de relatório mensal se fornecida
+    // Se houver configuração de relatório, salvar
     if (report_email && report_send_day) {
       await databaseService.createMonthlyReportConfig({
         monitor_id: newMonitor.id,
@@ -424,14 +400,13 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
     // Adicionar ao serviço de monitoramento
     monitoringService.addMonitor({
       ...newMonitor,
-      enabled: newMonitor.is_active,
-      uptime_24h: 0,
-      uptime_7d: 0,
-      uptime_30d: 0
+      enabled: newMonitor.is_active
     })
     
-    // Reagendar job de relatório mensal para o novo monitor
-    await schedulerService.rescheduleMonitorReport(newMonitor.id)
+    // Agendar relatório mensal se configurado
+    if (report_email && report_send_day) {
+      await schedulerService.scheduleMonitorReport(newMonitor.id, report_send_day)
+    }
     
     res.status(201).json(newMonitor)
   } catch (error) {
@@ -440,62 +415,64 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
   }
 })
 
-// Endpoint para upload de logo
-app.post('/api/upload/logo', authenticateToken, upload.single('logo'), async (req, res) => {
+app.get('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ error: 'Nenhum arquivo foi enviado' })
-    }
-
-    // Fazer upload do arquivo
-    const uploadResult = await storageService.uploadLogo(req.file)
+    const { id } = req.params
+    const monitor = await databaseService.getMonitorById(id)
     
-    res.status(200).json({
-      success: true,
-      url: uploadResult.url,
-      path: uploadResult.path
+    if (!monitor) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
+    }
+    
+    // Buscar configuração de relatório mensal
+    const reportConfig = await databaseService.getMonthlyReportConfigByMonitor(id)
+    
+    const realTimeStatus = monitoringService.getMonitor(id)
+    
+    res.json({
+      ...monitor,
+      status: realTimeStatus?.status || monitor.status || 'unknown',
+      last_check: realTimeStatus?.last_check || monitor.last_check,
+      response_time: realTimeStatus?.response_time || monitor.response_time,
+      report_email: reportConfig?.email || '',
+      report_send_day: reportConfig?.send_day || 1
     })
   } catch (error) {
-    console.error('Erro ao fazer upload da logo:', error)
-    res.status(500).json({ 
-      error: error instanceof Error ? error.message : 'Erro interno do servidor' 
-    })
+    console.error('Erro ao buscar monitor:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
 
 app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { name, url, type, interval, timeout, group_id, is_active, slug, report_email, report_send_day, report_send_time, logo_url } = req.body
+    const { name, url, type, interval, timeout, group_id, enabled, slug, logo_url, report_email, report_send_day, report_send_time, ignore_http_403, content_validation_enabled, min_content_length, min_text_length } = req.body
     
-    if (group_id) {
-      const group = await databaseService.getGroupById(group_id)
-      if (!group) {
-        return res.status(400).json({ error: 'Grupo não encontrado' })
-      }
+    const monitor = await databaseService.getMonitorById(id)
+    if (!monitor) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
     }
     
     const updatedMonitor = await databaseService.updateMonitor(id, {
       name,
       url,
       type,
-      interval: interval, // Valor já em milissegundos do frontend
-      timeout: timeout,   // Valor já em milissegundos do frontend
+      interval: interval || 60000, // Valor já em milissegundos do frontend
+      timeout: timeout || 30000,   // Valor já em milissegundos do frontend
       group_id,
-      is_active,
+      is_active: enabled,
       slug,
+      logo_url,
       report_email,
       report_send_day,
       report_send_time,
-      // Adicionado: permitir atualização do campo de logo
-      logo_url
+      ignore_http_403,
+      content_validation_enabled,
+      min_content_length,
+      min_text_length
     })
     
-    if (!updatedMonitor) {
-      return res.status(404).json({ error: 'Monitor não encontrado' })
-    }
-    
-    // Gerenciar configuração de relatório mensal
+    // Atualizar configuração de relatório mensal
     const existingConfig = await databaseService.getMonthlyReportConfigByMonitor(id)
     
     if (report_email && report_send_day) {
@@ -699,7 +676,7 @@ app.post('/api/groups', authenticateToken, async (req, res) => {
     
     const newGroup = await databaseService.createGroup({
       name,
-      description: description || '',
+      description,
       slug
     })
     
@@ -721,10 +698,6 @@ app.put('/api/groups/:id', authenticateToken, async (req, res) => {
       slug
     })
     
-    if (!updatedGroup) {
-      return res.status(404).json({ error: 'Grupo não encontrado' })
-    }
-    
     res.json(updatedGroup)
   } catch (error) {
     console.error('Erro ao atualizar grupo:', error)
@@ -738,24 +711,14 @@ app.delete('/api/groups/:id', authenticateToken, async (req, res) => {
     
     await databaseService.deleteGroup(id)
     
-    res.json({ message: 'Grupo removido com sucesso' })
+    res.status(204).send()
   } catch (error) {
     console.error('Erro ao remover grupo:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
 
-// Rotas de configuração de relatórios mensais
-app.get('/api/monthly-reports/configs', authenticateToken, async (_, res) => {
-  try {
-    const configs = await databaseService.getMonthlyReportConfigs()
-    res.json(configs)
-  } catch (error) {
-    console.error('Erro ao buscar configurações de relatórios:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
+// Rotas de Relatórios Mensais
 app.get('/api/monthly-reports/configs/monitor/:monitorId', authenticateToken, async (req, res) => {
   try {
     const { monitorId } = req.params
@@ -802,21 +765,16 @@ app.put('/api/monthly-reports/configs/:id', authenticateToken, async (req, res) 
       return res.status(400).json({ error: 'Dia de envio deve estar entre 1 e 28' })
     }
     
-    const config = await databaseService.updateMonthlyReportConfig(id, {
-      email,
-      send_day,
-      is_active: enabled
-    })
+    const updates: any = {}
+    if (email) updates.email = email
+    if (send_day) updates.send_day = send_day
+    if (enabled !== undefined) updates.is_active = enabled
     
-    // Reagendar job do monitor
-    if (config?.monitor_id) {
+    const config = await databaseService.updateMonthlyReportConfig(id, updates)
+    
+    // Reagendar relatório se necessário
+    if (config) {
       await schedulerService.rescheduleMonitorReport(config.monitor_id)
-    } else {
-      // Buscar monitor_id caso não venha na resposta (fallback)
-      const existing = await databaseService.getMonthlyReportConfigById(id)
-      if (existing?.monitor_id) {
-        await schedulerService.rescheduleMonitorReport(existing.monitor_id)
-      }
     }
     
     res.json(config)
@@ -829,17 +787,17 @@ app.put('/api/monthly-reports/configs/:id', authenticateToken, async (req, res) 
 app.delete('/api/monthly-reports/configs/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-
-    // Buscar antes de deletar para obter o monitor_id
-    const existing = await databaseService.getMonthlyReportConfigById(id)
+    
+    // Buscar config antes de deletar para poder reagendar (cancelar) o job
+    const config = await databaseService.getMonthlyReportConfigById(id)
+    
     await databaseService.deleteMonthlyReportConfig(id)
     
-    // Reagendar/remover job do monitor
-    if (existing?.monitor_id) {
-      await schedulerService.rescheduleMonitorReport(existing.monitor_id)
+    if (config) {
+      await schedulerService.rescheduleMonitorReport(config.monitor_id)
     }
     
-    res.json({ message: 'Configuração removida com sucesso' })
+    res.status(204).send()
   } catch (error) {
     console.error('Erro ao remover configuração de relatório:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
@@ -1004,7 +962,7 @@ app.post('/api/reports/send-monthly-custom', authenticateToken, async (req, res)
       return res.status(400).json({ error })
     }
     
-    console.log(`📧 Enviando relatório customizado para: ${email}`)
+    console.log(`📧 Enviando para: ${email}`)
     
     let result
     
@@ -1030,119 +988,61 @@ app.post('/api/reports/send-monthly-custom', authenticateToken, async (req, res)
     const duration = Date.now() - startTime
     
     if (result.success) {
-      console.log(`✅ Relatório customizado enviado com sucesso em ${duration}ms`)
+      console.log(`✅ Relatório mensal enviado com sucesso em ${duration}ms`)
       res.json({ message: 'Relatório enviado com sucesso' })
     } else {
-      console.error(`❌ Falha ao enviar relatório customizado: ${result.message}`)
+      console.error(`❌ Falha ao enviar relatório: ${result.message}`)
       res.status(500).json({ error: result.message })
     }
   } catch (error) {
     const duration = Date.now() - startTime
-    console.error(`❌ Erro ao enviar relatório mensal customizado após ${duration}ms:`, error)
+    console.error(`❌ Erro ao enviar relatório mensal após ${duration}ms:`, error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
 
-// Rota para forçar verificação de relatórios mensais (útil para testes)
-app.post('/api/scheduler/check-monthly-reports', authenticateToken, async (_, res) => {
-  const startTime = Date.now()
-  try {
-    console.log('🔄 Solicitação de verificação manual de relatórios mensais')
-    
-    await schedulerService.forceCheckMonthlyReports()
-    
-    const duration = Date.now() - startTime
-    console.log(`✅ Verificação manual concluída com sucesso em ${duration}ms`)
-    
-    res.json({ success: true, message: 'Verificação de relatórios mensais executada com sucesso' })
-  } catch (error) {
-    const duration = Date.now() - startTime
-    console.error(`❌ Erro ao executar verificação de relatórios após ${duration}ms:`, error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-// Rota para listar jobs agendados
-app.get('/api/scheduler/jobs', authenticateToken, async (_, res) => {
-  try {
-    console.log('📋 Solicitação de listagem de jobs agendados')
-    
-    const jobs = schedulerService.listJobs()
-    
-    console.log(`📊 Retornando ${jobs.length} jobs agendados`)
-    res.json({ jobs, total: jobs.length })
-  } catch (error) {
-    console.error('❌ Erro ao listar jobs:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-// Rotas de configuração SMTP
-app.get('/api/smtp/config', authenticateToken, async (_, res) => {
+// Rotas SMTP
+app.get('/api/smtp/config', authenticateToken, async (req, res) => {
   try {
     const config = await databaseService.getSmtpConfig()
-    if (!config) {
-      // Retornar configuração padrão das variáveis de ambiente
-      return res.json({
-        host: process.env.SMTP_HOST || '',
-        port: parseInt(process.env.SMTP_PORT || '587'),
-        username: process.env.SMTP_USER || '',
-        password: '',
-        from_email: process.env.SMTP_FROM_EMAIL || '',
-        from_name: process.env.SMTP_FROM_NAME || 'Uptime Monitor',
-        use_tls: process.env.SMTP_SECURE !== 'true',
-        use_ssl: process.env.SMTP_SECURE === 'true',
-        enabled: false
-      })
+    if (config) {
+      // Não retornar a senha
+      const { pass, ...safeConfig } = config
+      res.json(safeConfig)
+    } else {
+      res.status(404).json({ error: 'Configuração SMTP não encontrada' })
     }
-    
-    res.json({
-      id: config.id,
-      host: config.host,
-      port: config.port,
-      username: config.user,
-      password: config.pass, // Campo correto é 'pass'
-      from_email: config.from_email,
-      from_name: config.from_name,
-      use_tls: !config.secure,
-      use_ssl: config.secure,
-      enabled: config.is_configured // Campo correto é 'is_configured'
-    })
   } catch (error) {
     console.error('Erro ao buscar configuração SMTP:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
 
-app.put('/api/smtp/config', authenticateToken, async (req, res) => {
+app.post('/api/smtp/config', authenticateToken, async (req, res) => {
   try {
-    const { host, port, username, password, from_email, from_name, use_ssl, enabled } = req.body
+    const { host, port, secure, user, pass, from_name, from_email } = req.body
     
-    const config = await databaseService.updateSmtpConfig({
+    if (!host || !port || !user || !pass || !from_email) {
+      return res.status(400).json({ error: 'Todos os campos são obrigatórios' })
+    }
+    
+    await databaseService.saveSmtpConfig({
       host,
-      port: parseInt(port),
-      secure: use_ssl, // SSL tem prioridade sobre TLS
-      user: username,
-      password,
+      port,
+      secure,
+      user,
+      pass,
+      from_name: from_name || 'Uptime Monitor',
       from_email,
-      from_name,
-      is_configured: enabled // Campo correto é 'is_configured'
+      is_configured: true
     })
     
-    res.json({
-      id: config.id,
-      host: config.host,
-      port: config.port,
-      username: config.user,
-      password: config.pass, // Campo correto é 'pass'
-      from_email: config.from_email,
-      from_name: config.from_name,
-      use_tls: !config.secure,
-      use_ssl: config.secure,
-      enabled: config.is_configured // Campo correto é 'is_configured'
-    })
+    // Recarregar configurações no serviço de e-mail
+    await reportService.reloadSmtpConfig()
+    
+    res.json({ message: 'Configuração SMTP salva com sucesso' })
   } catch (error) {
-    console.error('Erro ao atualizar configuração SMTP:', error)
+    console.error('Erro ao salvar configuração SMTP:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
@@ -1152,22 +1052,15 @@ app.post('/api/smtp/test', authenticateToken, async (req, res) => {
     const { email } = req.body
     
     if (!email) {
-      return res.status(400).json({ error: 'E-mail é obrigatório' })
+      return res.status(400).json({ error: 'E-mail de destino é obrigatório' })
     }
-
-    // Importar o EmailService
-    const { emailService } = await import('./services/EmailService.js')
     
-    // Recarregar configuração para garantir que está atualizada
-    await emailService.reloadConfig()
-    
-    // Enviar e-mail de teste
-    const result = await emailService.sendTestEmail(email)
+    const result = await reportService.sendTestEmail(email)
     
     if (result.success) {
-      res.json({ success: true, message: result.message })
+      res.json({ message: 'E-mail de teste enviado com sucesso' })
     } else {
-      res.status(400).json({ error: result.message })
+      res.status(500).json({ error: `Erro ao enviar e-mail: ${result.message}` })
     }
   } catch (error) {
     console.error('Erro ao testar SMTP:', error)
@@ -1175,479 +1068,122 @@ app.post('/api/smtp/test', authenticateToken, async (req, res) => {
   }
 })
 
-// Rotas de relatórios
-app.get('/api/reports/stats', authenticateToken, async (req, res) => {
+// Rotas de Upload
+app.post('/api/upload/logo', authenticateToken, upload.single('logo'), async (req, res) => {
   try {
-    const { period = '7d', monitor_id, start_date, end_date } = req.query as any
-    
-    // Se monitor_id for fornecido, buscar apenas esse monitor, senão buscar todos
-    let monitors
-    if (monitor_id) {
-      const monitor = await databaseService.getMonitorById(monitor_id as string)
-      monitors = monitor ? [monitor] : []
-    } else {
-      monitors = await databaseService.getMonitors()
+    if (!req.file) {
+      return res.status(400).json({ error: 'Nenhum arquivo enviado' })
     }
-    
-    // Calcular período em dias
-    const periodDays = {
-      '24h': 1,
-      '7d': 7,
-      '30d': 30,
-      '90d': 90
-    }[period as string] || 7
-    
-    let totalChecks = 0
-    let totalIncidents = 0
-    let totalUptime = 0
-    let totalResponseTime = 0
-    let monitorsWithData = 0
-    
-    for (const monitor of monitors) {
-      // Buscar checks do período
-      let periodChecks: any[]
 
-      if (start_date && end_date) {
-        const start = new Date(String(start_date))
-        const end = new Date(String(end_date))
-        periodChecks = await databaseService.getMonitorChecksForPeriod(monitor.id, start, end)
-      } else {
-        const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
-        // Filtrar checks do período
-        const periodStart = new Date()
-        periodStart.setDate(periodStart.getDate() - periodDays)
-        const periodEnd = new Date()
-        periodChecks = checks.filter((check: any) => {
-          const ts = new Date(check.checked_at)
-          return ts >= periodStart && ts <= periodEnd
-        })
-      }
-      
-      if (periodChecks.length > 0) {
-        monitorsWithData++
-        totalChecks += periodChecks.length
-        
-        // Calcular uptime
-        const successfulChecks = periodChecks.filter((check: any) => check.status === 'online').length
-        const uptimePercentage = (successfulChecks / periodChecks.length) * 100
-        totalUptime += uptimePercentage
-        
-        // Calcular tempo de resposta médio
-        const responseTimes = periodChecks
-          .filter((check: any) => check.response_time !== null)
-          .map((check: any) => check.response_time)
-        
-        if (responseTimes.length > 0) {
-          const avgResponseTime = responseTimes.reduce((acc: number, time: number) => acc + time, 0) / responseTimes.length
-          totalResponseTime += avgResponseTime
-        }
-        
-        // Contar incidentes
-        let incidents = 0
-        let inIncident = false
-        
-        for (const check of periodChecks.reverse()) {
-          if (check.status !== 'online' && !inIncident) {
-            incidents++
-            inIncident = true
-          } else if (check.status === 'online' && inIncident) {
-            inIncident = false
-          }
-        }
-        
-        totalIncidents += incidents
-      }
-    }
-    
-    const stats = {
-      avg_uptime: monitorsWithData > 0 ? Math.round((totalUptime / monitorsWithData) * 100) / 100 : 0,
-      total_checks: totalChecks,
-      total_incidents: totalIncidents,
-      avg_response_time: monitorsWithData > 0 ? Math.round(totalResponseTime / monitorsWithData) : 0
-    }
-    
-    res.json(stats)
+    const result = await storageService.uploadLogo(req.file)
+    res.json(result)
   } catch (error) {
-    console.error('Erro ao buscar estatísticas de relatórios:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
+    console.error('Erro no upload da logo:', error)
+    res.status(500).json({ error: error instanceof Error ? error.message : 'Erro ao fazer upload' })
   }
 })
 
-app.get('/api/reports/monitors', authenticateToken, async (req, res) => {
-  try {
-    const { period = '7d' } = req.query
-    const monitors = await databaseService.getMonitors()
-    
-    // Calcular período em dias
-    const periodDays = {
-      '24h': 1,
-      '7d': 7,
-      '30d': 30,
-      '90d': 90
-    }[period as string] || 7
-    
-    const detailedMonitors = await Promise.all(monitors.map(async (monitor: any) => {
-      // Buscar checks do período
-      const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
-      
-      // Filtrar checks do período
-      const periodStart = new Date()
-      periodStart.setDate(periodStart.getDate() - periodDays)
-      
-      const periodChecks = checks.filter((check: any) => 
-        new Date(check.checked_at) >= periodStart
-      )
-      
-      const totalChecks = periodChecks.length
-      
-      // Calcular tempos de resposta
-      const responseTimes = periodChecks
-        .filter((check: any) => check.response_time !== null)
-        .map((check: any) => check.response_time)
-      
-      const avgResponseTime = responseTimes.length > 0 
-        ? responseTimes.reduce((acc: number, time: number) => acc + time, 0) / responseTimes.length
-        : 0
-      
-      // Contar incidentes (sequências de falhas)
-      let incidents = 0
-      let inIncident = false
-      
-      for (const check of periodChecks.reverse()) {
-        if (check.status !== 'online' && !inIncident) {
-          incidents++
-          inIncident = true
-        } else if (check.status === 'online' && inIncident) {
-          inIncident = false
-        }
-      }
-      
-      return {
-        ...monitor,
-        incidents_count: incidents,
-        avg_response_time: Math.round(avgResponseTime),
-        total_checks: totalChecks
-      }
-    }))
-    
-    res.json(detailedMonitors)
-  } catch (error) {
-    console.error('Erro ao buscar monitores detalhados:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-// Endpoint principal de relatórios
-app.get('/api/reports', authenticateToken, async (req, res) => {
-  try {
-    const { period = '7d', group_id, start_date, end_date, monitor_id } = req.query as any
-    const monitors = await databaseService.getMonitors()
-    
-    // Filtrar por grupo se especificado
-    const filteredMonitors = group_id && group_id !== 'all' 
-      ? monitors.filter((m: any) => m.group_id === group_id)
-      : monitors
-
-    // Filtrar por monitor específico se informado
-    const targetMonitors = monitor_id 
-      ? filteredMonitors.filter((m: any) => m.id === monitor_id)
-      : filteredMonitors
-    
-    // Calcular período em dias
-    const periodDays = {
-      '24h': 1,
-      '7d': 7,
-      '30d': 30,
-      '90d': 90
-    }[period as string] || 7
-    
-    const reports = await Promise.all(targetMonitors.map(async (monitor: any) => {
-      let periodChecks: any[]
-      
-      if (start_date && end_date) {
-        const start = new Date(String(start_date))
-        const end = new Date(String(end_date))
-        // Busca direta no período informado
-        const checks = await databaseService.getMonitorChecksForPeriod(monitor.id, start, end)
-        periodChecks = checks
-      } else {
-        // Buscar checks aproximados e filtrar pelo período pré-definido
-        const checks = await databaseService.getMonitorChecks(monitor.id, periodDays * 24 * 2)
-        const periodStart = new Date()
-        periodStart.setDate(periodStart.getDate() - periodDays)
-        const periodEnd = new Date()
-        periodChecks = checks.filter((check: any) => {
-          const ts = new Date(check.checked_at)
-          return ts >= periodStart && ts <= periodEnd
-        })
-      }
-      
-      const totalChecks = periodChecks.length
-      const successfulChecks = periodChecks.filter((check: any) => check.status === 'online').length
-      const failedChecks = totalChecks - successfulChecks
-      
-      // Calcular uptime
-      const uptimePercentage = totalChecks > 0 ? (successfulChecks / totalChecks) * 100 : 0
-      
-      // Calcular tempos de resposta
-      const responseTimes = periodChecks
-        .filter((check: any) => check.response_time !== null)
-        .map((check: any) => check.response_time)
-      
-      const avgResponseTime = responseTimes.length > 0 
-        ? responseTimes.reduce((acc: number, time: number) => acc + time, 0) / responseTimes.length
-        : 0
-      
-      const minResponseTime = responseTimes.length > 0 ? Math.min(...responseTimes) : 0
-      const maxResponseTime = responseTimes.length > 0 ? Math.max(...responseTimes) : 0
-      
-      // Contar incidentes (sequências de falhas)
-      let incidents = 0
-      let lastIncident = null
-      let inIncident = false
-      
-      for (const check of periodChecks.reverse()) {
-        if (check.status !== 'online' && !inIncident) {
-          incidents++
-          inIncident = true
-          if (!lastIncident) {
-            lastIncident = check.checked_at
-          }
-        } else if (check.status === 'online' && inIncident) {
-          inIncident = false
-        }
-      }
-      
-      return {
-        monitor_id: monitor.id,
-        monitor_name: monitor.name,
-        monitor_url: monitor.url,
-        group_name: monitor.group_name || 'Sem grupo',
-        total_checks: totalChecks,
-        successful_checks: successfulChecks,
-        failed_checks: failedChecks,
-        uptime_percentage: Math.round(uptimePercentage * 100) / 100,
-        avg_response_time: Math.round(avgResponseTime),
-        min_response_time: Math.round(minResponseTime),
-        max_response_time: Math.round(maxResponseTime),
-        incidents,
-        last_incident: lastIncident
-      }
-    }))
-    
-    // Calcular estatísticas gerais
-    const totalMonitors = reports.length
-    const totalChecks = reports.reduce((sum, report) => sum + report.total_checks, 0)
-    const totalSuccessfulChecks = reports.reduce((sum, report) => sum + report.successful_checks, 0)
-    const totalFailedChecks = reports.reduce((sum, report) => sum + report.failed_checks, 0)
-    const avgUptime = totalMonitors > 0 ? reports.reduce((sum, report) => sum + report.uptime_percentage, 0) / totalMonitors : 0
-    const avgResponseTime = totalMonitors > 0 ? reports.reduce((sum, report) => sum + report.avg_response_time, 0) / totalMonitors : 0
-    const totalIncidents = reports.reduce((sum, report) => sum + report.incidents, 0)
-    
-    const overall_stats = {
-      total_monitors: totalMonitors,
-      total_checks: totalChecks,
-      successful_checks: totalSuccessfulChecks,
-      failed_checks: totalFailedChecks,
-      avg_uptime: Math.round(avgUptime * 100) / 100,
-      avg_response_time: Math.round(avgResponseTime),
-      total_incidents: totalIncidents
-    }
-    
-    res.json({
-      reports,
-      overall_stats
-    })
-  } catch (error) {
-    console.error('Erro ao buscar relatórios:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-app.get('/api/reports/export', authenticateToken, (_, res) => {
-  const monitors = monitoringService.getMonitors()
-  const csvData = [
-    'Monitor,URL,Status,Uptime 24h,Uptime 7d,Uptime 30d,Tempo Resposta',
-    ...monitors.map(m => 
-      `${m.name},${m.url},${m.status},${m.uptime_24h}%,${m.uptime_7d}%,${m.uptime_30d}%,${m.response_time || 0}ms`
-    )
-  ].join('\n')
-  
-  res.setHeader('Content-Type', 'text/csv')
-  res.setHeader('Content-Disposition', 'attachment; filename=relatorio-uptime.csv')
-  res.send(csvData)
-})
-
-// Rotas públicas (status page)
-
-// Rota pública para listar grupos
-app.get('/api/public/groups', async (_, res) => {
-  try {
-    const groups = await databaseService.getGroups()
-    res.json(groups.map((g: any) => ({
-      id: g.id,
-      name: g.name,
-      description: g.description,
-      slug: g.slug
-    })))
-  } catch (error) {
-    console.error('Erro ao buscar grupos públicos:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-// Rota pública para listar monitores
-app.get('/api/public/monitors', async (_, res) => {
-  try {
-    const monitors = await databaseService.getMonitors()
-    res.json(monitors.map((m: any) => ({
-      id: m.id,
-      name: m.name,
-      url: m.url,
-      slug: m.slug
-    })))
-  } catch (error) {
-    console.error('Erro ao buscar monitores públicos:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-// Rota pública para status por grupo
-app.get('/api/public/status/:groupId?', (req, res) => {
-  const { groupId } = req.params
-  let monitors = monitoringService.getMonitors()
-  
-  // Filtrar por grupo se especificado
-  if (groupId && groupId !== 'all') {
-    monitors = monitors.filter(m => m.group_id === groupId)
-  }
-  
-  const onlineCount = monitors.filter(m => m.status === 'online').length
-  const totalCount = monitors.length
-  
-  let overall_status = 'operational'
-  if (onlineCount === 0 && totalCount > 0) {
-    overall_status = 'outage'
-  } else if (onlineCount < totalCount) {
-    overall_status = 'degraded'
-  }
-  
-  res.json({
-    monitors: monitors.map(m => ({
-      id: m.id,
-      name: m.name,
-      url: m.url,
-      status: m.status,
-      last_check: m.last_check,
-      response_time: m.response_time,
-      uptime_24h: m.uptime_24h,
-      uptime_7d: m.uptime_7d,
-      uptime_30d: m.uptime_30d,
-      group_name: m.group_name
-    })),
-    overall_status,
-    last_updated: new Date().toISOString(),
-    group_id: groupId || 'all'
-  })
-})
-
-// Rotas públicas por slug
-// Rota pública para status por slug de grupo
-app.get('/api/public/status/group/:slug', async (req, res) => {
+// Rotas públicas de Status Page
+app.get('/api/status-page/:slug', async (req, res) => {
   try {
     const { slug } = req.params
     
-    // Buscar grupo pelo slug
-    const groups = await databaseService.getGroups()
-    const group = groups.find((g: any) => g.slug === slug)
+    // Verificar se é uma página de status de grupo ou de monitor individual
+    const group = await databaseService.getGroupBySlug(slug)
     
-    if (!group) {
-      return res.status(404).json({ error: 'Grupo não encontrado' })
-    }
-    
-    let monitors = monitoringService.getMonitors()
-    monitors = monitors.filter((m: any) => m.group_id === group.id)
-    
-    const onlineCount = monitors.filter(m => m.status === 'online').length
-    const totalCount = monitors.length
-    
-    let overall_status = 'operational'
-    if (onlineCount === 0 && totalCount > 0) {
-      overall_status = 'outage'
-    } else if (onlineCount < totalCount) {
-      overall_status = 'degraded'
-    }
-    
-    res.json({
-      group: {
-        id: group.id,
-        name: group.name,
+    if (group) {
+      // É uma página de grupo
+      const monitors = await databaseService.getMonitorsByGroup(group.id)
+      
+      // Adicionar status em tempo real
+      const monitorsWithStatus = monitors
+        .filter((m: any) => m.is_active)
+        .map((monitor: any) => {
+          const realTimeStatus = monitoringService.getMonitor(monitor.id)
+          return {
+            id: monitor.id,
+            name: monitor.name,
+            url: monitor.url,
+            type: monitor.type,
+            logo_url: monitor.logo_url,
+            status: realTimeStatus?.status || monitor.status || 'unknown',
+            last_check: realTimeStatus?.last_check || monitor.last_check,
+            response_time: realTimeStatus?.response_time || monitor.response_time,
+            uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
+            uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
+            uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0,
+            group_name: group.name
+          }
+        })
+      
+      // Calcular status geral do grupo
+      const hasDown = monitorsWithStatus.some((m: any) => m.status === 'offline')
+      const hasWarning = monitorsWithStatus.some((m: any) => m.status === 'warning')
+      
+      let overall_status = 'operational'
+      if (hasDown) overall_status = 'outage'
+      else if (hasWarning) overall_status = 'degraded'
+      
+      return res.json({
+        title: group.name,
         description: group.description,
-        slug: group.slug
-      },
-      monitors: monitors.map(m => ({
-        id: m.id,
-        name: m.name,
-        url: m.url,
-        status: m.status,
-        last_check: m.last_check,
-        response_time: m.response_time,
-        uptime_24h: m.uptime_24h,
-        uptime_7d: m.uptime_7d,
-        uptime_30d: m.uptime_30d
-      })),
-      overall_status,
-      last_updated: new Date().toISOString()
-    })
-  } catch (error) {
-    console.error('Erro ao buscar status por slug do grupo:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-// Rota pública para status por slug de monitor
-app.get('/api/public/status/monitor/:slug', async (req, res) => {
-  try {
-    const { slug } = req.params
-    
-    // Buscar monitor pelo slug
-    const monitors = await databaseService.getMonitors()
-    const monitor = monitors.find((m: any) => m.slug === slug)
-    
-    if (!monitor) {
-      return res.status(404).json({ error: 'Monitor não encontrado' })
+        monitors: monitorsWithStatus,
+        overall_status,
+        last_updated: new Date().toISOString(),
+        type: 'group'
+      })
     }
     
-    const monitorStatus = monitoringService.getMonitor(monitor.id)
+    // Verificar se é um monitor individual
+    const monitor = await databaseService.getMonitorBySlug(slug)
     
-    res.json({
-      monitor: {
+    if (monitor) {
+      if (!monitor.is_active) {
+        return res.status(404).json({ error: 'Página de status não encontrada ou inativa' })
+      }
+      
+      const realTimeStatus = monitoringService.getMonitor(monitor.id)
+      const monitorData = {
         id: monitor.id,
         name: monitor.name,
         url: monitor.url,
-        slug: monitor.slug,
+        type: monitor.type,
         logo_url: monitor.logo_url,
-        status: monitorStatus?.status || 'unknown',
-        last_check: monitorStatus?.last_check,
-        response_time: monitorStatus?.response_time,
-        uptime_24h: monitorStatus?.uptime_24h || 0,
-        uptime_7d: monitorStatus?.uptime_7d || 0,
-        uptime_30d: monitorStatus?.uptime_30d || 0
-      },
-      overall_status: monitorStatus?.status === 'online' ? 'operational' : 'outage',
-      last_updated: new Date().toISOString()
-    })
+        status: realTimeStatus?.status || monitor.status || 'unknown',
+        last_check: realTimeStatus?.last_check || monitor.last_check,
+        response_time: realTimeStatus?.response_time || monitor.response_time,
+        uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
+        uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
+        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0,
+        group_name: monitor.group_name || 'Sem grupo'
+      }
+      
+      let overall_status = 'operational'
+      if (monitorData.status === 'offline') overall_status = 'outage'
+      else if (monitorData.status === 'warning') overall_status = 'degraded'
+      
+      return res.json({
+        title: monitor.name,
+        description: `Status do serviço ${monitor.name}`,
+        monitors: [monitorData],
+        overall_status,
+        last_updated: new Date().toISOString(),
+        type: 'monitor'
+      })
+    }
+    
+    return res.status(404).json({ error: 'Página de status não encontrada' })
   } catch (error) {
-    console.error('Erro ao buscar status por slug do monitor:', error)
+    console.error('Erro ao buscar página de status:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
 
-// Rota pública para obter histórico de checks de um monitor
-app.get('/api/public/monitors/:id/checks', async (req, res) => {
+// Rota pública para obter histórico de incidentes de um monitor
+app.get('/api/public/monitors/:id/incidents', async (req, res) => {
   try {
     const { id } = req.params
-    const { limit = 100 } = req.query
+    const { limit = 10 } = req.query
     
     // Verificar se o monitor existe e está ativo
     const monitor = await databaseService.getMonitorById(id)
@@ -1655,358 +1191,46 @@ app.get('/api/public/monitors/:id/checks', async (req, res) => {
       return res.status(404).json({ error: 'Monitor não encontrado' })
     }
     
-    // Buscar checks do banco de dados
-    const checks = await databaseService.getMonitorChecks(id, Number(limit))
-    
-    // Filtrar apenas dados necessários para o público
-    const publicChecks = checks.map((check: any) => ({
-      status: check.status,
-      response_time: check.response_time,
-      checked_at: check.checked_at
-    }))
-    
-    res.json(publicChecks)
-  } catch (error) {
-    console.error('Erro ao buscar checks públicos:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-// Rota pública para obter dados históricos de uptime
-app.get('/api/public/uptime-history', async (req, res) => {
-  try {
-    const { days = 30, group_id } = req.query
-    const daysNumber = parseInt(days as string)
-    
-    // Calcular data de início
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - daysNumber)
-    
-    // Obter monitores
-    let monitors = await databaseService.getMonitors()
-    if (group_id && group_id !== 'all') {
-      monitors = monitors.filter((m: any) => m.group_id === group_id)
-    }
-    
-    // Gerar dados para cada dia
-    const uptimeData = []
-    for (let i = 0; i < daysNumber; i++) {
-      const currentDate = new Date(startDate)
-      currentDate.setDate(startDate.getDate() + i)
-      
-      const dayStart = new Date(currentDate)
-      dayStart.setHours(0, 0, 0, 0)
-      
-      const dayEnd = new Date(currentDate)
-      dayEnd.setHours(23, 59, 59, 999)
-      
-      let totalUptime = 0
-      let monitorCount = 0
-      
-      // Calcular uptime para cada monitor neste dia
-      for (const monitor of monitors) {
-        if (!monitor.is_active) continue
-        
-        const checks = await databaseService.getMonitorChecksForPeriod(
-          monitor.id,
-          dayStart,
-          dayEnd
-        )
-        
-        if (checks.length > 0) {
-          const onlineChecks = checks.filter((c: any) => c.status === 'online').length
-          const uptimePercentage = (onlineChecks / checks.length) * 100
-          totalUptime += uptimePercentage
-          monitorCount++
-        }
-      }
-      
-      const avgUptime = monitorCount > 0 ? totalUptime / monitorCount : 100
-      
-      uptimeData.push({
-        date: currentDate.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }),
-        uptime: Math.round(avgUptime * 100) / 100
-      })
-    }
-    
-    res.json(uptimeData)
-  } catch (error) {
-    console.error('Erro ao buscar histórico de uptime:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-app.get('/api/public/incidents', async (req, res) => {
-  try {
-    const { limit = 10, days = 7, group_id, monitor_id } = req.query
-    let monitors = await databaseService.getMonitors()
-    
-    // Filtrar monitores por grupo se especificado
-    if (group_id && group_id !== 'all') {
-      monitors = monitors.filter((m: any) => m.group_id === group_id)
-    }
-    
-    // Filtrar por monitor específico se especificado
-    if (monitor_id) {
-      monitors = monitors.filter((m: any) => m.id === monitor_id)
-    }
+    // Buscar histórico de checks com status offline/warning
+    // Simplificação: buscando checks recentes com erro
+    // Idealmente teríamos uma tabela separada de incidentes
+    const checks = await databaseService.getMonitorChecks(id, Number(limit) * 5) // Buscar mais para filtrar
     
     const incidents = []
+    let currentIncident = null
     
-    // Analisar cada monitor para identificar incidentes reais
-    for (const monitor of monitors) {
-      const checks = await databaseService.getMonitorChecks(monitor.id, parseInt(days as string) * 24 * 2)
-      
-      if (checks.length === 0) continue
-      
-      // Ordenar checks por data (mais antigos primeiro)
-      const sortedChecks = checks.sort((a: any, b: any) => new Date(a.checked_at).getTime() - new Date(b.checked_at).getTime())
-      
-      let currentIncident = null
-      let incidentId = 1
-      
-      for (let i = 0; i < sortedChecks.length; i++) {
-        const check = sortedChecks[i]
-        const isDown = check.status !== 'online'
-        
-        if (isDown && !currentIncident) {
-          // Início de um novo incidente
+    // Agrupar falhas consecutivas em incidentes
+    // Lógica simplificada para demonstração
+    for (const check of checks) {
+      if (check.status !== 'online') {
+        if (!currentIncident) {
           currentIncident = {
-            id: `${monitor.id}-${incidentId++}`,
+            id: `inc-${check.id}`,
             monitor_name: monitor.name,
-            status: 'investigating',
-            title: getIncidentTitle(check.status, monitor.name),
-            description: getIncidentDescription(check.status, check.error_message, monitor.name),
+            status: 'resolved', // Assumindo resolvido pois estamos olhando histórico
+            title: check.status === 'offline' ? 'Serviço indisponível' : 'Latência alta detectada',
+            description: check.error_message || 'Falha na verificação',
             started_at: check.checked_at,
-            resolved_at: null as string | null
+            resolved_at: check.checked_at // Placeholder
           }
-        } else if (!isDown && currentIncident) {
-          // Fim do incidente
-          currentIncident.status = 'resolved'
+        }
+      } else {
+        if (currentIncident) {
           currentIncident.resolved_at = check.checked_at
           incidents.push(currentIncident)
           currentIncident = null
         }
       }
-      
-      // Se ainda há um incidente em andamento
-      if (currentIncident) {
-        // Verificar se o monitor está atualmente online
-        const latestCheck = sortedChecks[sortedChecks.length - 1]
-        if (latestCheck.status === 'online') {
-          currentIncident.status = 'resolved'
-          currentIncident.resolved_at = latestCheck.checked_at
-        } else {
-          // Incidente ainda em andamento
-          const monitorStatus = monitoringService.getMonitor(monitor.id)
-          if (monitorStatus?.status === 'online') {
-            currentIncident.status = 'resolved'
-            currentIncident.resolved_at = new Date().toISOString()
-          }
-        }
-        incidents.push(currentIncident)
-      }
     }
     
-    // Ordenar incidentes por data de início (mais recentes primeiro)
-    const sortedIncidents = incidents
-      .sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime())
-      .slice(0, parseInt(limit as string))
-    
-    res.json(sortedIncidents)
+    // Limitar quantidade
+    res.json(incidents.slice(0, Number(limit)))
   } catch (error) {
     console.error('Erro ao buscar incidentes:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
 
-// Funções auxiliares para gerar títulos e descrições de incidentes
-function getIncidentTitle(status: string, monitorName: string): string {
-  switch (status) {
-    case 'offline':
-      return `Interrupção do serviço - ${monitorName}`
-    case 'warning':
-      return `Degradação do serviço - ${monitorName}`
-    default:
-      return `Problema detectado - ${monitorName}`
-  }
-}
-
-function getIncidentDescription(status: string, errorMessage: string | null, monitorName: string): string {
-  let baseDescription = ''
-  
-  switch (status) {
-    case 'offline':
-      baseDescription = `O serviço ${monitorName} está temporariamente indisponível`
-      break
-    case 'warning':
-      baseDescription = `O serviço ${monitorName} apresenta degradação de performance`
-      break
-    default:
-      baseDescription = `Foi detectado um problema no serviço ${monitorName}`
-  }
-  
-  if (errorMessage) {
-    // Sanitizar mensagem de erro para exibição pública
-    const sanitizedError = errorMessage
-      .replace(/ENOTFOUND|ECONNREFUSED|ETIMEDOUT/g, 'erro de conectividade')
-      .replace(/timeout/gi, 'tempo limite excedido')
-      .replace(/connection/gi, 'conexão')
-    
-    baseDescription += `. Detalhes técnicos: ${sanitizedError}`
-  }
-  
-  return baseDescription
-}
-
-// Endpoint para obter estatísticas detalhadas de um monitor
-app.get('/api/public/monitor-stats/:monitorId', async (req, res) => {
-  try {
-    const { monitorId } = req.params
-    
-    // Verificar se o monitor existe
-    const monitor = await databaseService.getMonitorById(monitorId)
-    if (!monitor) {
-      return res.status(404).json({ error: 'Monitor não encontrado' })
-    }
-    
-    // Buscar checks dos últimos 30 dias usando DatabaseService
-    const thirtyDaysAgo = new Date()
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    const now = new Date()
-    
-    const checks = await databaseService.getMonitorChecksForPeriod(monitorId, thirtyDaysAgo, now)
-    
-    if (!checks || checks.length === 0) {
-      return res.json({
-        totalChecks: 0,
-        successfulChecks: 0,
-        failedChecks: 0,
-        minResponseTime: 0,
-        maxResponseTime: 0,
-        avgResponseTime: 0
-      })
-    }
-    
-    // Calcular estatísticas
-    const totalChecks = checks.length
-    const successfulChecks = checks.filter((check: any) => check.status === 'online').length
-    const failedChecks = totalChecks - successfulChecks
-    
-    // Calcular tempos de resposta (apenas para checks bem-sucedidos)
-    const responseTimes = checks
-      .filter((check: any) => check.status === 'online' && check.response_time)
-      .map((check: any) => check.response_time)
-    
-    let minResponseTime = 0
-    let maxResponseTime = 0
-    let avgResponseTime = 0
-    
-    if (responseTimes.length > 0) {
-      minResponseTime = Math.min(...responseTimes)
-      maxResponseTime = Math.max(...responseTimes)
-      avgResponseTime = Math.round(responseTimes.reduce((sum: number, time: number) => sum + time, 0) / responseTimes.length)
-    }
-    
-    res.json({
-      totalChecks,
-      successfulChecks,
-      failedChecks,
-      minResponseTime,
-      maxResponseTime,
-      avgResponseTime
-    })
-  } catch (error) {
-    console.error('Erro ao buscar estatísticas do monitor:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-// Rota de health check
-app.get('/api/health', (_, res) => {
-  res.json({ 
-    status: 'ok', 
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime()
-  })
-})
-
-
-// Middleware de tratamento de erros
-app.use((err: any, _: any, res: any, __: any) => {
-  console.error('Erro:', err)
-  res.status(500).json({ error: 'Erro interno do servidor' })
-})
-
-// Ajuste: mover a rota 404 para o final do arquivo
-// para não bloquear rotas adicionadas posteriormente
-
-// Iniciar servidor
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`)
-  console.log(`📊 Dashboard: http://localhost:3000`)
-  console.log(`🔗 API: http://localhost:${PORT}/api`)
-  console.log(`📈 Status público: http://localhost:3000/status`)
-  console.log(`💡 Credenciais de teste: admin@agencia.com / admin123`)
-  
-  // Iniciar o serviço de monitoramento
-  monitoringService.start()
-  console.log(`🔍 Serviço de monitoramento iniciado`)
-})
-
-export default app
-
-
-// Rota de proxy para html2canvas (sem autenticação para permitir carregamento de imagens públicas)
-app.get('/api/proxy/html2canvas', async (req, res) => {
-  try {
-    const { url } = req.query as { url?: string }
-
-    if (!url || typeof url !== 'string') {
-      return res.status(400).json({ error: 'Parâmetro "url" é obrigatório' })
-    }
-
-    // Validar URL e protocolo
-    let parsed: URL
-    try {
-      parsed = new URL(url)
-      if (!/^https?:$/.test(parsed.protocol)) {
-        return res.status(400).json({ error: 'URL inválida' })
-      }
-    } catch {
-      return res.status(400).json({ error: 'URL inválida' })
-    }
-
-    // Buscar como binário
-    const response = await axios.get(url, {
-      responseType: 'arraybuffer',
-      timeout: 15000,
-      headers: {
-        Accept: 'image/avif,image/webp,image/apng,image/*,*/*;q=0.8',
-        'User-Agent': 'UptimeMonitorHtml2CanvasProxy/1.0',
-        Referer: req.headers.referer || ''
-      },
-      validateStatus: (status) => status >= 200 && status < 400
-    })
-
-    const contentType = response.headers['content-type'] || 'application/octet-stream'
-    if (!/^image\//i.test(contentType)) {
-      return res.status(415).json({ error: 'Tipo de conteúdo não suportado pelo proxy' })
-    }
-
-    res.setHeader('Content-Type', contentType)
-    res.setHeader('Cache-Control', 'public, max-age=300, s-maxage=300')
-    res.setHeader('Access-Control-Allow-Origin', '*')
-    res.setHeader('Access-Control-Expose-Headers', 'Content-Type, Cache-Control')
-
-    return res.status(200).send(Buffer.from(response.data))
-  } catch (err: any) {
-    console.error('Erro no proxy html2canvas:', err?.message || err)
-    return res.status(502).json({ error: 'Falha ao obter recurso de imagem' })
-  }
-})
-
-// Rota 404 (mover para o final para não bloquear rotas adicionadas depois)
-app.use('*', (_, res) => {
-  res.status(404).json({ error: 'Rota não encontrada' })
 })
