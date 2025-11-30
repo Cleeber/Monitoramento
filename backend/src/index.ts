@@ -563,6 +563,40 @@ app.delete('/api/monitors/:id', authenticateToken, async (req, res) => {
   }
 })
 
+app.delete('/api/monitors/:id/history', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params
+    
+    const monitor = await databaseService.getMonitorById(id)
+    if (!monitor) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
+    }
+
+    await databaseService.clearMonitorHistory(id)
+    
+    // Atualizar no serviço de monitoramento para resetar estatísticas
+    const currentMonitor = monitoringService.getMonitor(id)
+    if (currentMonitor) {
+      monitoringService.updateMonitor({
+        ...currentMonitor,
+        uptime_24h: 0,
+        uptime_7d: 0,
+        uptime_30d: 0,
+        last_check: null,
+        response_time: null,
+        status: 'unknown'
+      })
+    }
+    
+    console.log(`Histórico limpo para o monitor ${id} pelo usuário ${req.user.email}`)
+    
+    res.status(200).json({ message: 'Histórico limpo com sucesso' })
+  } catch (error) {
+    console.error('Erro ao limpar histórico do monitor:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
 // Rota para obter histórico de checks
 app.get('/api/monitors/:id/checks', authenticateToken, (req, res) => {
   const { id } = req.params

@@ -59,6 +59,7 @@ Monitores
 - RF‑M1: Criar/editar/excluir/listar monitores com: nome, tipo, URL/host/porta, intervalo (cron/minutos), timeout, grupo (opcional).
 - RF‑M2: Executar verificações agendadas por tipo (HTTP, PING, TCP) e persistir resultados.
 - RF‑M3: Calcular uptime (24h/7d/30d) e tempo médio de resposta.
+- RF‑M4: Limpar histórico de verificações de um monitor específico, mantendo as configurações do monitor.
 
 Grupos
 - RF‑G1: CRUD de grupos; associação de monitores.
@@ -95,6 +96,7 @@ Autenticação
 Monitores
 - GET/POST /api/monitors
 - PUT/DELETE /api/monitors/:id
+- DELETE /api/monitors/:id/history
 
 Dashboard
 - GET /api/dashboard/stats

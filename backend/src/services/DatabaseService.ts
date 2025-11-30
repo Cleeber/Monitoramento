@@ -276,6 +276,15 @@ export class DatabaseService {
     if (error) throw error
   }
 
+  async clearMonitorHistory(id: string) {
+    const { error } = await (supabase as any)
+      .from('monitor_checks')
+      .delete()
+      .eq('monitor_id', id)
+    
+    if (error) throw error
+  }
+
   // ===== MONITOR CHECKS =====
   async getMonitorChecks(monitorId: string, limit: number = 50) {
     const { data, error } = await (supabase as any)

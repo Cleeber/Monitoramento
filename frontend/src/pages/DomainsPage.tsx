@@ -21,7 +21,8 @@ import {
   Upload,
   X,
   Activity,
-  AlertTriangle
+  AlertTriangle,
+  Eraser
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
 import { apiGet, apiPost, apiPut, apiDelete, apiRequest, apiUpload } from '../utils/apiUtils'
@@ -93,6 +94,8 @@ export function DomainsPage() {
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
   const [uploadingLogo, setUploadingLogo] = useState(false)
+  const [isClearHistoryDialogOpen, setIsClearHistoryDialogOpen] = useState(false)
+  const [monitorToClearHistory, setMonitorToClearHistory] = useState<Monitor | null>(null)
   const { addToast } = useToast()
 
   useEffect(() => {
@@ -194,6 +197,32 @@ export function DomainsPage() {
     } catch (error) {
       console.error('Erro ao excluir monitor:', error)
       addToast({ title: 'Erro ao excluir monitor', variant: 'destructive' })
+    }
+  }
+
+  const handleClearHistory = (monitor: Monitor) => {
+    setMonitorToClearHistory(monitor)
+    setIsClearHistoryDialogOpen(true)
+  }
+
+  const confirmClearHistory = async () => {
+    if (!monitorToClearHistory) return
+
+    try {
+      const result = await apiDelete(`/monitors/${monitorToClearHistory.id}/history`)
+
+      if (result.success) {
+        addToast({ title: 'Histórico limpo com sucesso', variant: 'success' })
+        fetchData() // Refresh data to show reset stats
+      } else {
+        addToast({ title: 'Erro ao limpar histórico', description: result.error, variant: 'destructive' })
+      }
+    } catch (error) {
+      console.error('Erro ao limpar histórico:', error)
+      addToast({ title: 'Erro ao limpar histórico', variant: 'destructive' })
+    } finally {
+      setIsClearHistoryDialogOpen(false)
+      setMonitorToClearHistory(null)
     }
   }
 
@@ -608,6 +637,26 @@ export function DomainsPage() {
             </form>
           </DialogContent>
         </Dialog>
+        <Dialog open={isClearHistoryDialogOpen} onOpenChange={setIsClearHistoryDialogOpen}>
+          <DialogContent style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
+            <DialogHeader>
+              <DialogTitle className="text-white">Limpar Histórico</DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Tem certeza que deseja limpar todo o histórico de monitoramento do domínio <strong>{monitorToClearHistory?.name}</strong>?
+                <br/><br/>
+                Esta ação não pode ser desfeita e todas as estatísticas serão resetadas.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={() => setIsClearHistoryDialogOpen(false)}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={confirmClearHistory}>
+                Confirmar Limpeza
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Filters */}
@@ -729,6 +778,15 @@ export function DomainsPage() {
                           className="bg-gray-700 border-gray-600 text-gray-300 hover:bg-blue-600 hover:text-white hover:border-blue-500"
                         >
                           <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleClearHistory(monitor)}
+                          className="bg-gray-700 border-gray-600 text-yellow-400 hover:bg-yellow-600 hover:text-white hover:border-yellow-500"
+                          title="Limpar Histórico"
+                        >
+                          <Eraser className="h-4 w-4" />
                         </Button>
                         <Button
                           variant="outline"
