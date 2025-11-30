@@ -500,7 +500,8 @@ class MonitoringService extends EventEmitter {
         if (statusCode >= 200 && statusCode < 400) {
           return { status: 'online', responseTime, error: null, statusCode }
         } else if (statusCode >= 400 && statusCode < 500) {
-          if (statusCode === 403 && ignore403) {
+          // 403 Forbidden no HEAD: Servidor está online e respondendo
+          if (statusCode === 403) {
             return { status: 'online', responseTime, error: null, statusCode }
           }
           return { status: 'warning', responseTime, error: `HTTP ${statusCode}`, statusCode }
