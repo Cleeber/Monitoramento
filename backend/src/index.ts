@@ -96,6 +96,17 @@ async function initializeServices() {
     // Configurar referência do database service no monitoramento
     monitoringService.setDatabaseService(databaseService)
     
+    // Carregar monitores do banco de dados
+    console.log('📡 Carregando monitores do banco de dados...')
+    const monitors = await databaseService.getMonitors()
+    monitors.forEach((monitor: any) => {
+      monitoringService.addMonitor(monitor)
+    })
+    console.log(`✅ ${monitors.length} monitores carregados.`)
+    
+    // Iniciar serviço de monitoramento
+    monitoringService.start()
+    
     // Configurar MonitoringService no ReportService
     reportService.setMonitoringService(monitoringService)
     
