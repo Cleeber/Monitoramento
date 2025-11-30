@@ -104,6 +104,11 @@ async function initializeServices() {
     })
     console.log(`✅ ${monitors.length} monitores carregados.`)
     
+    // Carregar verificações recentes para cálculo de uptime
+    console.log('📡 Carregando verificações recentes...')
+    await monitoringService.loadRecentChecks(databaseService)
+    console.log('✅ Verificações recentes carregadas.')
+    
     // Iniciar serviço de monitoramento
     monitoringService.start()
     
@@ -322,7 +327,41 @@ app.get('/api/auth/me', authenticateToken, async (req: any, res) => {
 app.get('/api/dashboard/stats', authenticateToken, async (_req, res) => {
   try {
     const stats = monitoringService.getStats()
-    res.json(stats)
+    const groups = await databaseService.getGroups()
+    const monitors = await databaseService.getMonitors()
+    
+    // Calcular média de uptime e tempo de resposta
+    let totalUptime = 0
+    let totalResponseTime = 0
+    let monitorsWithResponseTime = 0
+    
+    // Usar dados do MonitoringService para maior precisão em tempo real
+    const activeMonitors = monitors.filter((m: any) => m.enabled)
+    
+    activeMonitors.forEach((m: any) => {
+      const monitor = monitoringService.getMonitor(m.id)
+      if (monitor) {
+        totalUptime += monitor.uptime_30d || 0
+        if (monitor.response_time) {
+          totalResponseTime += monitor.response_time
+          monitorsWithResponseTime++
+        }
+      }
+    })
+    
+    const avgUptime = activeMonitors.length > 0 ? totalUptime / activeMonitors.length : 0
+    const avgResponseTime = monitorsWithResponseTime > 0 ? totalResponseTime / monitorsWithResponseTime : 0
+
+    // Mapear para o formato esperado pelo frontend (snake_case)
+    res.json({
+      total_monitors: stats.total,
+      online_monitors: stats.online,
+      offline_monitors: stats.offline,
+      warning_monitors: stats.warning,
+      avg_response_time: Math.round(avgResponseTime),
+      total_groups: groups.length,
+      avg_uptime: Number(avgUptime.toFixed(2))
+    })
   } catch (error) {
     console.error('Erro ao buscar estatísticas:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
@@ -1445,9 +1484,27 @@ app.get('/api/public/status/all', async (_req, res) => {
 app.get('/api/public/status/group/:id', async (req, res) => {
   try {
     const { id } = req.params
+    
+    // Verificar se é UUID
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    
+    let groupId = id
+    
+    // Se não for UUID, tentar buscar grupo pelo slug
+    if (!isUuid) {
+      const group = await databaseService.getGroupBySlug(id)
+      if (group) {
+        groupId = group.id
+      } else {
+        // Se não encontrou grupo pelo slug, pode ser que o frontend esteja tentando
+        // usar essa rota mas o ID não é de grupo. Retornar 404.
+        return res.status(404).json({ error: 'Grupo não encontrado' })
+      }
+    }
+    
     const monitors = await databaseService.getMonitors()
     // databaseService.getMonitors retorna um campo 'enabled' mapeado de 'is_active'
-    const groupMonitors = monitors.filter((m: any) => m.group_id === id && m.enabled === true)
+    const groupMonitors = monitors.filter((m: any) => m.group_id === groupId && m.enabled === true)
     
     const monitorsWithStatus = groupMonitors.map((monitor: any) => {
       const realTimeStatus = monitoringService.getMonitor(monitor.id)
@@ -1473,7 +1530,11 @@ app.get('/api/public/status/group/:id', async (req, res) => {
     if (hasDown) overall_status = 'outage'
     else if (hasWarning) overall_status = 'degraded'
     
+    // Buscar informações do grupo para retornar no response (opcional, mas útil)
+    const groupInfo = await databaseService.getGroupById(groupId)
+    
     res.json({
+      group: groupInfo, // Adicionado para ajudar o frontend a saber que é um grupo válido
       monitors: monitorsWithStatus,
       overall_status,
       last_updated: new Date().toISOString()
@@ -1488,7 +1549,18 @@ app.get('/api/public/status/group/:id', async (req, res) => {
 app.get('/api/public/status/monitor/:id', async (req, res) => {
   try {
     const { id } = req.params
-    const monitor = await databaseService.getMonitorById(id)
+    
+    // Verificar se é UUID
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    
+    let monitor
+    
+    if (isUuid) {
+      monitor = await databaseService.getMonitorById(id)
+    } else {
+      // Tentar buscar por slug
+      monitor = await databaseService.getMonitorBySlug(id)
+    }
     
     if (!monitor || !monitor.is_active) {
       return res.status(404).json({ error: 'Monitor não encontrado' })
@@ -1514,6 +1586,7 @@ app.get('/api/public/status/monitor/:id', async (req, res) => {
     else if (monitorData.status === 'warning') overall_status = 'degraded'
     
     res.json({
+      monitor: monitorData, // Adicionado para consistência
       monitors: [monitorData],
       overall_status,
       last_updated: new Date().toISOString()
