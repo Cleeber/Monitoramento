@@ -26,7 +26,7 @@ function useGroups(): UseGroupsReturn {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(`/api/public/groups`);
+        const response = await fetch(`/api/public/groups`, { cache: 'no-store' });
         
         if (!response.ok) {
           throw new Error(`Erro ao buscar grupos: ${response.status}`);

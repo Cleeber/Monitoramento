@@ -29,7 +29,7 @@ function useMonitors(): UseMonitorsReturn {
         setLoading(true);
         setError(null);
         
-        const response = await fetch(`/api/public/monitors`);
+        const response = await fetch(`/api/public/monitors`, { cache: 'no-store' });
         
         if (!response.ok) {
           throw new Error(`Erro ao buscar monitores: ${response.status}`);

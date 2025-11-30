@@ -32,7 +32,10 @@ export async function apiRequest<T = any>(
       headers: {
         ...defaultHeaders,
         ...options.headers,
+        'Cache-Control': 'no-cache',
+        'Pragma': 'no-cache'
       },
+      cache: 'no-store'
     });
 
     // Verificar se a resposta é JSON válido
