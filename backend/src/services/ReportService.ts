@@ -89,7 +89,7 @@ export class ReportService {
   /**
    * Coleta estatísticas de um monitor para um período específico
    */
-  private async collectMonitorStats(monitorId: string, startDate: Date, endDate: Date): Promise<MonitorStats> {
+  public async collectMonitorStats(monitorId: string, startDate: Date, endDate: Date): Promise<MonitorStats> {
     try {
       // Buscar dados do monitor
       const monitors = await databaseService.getMonitors()

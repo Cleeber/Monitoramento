@@ -239,6 +239,11 @@ const authenticateToken = (req: any, res: any, next: any) => {
   })
 }
 
+// Rota de Health Check
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() })
+})
+
 // Rotas de Autenticação
 app.post('/api/auth/login', loginLimiter, async (req, res) => {
   try {
@@ -348,6 +353,83 @@ app.get('/api/dashboard/monitors', authenticateToken, async (_req, res) => {
     res.json(monitorsWithRealTimeStatus)
   } catch (error) {
     console.error('Erro ao buscar monitores:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Alias para /api/monitors (usado pela página de Relatórios)
+app.get('/api/monitors', authenticateToken, async (_req, res) => {
+  try {
+    const monitors = await databaseService.getMonitors()
+    res.json(monitors)
+  } catch (error) {
+    console.error('Erro ao buscar monitores:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// Rota para relatórios (usada pela página de Relatórios)
+app.get('/api/reports', authenticateToken, async (req, res) => {
+  try {
+    const { start_date, end_date, monitor_id } = req.query
+    
+    if (!start_date || !end_date) {
+      return res.status(400).json({ error: 'Data inicial e final são obrigatórias' })
+    }
+    
+    const start = new Date(start_date as string)
+    const end = new Date(end_date as string)
+    
+    let monitors = []
+    if (monitor_id && monitor_id !== 'all') {
+      const monitor = await databaseService.getMonitorById(monitor_id as string)
+      if (monitor) monitors.push(monitor)
+    } else {
+      monitors = await databaseService.getMonitors()
+    }
+    
+    const reports = []
+    let totalChecks = 0
+    let totalIncidents = 0
+    let totalUptime = 0
+    let totalResponseTime = 0
+    
+    for (const monitor of monitors) {
+      const stats = await reportService.collectMonitorStats(monitor.id, start, end)
+      
+      reports.push({
+        monitor_id: monitor.id,
+        monitor_name: monitor.name,
+        uptime_percentage: stats.uptime_30d, 
+        total_checks: stats.total_checks,
+        successful_checks: stats.successful_checks,
+        failed_checks: stats.failed_checks,
+        avg_response_time: stats.avg_response_time,
+        min_response_time: 0, 
+        max_response_time: 0,
+        incidents: stats.incidents.length,
+        last_incident: stats.incidents.length > 0 ? stats.incidents[stats.incidents.length - 1].date : null
+      })
+      
+      totalChecks += stats.total_checks
+      totalIncidents += stats.incidents.length
+      totalUptime += stats.uptime_30d
+      totalResponseTime += stats.avg_response_time
+    }
+    
+    const overall_stats = {
+      total_checks: totalChecks,
+      total_incidents: totalIncidents,
+      avg_uptime: monitors.length > 0 ? totalUptime / monitors.length : 0,
+      avg_response_time: monitors.length > 0 ? totalResponseTime / monitors.length : 0
+    }
+    
+    res.json({
+      reports,
+      overall_stats
+    })
+  } catch (error) {
+    console.error('Erro ao gerar relatórios:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
