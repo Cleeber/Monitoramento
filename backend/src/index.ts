@@ -996,6 +996,7 @@ app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res
     // Novo: opção de layout baseado na página de status pública
     if (style === 'status') {
       try {
+        console.log(`📄 Iniciando geração de PDF status para monitor ${monitorId} (Mês: ${month}/${year})`);
         const monitor = await databaseService.getMonitorById(monitorId)
         if (monitor) {
           // Usar método específico que garante busca pelo ID (sem fallback para geral)
@@ -1007,13 +1008,24 @@ app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res
           )
 
           const safeName = (monitor.slug || monitor.name || 'monitor').replace(/[^a-zA-Z0-9]/g, '-')
-          const filename = `relatorio-mensal-status-${safeName}-${month}-${year}.pdf`
+          // Adicionar timestamp para evitar cache
+          const filename = `relatorio-mensal-status-${safeName}-${month}-${year}-${Date.now()}.pdf`
+          
+          // Headers anti-cache
+          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
+          res.setHeader('Pragma', 'no-cache')
+          res.setHeader('Expires', '0')
+          
           res.setHeader('Content-Type', 'application/pdf')
           res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
           return res.send(pdfBuffer)
+        } else {
+           console.warn(`⚠️ Monitor ${monitorId} não encontrado para relatório de status.`);
+           return res.status(404).json({ error: 'Monitor não encontrado' });
         }
       } catch (innerErr) {
-        console.warn('Falha ao gerar PDF com layout de status; usando modelo padrão.', innerErr)
+        console.error('❌ Falha ao gerar PDF com layout de status:', innerErr)
+        return res.status(500).json({ error: 'Erro ao gerar PDF de status' });
       }
     }
 
