@@ -303,7 +303,7 @@ app.get('/api/auth/me', authenticateToken, async (req: any, res) => {
 })
 
 // Rotas de Dashboard
-app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
+app.get('/api/dashboard/stats', authenticateToken, async (_req, res) => {
   try {
     const stats = monitoringService.getStats()
     res.json(stats)
@@ -313,7 +313,7 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
   }
 })
 
-app.get('/api/dashboard/monitors', authenticateToken, async (req, res) => {
+app.get('/api/dashboard/monitors', authenticateToken, async (_req, res) => {
   try {
     const monitors = await databaseService.getMonitors()
     
@@ -1001,7 +1001,7 @@ app.post('/api/reports/send-monthly-custom', authenticateToken, async (req, res)
 })
 
 // Rotas SMTP
-app.get('/api/smtp/config', authenticateToken, async (req, res) => {
+app.get('/api/smtp/config', authenticateToken, async (_req, res) => {
   try {
     const config = await databaseService.getSmtpConfig()
     if (config) {
