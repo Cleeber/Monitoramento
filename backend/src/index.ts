@@ -998,14 +998,26 @@ app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res
       try {
         console.log(`📄 Iniciando geração de PDF status para monitor ${monitorId} (Mês: ${month}/${year})`);
         const monitor = await databaseService.getMonitorById(monitorId)
+        
         if (monitor) {
-          // Usar método específico que garante busca pelo ID (sem fallback para geral)
-          const pdfBuffer = await pdfService.generateMonitorStatusPDF(
-            monitorId,
-            `${monitor.name} - Relatório Mensal`,
-            Number(year),
-            Number(month)
-          )
+          let pdfBuffer: Buffer;
+          
+          // Tentar usar o método otimizado (mesmo do e-mail) se houver slug
+          if (monitor.slug) {
+            console.log(`📄 Usando layout otimizado (slug: ${monitor.slug})`);
+            pdfBuffer = await pdfService.generateOptimizedStatusPDF(
+              monitor.slug,
+              `${monitor.name} - Relatório Mensal`
+            )
+          } else {
+            // Fallback para relatório padrão se não houver slug
+            console.log(`📄 Monitor sem slug, usando layout padrão`);
+            pdfBuffer = await pdfService.generateMonthlyReportPDF(
+              monitorId,
+              Number(year),
+              Number(month)
+            )
+          }
 
           const safeName = (monitor.slug || monitor.name || 'monitor').replace(/[^a-zA-Z0-9]/g, '-')
           // Adicionar timestamp para evitar cache

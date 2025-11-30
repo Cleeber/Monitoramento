@@ -113,20 +113,13 @@ export class PDFService {
           return
         }
 
-        // Fallback: status geral
-        const titleOptions: PDFReportOptions = { title: 'Status dos Monitores' }
-        const buffer = await this.generateBasicStatusPDF(titleOptions, monitors, groups)
-        // Como generateBasicStatusPDF já retorna buffer via eventos, nós apenas finalizamos aqui
-        // Para manter consistência, escrevemos uma página mínima se necessário
-        if (buffer && buffer.length > 0) {
-          resolve(buffer)
-          return
-        }
-
-        // Se chegar aqui, adicionar mensagem mínima
+        // Fallback: status geral - REMOVIDO
+        // Se não encontrar monitor nem grupo, não deve retornar status geral (todos os monitores)
+        // pois isso confunde o usuário quando ele solicita um específico.
+        
         doc.fontSize(12)
            .fillColor('#dc2626')
-           .text('Nenhum dado encontrado para gerar o PDF.', 50, 150)
+           .text('Monitor ou Grupo não encontrado para o slug informado.', 50, 150)
         this.addFooter(doc)
         doc.end()
       })
