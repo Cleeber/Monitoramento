@@ -491,7 +491,6 @@ class MonitoringService extends EventEmitter {
       const validationEnabled = (monitor.content_validation_enabled ?? this.contentValidation.enabled) === true
       const minContentLength = monitor.min_content_length ?? this.contentValidation.minContentLength
       const minTextLength = monitor.min_text_length ?? this.contentValidation.minTextLength
-      const ignore403 = monitor.ignore_http_403 === true
 
       // Se HEAD funcionou e não precisamos validar conteúdo, decidir pelo HEAD
       if (headOk && !validationEnabled && headStatusCode != null) {
