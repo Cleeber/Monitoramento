@@ -575,10 +575,12 @@ class MonitoringService extends EventEmitter {
         
         return { status: 'online', responseTime, error: null, statusCode }
       } else if (statusCode >= 400 && statusCode < 500) {
-        // Se for 403 e a flag estiver ativada, considerar como online
-        if (statusCode === 403 && ignore403) {
+        // 403 Forbidden: Servidor está online e respondendo, apenas bloqueando o acesso (WAF, ACL, etc)
+        // Consideramos ONLINE para fins de monitoramento de disponibilidade, pois o site existe e responde.
+        if (statusCode === 403) {
           return { status: 'online', responseTime, error: null, statusCode }
         }
+        
         return { 
           status: 'warning', 
           responseTime, 
@@ -638,13 +640,14 @@ class MonitoringService extends EventEmitter {
             })
             const responseTime = Date.now() - headStart
             const statusCode = headResp.status
-            const ignore403 = monitor.ignore_http_403 === true
+            // 403 no fallback HEAD também é considerado Online
+            if (statusCode === 403) {
+               return { status: 'online', responseTime, error: null, statusCode }
+            }
+            
             if (statusCode >= 200 && statusCode < 400) {
               return { status: 'online', responseTime, error: null, statusCode }
             } else if (statusCode >= 400 && statusCode < 500) {
-              if (statusCode === 403 && ignore403) {
-                return { status: 'online', responseTime, error: null, statusCode }
-              }
               return { status: 'warning', responseTime, error: `HTTP ${statusCode}`, statusCode }
             }
             // 5xx em fallback HEAD: validar via ping
