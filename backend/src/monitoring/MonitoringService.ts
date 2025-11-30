@@ -320,7 +320,7 @@ class MonitoringService extends EventEmitter {
       id: `check_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       monitor_id: monitor.id,
       status,
-      response_time: responseTime,
+      response_time: responseTime !== null ? Math.round(responseTime) : null,
       error_message: errorMessage,
       status_code: statusCode,
       checked_at: new Date().toISOString()
@@ -334,7 +334,7 @@ class MonitoringService extends EventEmitter {
         await this.databaseService.createMonitorCheck({
           monitor_id: monitor.id,
           status,
-          response_time: responseTime,
+          response_time: responseTime !== null ? Math.round(responseTime) : null,
           error_message: errorMessage,
           status_code: statusCode ?? undefined
         })
