@@ -1504,6 +1504,7 @@ app.get('/api/public/incidents', async (req, res) => {
     // Implementação simplificada: retornar vazio ou buscar incidentes reais se tiver tabela
     // Por enquanto, vamos retornar lista vazia para não quebrar o frontend
     // TODO: Implementar busca real de incidentes
+    console.log(`Buscando incidentes públicos para monitor=${monitor_id} group=${group_id} limit=${limit}`)
     res.json([])
   } catch (error) {
     console.error('Erro ao buscar incidentes:', error)
@@ -1515,6 +1516,8 @@ app.get('/api/public/incidents', async (req, res) => {
 app.get('/api/public/uptime-history', async (req, res) => {
   try {
     const { monitor_id, group_id, days = 30 } = req.query
+    
+    console.log(`Buscando histórico de uptime público para monitor=${monitor_id} group=${group_id} days=${days}`)
     
     // Gerar dados simulados/reais de uptime diário
     const history = []
