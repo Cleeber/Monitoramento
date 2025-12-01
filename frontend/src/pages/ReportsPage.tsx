@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -8,6 +8,7 @@ import { PeriodFilter, DEFAULT_TIME_RANGE } from '@/components/shared/PeriodFilt
 import { calculatePeriodRange, getPeriodLabel } from '@/utils/periodUtils'
 import { toast } from 'sonner'
 import { apiGet, apiPost } from '@/utils/apiUtils'
+// import html2pdf from 'html2pdf.js'
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -91,10 +92,7 @@ function ReportsPage() {
   const [loading, setLoading] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
-
-
-
-
+  const reportRef = useRef<HTMLDivElement>(null)
 
   const fetchReports = async () => {
     try {
@@ -185,54 +183,40 @@ function ReportsPage() {
   }, [selectedTimeRange, selectedMonitor])
 
   const handleExport = async () => {
+    if (selectedMonitor === 'all') {
+      toast.error('Selecione um monitor específico para exportar PDF')
+      return
+    }
+
+    if (!reportRef.current) {
+      toast.error('Erro ao capturar conteúdo para PDF')
+      return
+    }
+
     try {
       setExporting(true)
       
-      if (selectedMonitor === 'all') {
-        toast.error('Selecione um monitor específico para exportar PDF')
-        return
-      }
-      
-      // Definir ano e mês com base no período selecionado
-      const { endDate } = calculatePeriodRange(selectedTimeRange)
-      const targetDate = endDate
-      const year = targetDate.getFullYear()
-      const month = targetDate.getMonth() + 1
-      
-      const token = localStorage.getItem('auth_token')
-      // Solicitar geração com o mesmo layout da página de status pública
-      const apiUrl = `/api/pdf/monthly-report/${selectedMonitor}?year=${year}&month=${month}&style=status`
-      
-      const response = await fetch(apiUrl, {
-        method: 'GET',
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {})
-        }
-      })
-      
-      if (!response.ok) {
-        const text = await response.text()
-        throw new Error(text || `Erro ${response.status}`)
-      }
-      
-      const blob = await response.blob()
+      const element = reportRef.current
       const monitor = monitors.find(m => m.id === selectedMonitor)
       const safeName = (monitor?.name || 'monitor').replace(/[^a-zA-Z0-9]/g, '-')
-      const fileName = `relatorio-mensal-${safeName}-${month}-${year}.pdf`
-      
-      const url = window.URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = fileName
-      document.body.appendChild(a)
-      a.click()
-      a.remove()
-      window.URL.revokeObjectURL(url)
+      const date = new Date()
+      const fileName = `relatorio-${safeName}-${date.toISOString().split('T')[0]}.pdf`
+
+      const opt = {
+        margin: 5,
+        filename: fileName,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#111827' },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+      }
+
+      // @ts-ignore
+      await window.html2pdf().set(opt).from(element).save()
       
       toast.success('Relatório exportado com sucesso!')
     } catch (error) {
       console.error('Erro ao exportar relatório:', error)
-      toast.error(error instanceof Error ? error.message : 'Erro ao exportar relatório')
+      toast.error('Erro ao gerar PDF')
     } finally {
       setExporting(false)
     }
@@ -566,7 +550,8 @@ function ReportsPage() {
           </SelectContent>
         </Select>
       </div>
-
+      
+      <div ref={reportRef} className="space-y-6 p-4 rounded-lg" style={{ backgroundColor: exporting ? '#0d1117' : 'transparent' }}>
       {overallStatsCalculated && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
@@ -959,6 +944,7 @@ function ReportsPage() {
           )}
         </div>
       )}
+      </div>
     </div>
   )
 }

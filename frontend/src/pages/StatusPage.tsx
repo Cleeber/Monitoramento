@@ -320,7 +320,7 @@ export function StatusPage() {
     }
   }
 
-  const getOverallStatusInfo = (status: string) => {
+  /* const getOverallStatusInfo = (status: string) => {
     switch (status) {
       case 'operational':
         return {
@@ -351,7 +351,7 @@ export function StatusPage() {
           icon: <Activity className="h-6 w-6 text-gray-600" />
         }
     }
-  }
+  } */
 
   const getUptimeColor = (uptime: number) => {
     if (uptime >= 99) return 'text-green-600'
@@ -393,7 +393,7 @@ export function StatusPage() {
     )
   }
 
-  const statusInfo = getOverallStatusInfo(data.overall_status)
+  // const statusInfo = getOverallStatusInfo(data.overall_status)
 
   // URL absoluta e segura para a logo (evita path relativo quebrado)
   const rawLogoUrl = data?.monitors.length === 1 ? data.monitors[0].logo_url : null
