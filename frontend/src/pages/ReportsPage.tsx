@@ -252,7 +252,7 @@ function ReportsPage() {
           scale: 2, 
           useCORS: true, 
           backgroundColor: '#f8fafc', 
-          windowWidth: 800, // Reduzir largura para melhor fit em A4
+          windowWidth: 1024, // Aumentar largura para layout desktop (2 colunas)
           scrollY: 0
         },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
@@ -997,7 +997,7 @@ function ReportsPage() {
       </div>
       
       {/* Hidden template for PDF generation */}
-      <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '800px' }}>
+      <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '1024px' }}>
         <div ref={pdfTemplateRef}>
           {pdfData && (
             <StatusPageTemplate

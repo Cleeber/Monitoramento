@@ -194,7 +194,9 @@ export function StatusPageTemplate({
         zIndex: 10, 
         boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1)',
         paddingTop: isPdf ? '1rem' : '2rem',
-        paddingBottom: isPdf ? '1rem' : '2rem'
+        paddingBottom: isPdf ? '1rem' : '2rem',
+        width: isPdf ? '100%' : undefined,
+        maxWidth: isPdf ? 'none' : undefined
       }}>
 
 
