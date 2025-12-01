@@ -1445,11 +1445,45 @@ app.get('/api/public/incidents', async (req, res) => {
   try {
     const { monitor_id, limit = 10 } = req.query
     
-    // Implementação simplificada: retornar vazio ou buscar incidentes reais se tiver tabela
-    // Por enquanto, vamos retornar lista vazia para não quebrar o frontend
-    // TODO: Implementar busca real de incidentes
-    console.log(`Buscando incidentes públicos para monitor=${monitor_id} limit=${limit}`)
-    res.json([])
+    if (!monitor_id) {
+      return res.json([])
+    }
+
+    // Buscar histórico de checks para identificar incidentes
+    const checks = await databaseService.getMonitorChecks(monitor_id as string, Number(limit) * 20)
+    
+    const incidents = []
+    let currentIncident = null
+    
+    // Identificar incidentes (lógica similar ao frontend)
+    for (const check of checks) {
+      if (check.status !== 'online') {
+        if (!currentIncident) {
+          currentIncident = {
+            id: `inc-${check.id}`,
+            monitor_name: '', // Será preenchido no frontend se necessário
+            status: 'resolved',
+            title: check.status === 'offline' ? 'Serviço indisponível' : 'Latência alta',
+            description: check.error_message || 'Falha na verificação',
+            started_at: check.checked_at,
+            resolved_at: check.checked_at
+          }
+        }
+      } else {
+        if (currentIncident) {
+          currentIncident.resolved_at = check.checked_at
+          incidents.push(currentIncident)
+          currentIncident = null
+        }
+      }
+    }
+    
+    // Se ainda há um incidente em aberto (o mais recente)
+    if (currentIncident) {
+      incidents.push(currentIncident)
+    }
+
+    res.json(incidents.slice(0, Number(limit)))
   } catch (error) {
     console.error('Erro ao buscar incidentes:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
@@ -1461,19 +1495,42 @@ app.get('/api/public/uptime-history', async (req, res) => {
   try {
     const { monitor_id, days = 30 } = req.query
     
-    console.log(`Buscando histórico de uptime público para monitor=${monitor_id} days=${days}`)
+    if (!monitor_id) {
+      return res.json([])
+    }
     
-    // Gerar dados simulados/reais de uptime diário
+    // Calcular período
+    const endDate = new Date()
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - Number(days))
+    
+    // Buscar todos os checks do período
+    const checks = await databaseService.getMonitorChecksForPeriod(monitor_id as string, startDate, endDate)
+    
+    // Agrupar por dia
     const history = []
     const today = new Date()
+    today.setHours(23, 59, 59, 999)
     
     for (let i = Number(days); i >= 0; i--) {
       const date = new Date(today)
       date.setDate(date.getDate() - i)
+      const dateStr = date.toISOString().split('T')[0]
+      
+      // Filtrar checks deste dia
+      const dayChecks = checks.filter((check: any) => 
+        check.checked_at.startsWith(dateStr)
+      )
+      
+      let uptime = 100
+      if (dayChecks.length > 0) {
+        const upChecks = dayChecks.filter((c: any) => c.status === 'online').length
+        uptime = (upChecks / dayChecks.length) * 100
+      }
       
       history.push({
-        date: date.toISOString().split('T')[0],
-        uptime: 100 // TODO: Calcular uptime real do dia
+        date: dateStr,
+        uptime: Number(uptime.toFixed(2))
       })
     }
     
@@ -1489,34 +1546,20 @@ app.get('/api/public/monitor-stats/:id', async (req, res) => {
   try {
     const { id } = req.params
     
-    const monitor = monitoringService.getMonitor(id)
+    // Calcular estatísticas reais dos últimos 30 dias
+    const endDate = new Date()
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - 30)
     
-    if (!monitor) {
-      // Se não estiver na memória (não monitorado agora), tentar buscar do banco
-      const dbMonitor = await databaseService.getMonitorById(id)
-      if (!dbMonitor) {
-        return res.status(404).json({ error: 'Monitor não encontrado' })
-      }
-      
-      // Retornar dados zerados se não estiver sendo monitorado ativamente
-      return res.json({
-        totalChecks: 0,
-        successfulChecks: 0,
-        failedChecks: 0,
-        minResponseTime: 0,
-        maxResponseTime: 0,
-        avgResponseTime: 0
-      })
-    }
+    const stats = await reportService.collectMonitorStats(id, startDate, endDate)
     
-    // Retornar dados do serviço de monitoramento
     res.json({
-      totalChecks: monitor.uptime_24h > 0 ? 100 : 0, // Simplificação
-      successfulChecks: monitor.uptime_24h > 0 ? 100 : 0,
-      failedChecks: 0,
-      minResponseTime: monitor.response_time || 0,
-      maxResponseTime: monitor.response_time || 0,
-      avgResponseTime: monitor.response_time || 0
+      totalChecks: stats.total_checks,
+      successfulChecks: stats.successful_checks,
+      failedChecks: stats.failed_checks,
+      minResponseTime: 0, // reportService não retorna min/max ainda, pode ser melhorado
+      maxResponseTime: 0,
+      avgResponseTime: stats.avg_response_time
     })
   } catch (error) {
     console.error('Erro ao buscar estatísticas do monitor:', error)

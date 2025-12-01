@@ -420,24 +420,15 @@ export function StatusPage() {
             <img 
               src={logoSrc} 
               alt="Logo" 
-              className="h-16 w-16 object-contain rounded-lg bg-white p-1 shadow-md"
+              className="h-24 w-24 object-contain rounded-lg bg-white p-1 shadow-md"
             />
           ) : (
             <div className="p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-              <Globe className="h-8 w-8 text-white" />
+              <Globe className="h-12 w-12 text-white" />
             </div>
           )}
           <div className="text-left">
-            <h1 className="text-3xl font-bold text-white shadow-sm">{pageTitle}</h1>
-            <div className="flex items-center gap-3 mt-2">
-              <Badge className={getOverallStatusInfo(data?.overall_status || 'operational').bgColor + ' ' + getOverallStatusInfo(data?.overall_status || 'operational').color + ' border px-3 py-1'}>
-                {getOverallStatusInfo(data?.overall_status || 'operational').text}
-              </Badge>
-              <span className="text-xs text-blue-100 flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
-                <Clock className="h-3 w-3" />
-                Atualizado: {new Date().toLocaleTimeString()}
-              </span>
-            </div>
+            <h1 className="text-5xl font-bold text-white shadow-sm">{pageTitle}</h1>
           </div>
         </div>
         </div>
