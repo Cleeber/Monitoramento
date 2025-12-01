@@ -416,10 +416,11 @@ ${this.generateAnalysis(stats)}
             `${monitor.name} - Relatório Mensal`
           )
           
-          if (pdfBuffer && pdfBuffer.length > 10000) { // Verificar se o PDF tem tamanho razoável (>10KB)
-            console.log(`✅ PDF otimizado gerado com sucesso (${Math.round(pdfBuffer.length / 1024)}KB)`)
+          // Verificação de tamanho ajustada: PDFs vetoriais podem ser leves (ex: 2-5KB)
+          if (pdfBuffer && pdfBuffer.length > 1000) { 
+            console.log(`✅ PDF otimizado gerado com sucesso (${Math.round(pdfBuffer.length / 1024)}KB - ${pdfBuffer.length} bytes)`)
           } else {
-            console.warn('⚠️ PDF gerado muito pequeno, enviando e-mail sem anexo')
+            console.warn(`⚠️ PDF gerado muito pequeno (${pdfBuffer ? pdfBuffer.length : 0} bytes), enviando e-mail sem anexo`)
             pdfBuffer = undefined
           }
         } else {
