@@ -38,11 +38,15 @@ ChartJS.register(
   Filler
 )
 
+import { StatusPageTemplate } from '@/components/templates/StatusPageTemplate'
+import { fetchUptimeHistory, fetchMonitorStats } from '@/utils/statusApi'
+
 interface Monitor {
   id: string
   name: string
   url: string
   status: string
+  slug?: string
 }
 
 interface Report {
@@ -93,6 +97,8 @@ function ReportsPage() {
   const [exporting, setExporting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
+  const [pdfData, setPdfData] = useState<any>(null)
+  const pdfTemplateRef = useRef<HTMLDivElement>(null)
 
   const fetchReports = async () => {
     try {
@@ -188,26 +194,61 @@ function ReportsPage() {
       return
     }
 
-    if (!reportRef.current) {
-      toast.error('Erro ao capturar conteúdo para PDF')
-      return
-    }
-
     try {
       setExporting(true)
       
-      const element = reportRef.current
       const monitor = monitors.find(m => m.id === selectedMonitor)
-      const safeName = (monitor?.name || 'monitor').replace(/[^a-zA-Z0-9]/g, '-')
+      if (!monitor) throw new Error('Monitor não encontrado')
+
+      // 1. Buscar dados do Status Page
+      const statusRes = await fetch(`/api/public/status/monitor/${monitor.id}`)
+      if (!statusRes.ok) throw new Error('Falha ao buscar dados do monitor')
+      const statusData = await statusRes.json()
+      
+      // 2. Incidentes
+      const incidentsRes = await fetch(`/api/public/incidents?monitor_id=${monitor.id}`)
+      const incidentsData = await incidentsRes.json()
+      
+      // 3. Histórico de Uptime
+      const uptimeChartData = await fetchUptimeHistory(monitor.id)
+      
+      // 4. Estatísticas
+      const monitorStats = await fetchMonitorStats(monitor.id)
+      
+      // Preparar dados para o template
+      setPdfData({
+        data: statusData,
+        incidents: incidentsData,
+        pageTitle: statusData.monitor?.name || 'Status do Serviço',
+        uptimeChartData,
+        uptimeData: { uptime_percentage: statusData.monitors[0]?.uptime_30d || 0 },
+        monitorStats,
+        incidentsData: { total_incidents: incidentsData.length },
+        responseTimeData: { avg_response_time: statusData.monitors[0]?.response_time || 0 },
+        loading: false,
+        logoSrc: statusData.monitor?.logo_url 
+          ? (statusData.monitor.logo_url.startsWith('http') || statusData.monitor.logo_url.startsWith('data:') 
+              ? statusData.monitor.logo_url 
+              : `/api${statusData.monitor.logo_url.startsWith('/') ? '' : '/'}${statusData.monitor.logo_url}`)
+          : null
+      })
+      
+      // Aguardar renderização
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
+      const element = pdfTemplateRef.current
+      if (!element) throw new Error('Erro interno: Template não encontrado')
+      
+      const safeName = (monitor.name || 'monitor').replace(/[^a-zA-Z0-9]/g, '-')
       const date = new Date()
-      const fileName = `relatorio-${safeName}-${date.toISOString().split('T')[0]}.pdf`
+      const fileName = `status-${safeName}-${date.toISOString().split('T')[0]}.pdf`
 
       const opt = {
-        margin: 5,
+        margin: 0,
         filename: fileName,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#111827' },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' }
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#f8fafc', windowWidth: 1200 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       }
 
       // @ts-ignore
@@ -219,6 +260,8 @@ function ReportsPage() {
       toast.error('Erro ao gerar PDF')
     } finally {
       setExporting(false)
+      // Limpar dados após um tempo para não consumir memória, mas manter por um instante para o pdf ser gerado
+      setTimeout(() => setPdfData(null), 1000)
     }
   }
 
@@ -944,6 +987,17 @@ function ReportsPage() {
           )}
         </div>
       )}
+      </div>
+      
+      {/* Hidden template for PDF generation */}
+      <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '1200px' }}>
+        <div ref={pdfTemplateRef}>
+          {pdfData && (
+            <StatusPageTemplate
+              {...pdfData}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
