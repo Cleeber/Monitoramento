@@ -121,6 +121,7 @@ export class SchedulerService {
       
       console.log(`📧 Processando relatório para monitor ${monitor.name} (${monitor.id})`)
       
+      /* Comentado para permitir envio automático mesmo se já houve envio manual no dia
       // Verificar se já foi enviado HOJE (não apenas este mês)
       const history = await databaseService.getMonthlyReportHistory({
         monitor_id: monitor.id,
@@ -139,6 +140,7 @@ export class SchedulerService {
         console.log(`⏭️ Relatório já enviado hoje para monitor ${monitor.name} (${todayStr})`)
         return
       }
+      */
       
       try {
         // Gerar e enviar relatório dinamicamente com dados dos últimos 30 dias
