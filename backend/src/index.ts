@@ -985,9 +985,9 @@ app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res
 app.post('/api/reports/send-monthly', authenticateToken, async (req, res) => {
   const startTime = Date.now()
   try {
-    const { monitor_id, email, year, month, includePdf = true, includeStatusPdf = false } = req.body
+    const { monitor_id, email, year, month, includePdf = true, includeStatusPdf = false, forceDynamic = false } = req.body
     
-    console.log(`📊 Solicitação de envio de relatório mensal - Monitor: ${monitor_id}, Período: ${month}/${year}`)
+    console.log(`📊 Solicitação de envio de relatório mensal - Monitor: ${monitor_id}, Período: ${month}/${year}${forceDynamic ? ' (Dinâmico)' : ''}`)
     
     if (!monitor_id || !email || !year || !month) {
       const error = 'Todos os campos são obrigatórios'
@@ -999,7 +999,15 @@ app.post('/api/reports/send-monthly', authenticateToken, async (req, res) => {
     
     let result
     
-    if (includeStatusPdf) {
+    if (forceDynamic) {
+      // Enviar exatamente como o envio automático (últimos 30 dias)
+      try {
+        await reportService.sendMonthlyReportDynamic(monitor_id, email)
+        result = { success: true, message: 'Relatório dinâmico enviado com sucesso' }
+      } catch (err) {
+        result = { success: false, message: err instanceof Error ? err.message : 'Erro desconhecido' }
+      }
+    } else if (includeStatusPdf) {
       // Enviar relatório completo com PDF do status geral
       result = await reportService.sendMonthlyReportWithStatusPDF(
         monitor_id,

@@ -266,7 +266,8 @@ function ReportsPage() {
         email,
         year,
         month,
-        includePdf: true
+        includePdf: true,
+        forceDynamic: true
       })
       
       if (!result.success) {
