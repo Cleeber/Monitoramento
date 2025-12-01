@@ -146,7 +146,7 @@ export function StatusPageTemplate({
   isPdf = false
 }: StatusPageTemplateProps) {
   // Calcular totalServices baseado nos dados
-  const totalServices = data ? data.monitors.length : 0
+  const totalServices = data?.monitors?.length || 0
 
   if (loading) {
     // ...

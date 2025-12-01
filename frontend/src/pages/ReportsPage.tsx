@@ -200,66 +200,34 @@ function ReportsPage() {
       const monitor = monitors.find(m => m.id === selectedMonitor)
       if (!monitor) throw new Error('Monitor não encontrado')
 
-      // 1. Buscar dados do Status Page
-      const statusRes = await fetch(`/api/public/status/monitor/${monitor.id}`)
-      if (!statusRes.ok) throw new Error('Falha ao buscar dados do monitor')
-      const statusData = await statusRes.json()
-      
-      // 2. Incidentes
-      const incidentsRes = await fetch(`/api/public/incidents?monitor_id=${monitor.id}`)
-      const incidentsData = await incidentsRes.json()
-      
-      // 3. Histórico de Uptime
-      const uptimeChartData = await fetchUptimeHistory(monitor.id)
-      
-      // 4. Estatísticas
-      const monitorStats = await fetchMonitorStats(monitor.id)
-      
-      // Preparar dados para o template
-      setPdfData({
-        data: statusData,
-        incidents: incidentsData,
-        pageTitle: statusData.monitor?.name || 'Status do Serviço',
-        uptimeChartData,
-        uptimeData: { uptime_percentage: statusData.monitors[0]?.uptime_30d || 0 },
-        monitorStats,
-        incidentsData: { total_incidents: incidentsData.length },
-        responseTimeData: { avg_response_time: statusData.monitors[0]?.response_time || 0 },
-        loading: false,
-        logoSrc: statusData.monitor?.logo_url 
-          ? (statusData.monitor.logo_url.startsWith('http') || statusData.monitor.logo_url.startsWith('data:') 
-              ? statusData.monitor.logo_url 
-              : `/api${statusData.monitor.logo_url.startsWith('/') ? '' : '/'}${statusData.monitor.logo_url}`)
-          : null,
-        isPdf: true
-      })
-      
-      // Aguardar renderização
-      await new Promise(resolve => setTimeout(resolve, 1500))
-      
-      const element = pdfTemplateRef.current
-      if (!element) throw new Error('Erro interno: Template não encontrado')
-      
-      const safeName = (monitor.name || 'monitor').replace(/[^a-zA-Z0-9]/g, '-')
-      const date = new Date()
-      const fileName = `status-${safeName}-${date.toISOString().split('T')[0]}.pdf`
+      // Calcular período
+      const periodRange = calculatePeriodRange(selectedTimeRange)
+      const year = periodRange.endDate.getFullYear()
+      const month = periodRange.endDate.getMonth() + 1
 
-      const opt = {
-        margin: [10, 10, 10, 10], // Margens pequenas para não cortar
-        filename: fileName,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { 
-          scale: 2, 
-          useCORS: true, 
-          backgroundColor: '#f8fafc', 
-          windowWidth: 1024, // Aumentar largura para layout desktop (2 colunas)
-          scrollY: 0
-        },
-        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      // Chamar endpoint do backend para gerar PDF
+      const token = localStorage.getItem('auth_token')
+      const response = await fetch(`/api/pdf/monthly-report/${monitor.id}?year=${year}&month=${month}&style=status`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new Error(`Erro ao gerar PDF: ${errorText}`)
       }
 
-      // @ts-ignore
-      await window.html2pdf().set(opt).from(element).save()
+      // Criar blob e link para download
+      const blob = await response.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `relatorio-${monitor.slug || monitor.name}-${month}-${year}.pdf`
+      document.body.appendChild(a)
+      a.click()
+      window.URL.revokeObjectURL(url)
+      document.body.removeChild(a)
       
       toast.success('Relatório exportado com sucesso!')
     } catch (error) {
@@ -267,8 +235,6 @@ function ReportsPage() {
       toast.error('Erro ao gerar PDF')
     } finally {
       setExporting(false)
-      // Limpar dados após um tempo para não consumir memória, mas manter por um instante para o pdf ser gerado
-      setTimeout(() => setPdfData(null), 1000)
     }
   }
 
