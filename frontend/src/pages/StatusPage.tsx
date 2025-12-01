@@ -428,7 +428,7 @@ export function StatusPage() {
             </div>
           )}
           <div className="text-left">
-            <h1 className="text-5xl font-bold text-white shadow-sm">{pageTitle}</h1>
+            <h1 className="text-7xl font-bold text-white shadow-sm">{pageTitle}</h1>
           </div>
         </div>
         </div>
