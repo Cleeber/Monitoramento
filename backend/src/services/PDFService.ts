@@ -86,7 +86,6 @@ export class PDFService {
 
         // Carregar dados
         const monitors = await databaseService.getMonitors()
-        const groups = await databaseService.getGroups()
 
         // Primeiro: tentar encontrar MONITOR pelo slug para evitar colisão com slug de grupo
         const monitor = monitors.find((m: any) => m.slug === monitorSlug)
@@ -101,25 +100,9 @@ export class PDFService {
           return
         }
 
-        // Depois: tentar encontrar GRUPO pelo slug
-        const group = groups.find((g: any) => g.slug === monitorSlug)
-        if (group) {
-          // Se for grupo, listar monitores deste grupo
-          const groupMonitors = monitors.filter((m: any) => m.group_id === group.id)
-          this.addGroupSection(doc, group.name, groupMonitors)
-          this.addStatisticsSummary(doc, groupMonitors)
-          this.addFooter(doc)
-          doc.end()
-          return
-        }
-
-        // Fallback: status geral - REMOVIDO
-        // Se não encontrar monitor nem grupo, não deve retornar status geral (todos os monitores)
-        // pois isso confunde o usuário quando ele solicita um específico.
-        
         doc.fontSize(12)
            .fillColor('#dc2626')
-           .text('Monitor ou Grupo não encontrado para o slug informado.', 50, 150)
+           .text('Monitor não encontrado para o slug informado.', 50, 150)
         this.addFooter(doc)
         doc.end()
       })
@@ -181,22 +164,11 @@ export class PDFService {
     try {
       // Buscar dados dos monitores
       const monitors = await databaseService.getMonitors()
-      const groups = await databaseService.getGroups()
       
-      // Verificar se existe um grupo principal ou monitor com página de status geral
-      const mainGroup = groups.find((g: any) => g.name.toLowerCase().includes('principal') || g.name.toLowerCase().includes('geral'))
+      console.log(`📄 Gerando PDF de status básico`)
       
-      if (mainGroup && mainGroup.slug) {
-        console.log(`📄 Gerando PDF de status otimizado (texto) para grupo: ${mainGroup.name}`)
-        
-        // Usar versão otimizada baseada em dados (sem captura)
-        return await this.generateOptimizedStatusPDF(mainGroup.slug, options.title || 'Status dos Monitores')
-      } else {
-        console.log(`📄 Gerando PDF de status básico (sem página de status disponível)`)
-        
-        // Fallback para o método original
-        return this.generateBasicStatusPDF(options, monitors, groups)
-      }
+      // Fallback para o método original
+      return this.generateBasicStatusPDF(options, monitors)
     } catch (error) {
       console.error('❌ Erro ao gerar PDF de status:', error)
       throw error
@@ -206,7 +178,7 @@ export class PDFService {
   /**
    * Gera PDF básico com status de todos os monitores (fallback)
    */
-  private async generateBasicStatusPDF(options: PDFReportOptions, monitors: any[], groups: any[]): Promise<Buffer> {
+  private async generateBasicStatusPDF(options: PDFReportOptions, monitors: any[]): Promise<Buffer> {
     return new Promise(async (resolve, reject) => {
       try {
         const doc = new PDFDocument({ margin: 50 })
@@ -222,8 +194,8 @@ export class PDFService {
         // Informações gerais
         this.addGeneralInfo(doc, monitors)
         
-        // Status por grupo
-        await this.addMonitorsByGroup(doc, monitors, groups)
+        // Lista de Monitores (substituindo grupos)
+        this.addMonitorsList(doc, monitors)
         
         // Resumo de estatísticas
         this.addStatisticsSummary(doc, monitors)
@@ -236,6 +208,35 @@ export class PDFService {
         reject(error)
       }
     })
+  }
+
+  /**
+   * Adiciona lista de monitores
+   */
+  private addMonitorsList(doc: PDFKit.PDFDocument, monitors: any[]) {
+    doc.fontSize(16)
+       .fillColor('#1f2937')
+       .text('Lista de Monitores', 50, doc.y)
+    
+    doc.moveDown(1)
+    
+    monitors.forEach(monitor => {
+      const statusIcon = this.getStatusIcon(monitor.status)
+      const uptimeText = monitor.uptime_24h ? `${monitor.uptime_24h.toFixed(1)}%` : 'N/A'
+      const responseTime = monitor.avg_response_time ? `${monitor.avg_response_time}ms` : 'N/A'
+      
+      doc.fontSize(11)
+         .fillColor('#374151')
+         .text(`${statusIcon} ${monitor.name}`, 70, doc.y)
+      
+      doc.fontSize(9)
+         .fillColor('#6b7280')
+         .text(`${monitor.url} | Uptime 24h: ${uptimeText} | Resposta: ${responseTime}`, 90, doc.y + 15)
+      
+      doc.moveDown(1.5)
+    })
+    
+    doc.moveDown(1)
   }
 
   /**
@@ -393,64 +394,7 @@ export class PDFService {
     doc.moveDown(4)
   }
 
-  /**
-   * Adiciona monitores agrupados
-   */
-  private async addMonitorsByGroup(doc: PDFKit.PDFDocument, monitors: any[], groups: any[]) {
-    doc.fontSize(16)
-       .fillColor('#1f2937')
-       .text('Status por Grupo', 50, doc.y)
-    
-    doc.moveDown(1)
-    
-    // Monitores sem grupo
-    const monitorsWithoutGroup = monitors.filter(m => !m.group_id)
-    if (monitorsWithoutGroup.length > 0) {
-      this.addGroupSection(doc, 'Sem Grupo', monitorsWithoutGroup)
-    }
-    
-    // Monitores por grupo
-    for (const group of groups) {
-      const groupMonitors = monitors.filter(m => m.group_id === group.id)
-      if (groupMonitors.length > 0) {
-        this.addGroupSection(doc, group.name, groupMonitors)
-      }
-    }
-  }
 
-  /**
-   * Adiciona seção de grupo
-   */
-  private addGroupSection(doc: PDFKit.PDFDocument, groupName: string, monitors: any[]) {
-    // Verificar se precisa de nova página
-    if (doc.y > 700) {
-      doc.addPage()
-    }
-    
-    doc.fontSize(14)
-       .fillColor('#4b5563')
-       .text(groupName, 50, doc.y)
-    
-    doc.moveDown(0.5)
-    
-    monitors.forEach(monitor => {
-      const statusIcon = this.getStatusIcon(monitor.status)
-      const uptimeText = monitor.uptime_24h ? `${monitor.uptime_24h.toFixed(1)}%` : 'N/A'
-      const responseTime = monitor.avg_response_time ? `${monitor.avg_response_time}ms` : 'N/A'
-      
-      doc.fontSize(11)
-         .fillColor('#374151')
-         .text(`${statusIcon} ${monitor.name}`, 70, doc.y)
-      
-      doc.fontSize(9)
-         .fillColor('#6b7280')
-         .text(`${monitor.url} | Uptime 24h: ${uptimeText} | Resposta: ${responseTime}`, 90, doc.y + 15)
-      
-      doc.moveDown(1.5)
-    })
-    
-    doc.moveDown(1)
-  }
 
   /**
    * Adiciona resumo de estatísticas

@@ -14,7 +14,7 @@ import {
   CheckCircle
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
-import { apiGet, apiPost, apiPut } from '../utils/apiUtils'
+import { apiGet, apiPost } from '../utils/apiUtils'
 
 interface SmtpConfig {
   id?: string

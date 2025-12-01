@@ -1,54 +1,22 @@
 import React, { useState, useMemo } from 'react';
-import { ExternalLink, Globe, Users, Monitor, Filter, ArrowUpDown } from 'lucide-react';
+import { ExternalLink, Globe, Monitor, Filter, ArrowUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Button } from '../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import useGroups from '../hooks/useGroups';
 import useMonitors from '../hooks/useMonitors';
 import { getAllStatusPageUrl, getStatusPageUrl } from '../utils/urlUtils';
 
 type SortOption = 'recent' | 'alphabetical' | 'status';
 
 const StatusPagesPage: React.FC = () => {
-  const { groups, loading: groupsLoading, error: groupsError } = useGroups();
-  const { monitors, loading: monitorsLoading, error: monitorsError } = useMonitors();
+  const { monitors, loading, error } = useMonitors();
   
-  const [groupsSortBy, setGroupsSortBy] = useState<SortOption>('recent');
-  const [groupsSortReverse, setGroupsSortReverse] = useState(false);
   const [monitorsSortBy, setMonitorsSortBy] = useState<SortOption>('recent');
   const [monitorsSortReverse, setMonitorsSortReverse] = useState(false);
-  
-  const loading = groupsLoading || monitorsLoading;
-  const error = groupsError || monitorsError;
 
   const handleOpenStatusPage = (url: string) => {
     window.open(url, '_blank');
   };
-
-  // Função para ordenar grupos
-  const sortedGroups = useMemo(() => {
-    if (!groups) return [];
-    
-    const groupsCopy = [...groups];
-    let sorted;
-    
-    switch (groupsSortBy) {
-      case 'alphabetical':
-        sorted = groupsCopy.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      case 'recent':
-        sorted = groupsCopy.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-        break;
-      case 'status':
-        // Para grupos, ordenar por nome já que não temos status direto
-        sorted = groupsCopy.sort((a, b) => a.name.localeCompare(b.name));
-        break;
-      default:
-        sorted = groupsCopy;
-    }
-    
-    return groupsSortReverse ? sorted.reverse() : sorted;
-  }, [groups, groupsSortBy, groupsSortReverse]);
 
   // Função para ordenar monitores
   const sortedMonitors = useMemo(() => {
@@ -132,7 +100,7 @@ const StatusPagesPage: React.FC = () => {
     return (
       <div className="p-6">
         <div className="border rounded-lg p-4" style={{backgroundColor: '#181b20', borderColor: '#dc2626'}}>
-          <h2 className="text-lg font-semibold text-red-400 mb-2">Erro ao carregar grupos</h2>
+          <h2 className="text-lg font-semibold text-red-400 mb-2">Erro ao carregar monitores</h2>
           <p className="text-red-300">{error}</p>
         </div>
       </div>
@@ -144,7 +112,7 @@ const StatusPagesPage: React.FC = () => {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white mb-2">Páginas de Status</h1>
         <p className="text-gray-400">
-          Acesse as páginas públicas de status para compartilhar com seus grupos
+          Acesse as páginas públicas de status para compartilhar
         </p>
       </div>
 
@@ -178,66 +146,6 @@ const StatusPagesPage: React.FC = () => {
             </button>
           </div>
         </div>
-
-        {/* Páginas por Grupo */}
-        {groups.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-white flex items-center space-x-2">
-                <Users className="h-5 w-5" />
-                <span>Páginas por Grupo</span>
-              </h2>
-              <SortFilter 
-                value={groupsSortBy} 
-                onChange={setGroupsSortBy}
-                reverse={groupsSortReverse}
-                onReverseChange={setGroupsSortReverse}
-              />
-            </div>
-            <div className="rounded-lg border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
-              <Table>
-                <TableHeader>
-                  <TableRow style={{borderColor: '#2c313a'}}>
-                    <TableHead className="text-gray-300">Grupo</TableHead>
-                    <TableHead className="text-gray-300">Descrição</TableHead>
-                    <TableHead className="text-gray-300">URL</TableHead>
-                    <TableHead className="text-gray-300 text-right">Ações</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedGroups.map((group) => (
-                    <TableRow key={group.id} style={{borderColor: '#2c313a'}} className="hover:bg-gray-800/50">
-                      <TableCell className="text-white">
-                        <div className="flex items-center space-x-2">
-                          <Users className="h-4 w-4 text-green-500" />
-                          <span className="font-medium">{group.name}</span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="text-gray-300">
-                        {group.description || '-'}
-                      </TableCell>
-                      <TableCell className="text-gray-300">
-                        <code className="text-xs bg-gray-800 px-2 py-1 rounded">
-                          {getStatusPageUrl(group.slug)}
-                        </code>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          onClick={() => handleOpenStatusPage(getStatusPageUrl(group.slug))}
-                          className="bg-green-600 hover:bg-green-700 text-white"
-                          size="sm"
-                        >
-                          <ExternalLink className="h-4 w-4 mr-1" />
-                          Abrir
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          </div>
-        )}
 
         {/* Monitores Individuais */}
         {monitors.length > 0 && (
@@ -302,12 +210,12 @@ const StatusPagesPage: React.FC = () => {
           </div>
         )}
 
-        {groups.length === 0 && monitors.length === 0 && !loading && (
+        {monitors.length === 0 && !loading && (
           <div className="border rounded-lg p-6 text-center" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
-            <Users className="h-12 w-12 text-gray-400 mx-auto mb-3" />
+            <Monitor className="h-12 w-12 text-gray-400 mx-auto mb-3" />
             <h3 className="text-lg font-medium text-white mb-2">Nenhuma página de status encontrada</h3>
             <p className="text-gray-400">
-              Crie grupos e monitores para gerar páginas de status personalizadas
+              Crie monitores para gerar páginas de status personalizadas
             </p>
           </div>
         )}
@@ -316,7 +224,7 @@ const StatusPagesPage: React.FC = () => {
       <div className="mt-8 p-4 border rounded-lg" style={{backgroundColor: '#1e3a8a', borderColor: '#3b82f6'}}>
         <h3 className="text-sm font-medium text-blue-200 mb-2">💡 Dica</h3>
         <p className="text-sm text-blue-100">
-          Compartilhe estes links com seus grupos para que eles possam acompanhar o status dos serviços em tempo real.
+          Compartilhe estes links para que possam acompanhar o status dos serviços em tempo real.
           As páginas são públicas e não requerem autenticação.
         </p>
       </div>

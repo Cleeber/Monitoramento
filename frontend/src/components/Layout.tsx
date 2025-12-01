@@ -4,7 +4,6 @@ import { Button } from './ui/button'
 import { 
   LayoutDashboard, 
   Globe, 
-  Users, 
   Settings, 
   FileText, 
   LogOut,
@@ -19,7 +18,6 @@ import { cn } from '../lib/utils'
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { name: 'Domínios', href: '/dominios', icon: Globe },
-  { name: 'Grupos', href: '/grupos', icon: Users },
   { name: 'Configurações SMTP', href: '/config/smtp', icon: Settings },
   { name: 'Relatórios', href: '/relatorios', icon: FileText },
 ]

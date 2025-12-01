@@ -81,104 +81,20 @@ export class DatabaseService {
     if (error) throw error
   }
 
-  // ===== GROUPS =====
-  async getGroups() {
-    const { data, error } = await (supabase as any)
-      .from('groups')
-      .select(`
-        *,
-        monitors:monitors(count)
-      `)
-      .order('created_at', { ascending: false })
-    
-    if (error) throw error
-    
-    // Adicionar contagem de monitores
-    return (data || []).map((group: any) => ({
-      ...group,
-      monitor_count: group.monitors?.[0]?.count || 0
-    }))
-  }
+  // Groups functionality removed
 
-  async getGroupById(id: string) {
-    const { data, error } = await (supabase as any)
-      .from('groups')
-      .select('*')
-      .eq('id', id)
-      .single()
-    
-    if (error) throw error
-    return data
-  }
-
-  async createGroup(groupData: { name: string; description?: string; slug?: string }) {
-    const { data, error } = await (supabase as any)
-      .from('groups')
-      .insert({
-        id: uuidv4(),
-        name: groupData.name,
-        description: groupData.description || null,
-        slug: groupData.slug,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      })
-      .select()
-      .single()
-    
-    if (error) throw error
-    return data
-  }
-
-  async updateGroup(id: string, updates: { name?: string; description?: string; slug?: string }) {
-    const { data, error } = await (supabase as any)
-      .from('groups')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', id)
-      .select()
-      .single()
-    
-    if (error) throw error
-    return data
-  }
-
-  async deleteGroup(id: string) {
-    // Verificar se há monitores usando este grupo
-    const { data: monitors } = await (supabase as any)
-      .from('monitors')
-      .select('id')
-      .eq('group_id', id)
-    
-    if (monitors && monitors.length > 0) {
-      throw new Error('Não é possível excluir grupo com monitores associados')
-    }
-
-    const { error } = await (supabase as any)
-      .from('groups')
-      .delete()
-      .eq('id', id)
-    
-    if (error) throw error
-  }
 
   // ===== MONITORS =====
   async getMonitors() {
     const { data, error } = await (supabase as any)
       .from('monitors')
-      .select(`
-        *,
-        groups:group_id(name)
-      `)
+      .select('*')
       .order('created_at', { ascending: false })
     
     if (error) throw error
     
-    // Adicionar nome do grupo
     return (data || []).map((monitor: any) => ({
       ...monitor,
-      group_name: monitor.groups?.name || 'Sem grupo',
       enabled: monitor.is_active
     }))
   }
@@ -200,7 +116,6 @@ export class DatabaseService {
     type: 'http' | 'ping' | 'tcp'
     interval?: number
     timeout?: number
-    group_id?: string | null
     slug?: string
     is_active?: boolean
     logo_url?: string | null
@@ -221,7 +136,6 @@ export class DatabaseService {
         type: monitorData.type,
         interval: monitorData.interval || 60000,
         timeout: monitorData.timeout || 30000,
-        group_id: monitorData.group_id,
         slug: monitorData.slug,
         logo_url: monitorData.logo_url,
         report_email: monitorData.report_email || null,
@@ -578,19 +492,12 @@ export class DatabaseService {
   }
 
   // ===== REPORTS =====
-  async getReports(filters?: { group_id?: string; period?: string }) {
+  async getReports(filters?: { period?: string }) {
     let query = (supabase as any)
       .from('reports')
-      .select(`
-        *,
-        groups:group_id(name)
-      `)
+      .select('*')
       .order('year', { ascending: false })
       .order('month', { ascending: false })
-    
-    if (filters?.group_id && filters.group_id !== 'all') {
-      query = query.eq('group_id', filters.group_id)
-    }
     
     const { data, error } = await query
     
@@ -599,12 +506,12 @@ export class DatabaseService {
   }
 
   async createReport(reportData: {
-    group_id: string
     month: string
     year: number
     uptime_percentage: number
     total_checks: number
     successful_checks: number
+    failed_checks: number
     avg_response_time: number
   }) {
     const { data, error } = await (supabase as any)
@@ -646,43 +553,10 @@ export class DatabaseService {
     return this.updateSmtpConfig(config)
   }
 
-  async getGroupBySlug(slug: string) {
-    const { data, error } = await (supabase as any)
-      .from('groups')
-      .select('*')
-      .eq('slug', slug)
-      .single()
-    
-    if (error && error.code !== 'PGRST116') throw error
-    return data
-  }
-
-  async getMonitorsByGroup(groupId: string) {
-    const { data, error } = await (supabase as any)
-      .from('monitors')
-      .select(`
-        *,
-        groups:group_id(name)
-      `)
-      .eq('group_id', groupId)
-      .order('created_at', { ascending: false })
-    
-    if (error) throw error
-    
-    return (data || []).map((monitor: any) => ({
-      ...monitor,
-      group_name: monitor.groups?.name || 'Sem grupo',
-      enabled: monitor.is_active
-    }))
-  }
-
   async getMonitorBySlug(slug: string) {
     const { data, error } = await (supabase as any)
       .from('monitors')
-      .select(`
-        *,
-        groups:group_id(name)
-      `)
+      .select('*')
       .eq('slug', slug)
       .single()
     
@@ -691,7 +565,6 @@ export class DatabaseService {
     if (data) {
       return {
         ...data,
-        group_name: data.groups?.name || 'Sem grupo',
         enabled: data.is_active
       }
     }

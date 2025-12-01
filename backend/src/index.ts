@@ -327,7 +327,6 @@ app.get('/api/auth/me', authenticateToken, async (req: any, res) => {
 app.get('/api/dashboard/stats', authenticateToken, async (_req, res) => {
   try {
     const stats = monitoringService.getStats()
-    const groups = await databaseService.getGroups()
     const monitors = await databaseService.getMonitors()
     
     // Calcular média de uptime e tempo de resposta
@@ -359,7 +358,6 @@ app.get('/api/dashboard/stats', authenticateToken, async (_req, res) => {
       offline_monitors: stats.offline,
       warning_monitors: stats.warning,
       avg_response_time: Math.round(avgResponseTime),
-      total_groups: groups.length,
       avg_uptime: Number(avgUptime.toFixed(2))
     })
   } catch (error) {
@@ -501,17 +499,10 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
 
 app.post('/api/monitors', authenticateToken, async (req, res) => {
   try {
-    const { name, url, type, interval, timeout, group_id, enabled = true, slug, logo_url, report_email, report_send_day, report_send_time, ignore_http_403, content_validation_enabled, min_content_length, min_text_length } = req.body
+    const { name, url, type, interval, timeout, enabled = true, slug, logo_url, report_email, report_send_day, report_send_time, ignore_http_403, content_validation_enabled, min_content_length, min_text_length } = req.body
     
     if (!name || !url || !type) {
       return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
-    }
-    
-    if (group_id) {
-      const group = await databaseService.getGroupById(group_id)
-      if (!group) {
-        return res.status(400).json({ error: 'Grupo não encontrado' })
-      }
     }
     
     const newMonitor = await databaseService.createMonitor({
@@ -520,7 +511,6 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       type,
       interval: interval || 60000, // Valor já em milissegundos do frontend
       timeout: timeout || 30000,   // Valor já em milissegundos do frontend
-      group_id,
       is_active: enabled,
       slug,
       logo_url,
@@ -592,7 +582,7 @@ app.get('/api/monitors/:id', authenticateToken, async (req, res) => {
 app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { name, url, type, interval, timeout, group_id, enabled, slug, logo_url, report_email, report_send_day, report_send_time, ignore_http_403, content_validation_enabled, min_content_length, min_text_length } = req.body
+    const { name, url, type, interval, timeout, enabled, slug, logo_url, report_email, report_send_day, report_send_time, ignore_http_403, content_validation_enabled, min_content_length, min_text_length } = req.body
     
     const monitor = await databaseService.getMonitorById(id)
     if (!monitor) {
@@ -605,7 +595,6 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       type,
       interval: interval || 60000, // Valor já em milissegundos do frontend
       timeout: timeout || 30000,   // Valor já em milissegundos do frontend
-      group_id,
       is_active: enabled,
       slug,
       logo_url,
@@ -801,68 +790,8 @@ app.get('/api/monitor-checks', authenticateToken, async (req, res) => {
   }
 })
 
-// Rotas de grupos
-app.get('/api/groups', authenticateToken, async (_, res) => {
-  try {
-    const groups = await databaseService.getGroups()
-    res.json(groups)
-  } catch (error) {
-    console.error('Erro ao buscar grupos:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
+// Rotas de grupos - REMOVIDAS
 
-app.post('/api/groups', authenticateToken, async (req, res) => {
-  try {
-    const { name, description, slug } = req.body
-    
-    if (!name) {
-      return res.status(400).json({ error: 'Nome é obrigatório' })
-    }
-    
-    const newGroup = await databaseService.createGroup({
-      name,
-      description,
-      slug
-    })
-    
-    res.status(201).json(newGroup)
-  } catch (error) {
-    console.error('Erro ao criar grupo:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-app.put('/api/groups/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params
-    const { name, description, slug } = req.body
-    
-    const updatedGroup = await databaseService.updateGroup(id, {
-      name,
-      description,
-      slug
-    })
-    
-    res.json(updatedGroup)
-  } catch (error) {
-    console.error('Erro ao atualizar grupo:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
-
-app.delete('/api/groups/:id', authenticateToken, async (req, res) => {
-  try {
-    const { id } = req.params
-    
-    await databaseService.deleteGroup(id)
-    
-    res.status(204).send()
-  } catch (error) {
-    console.error('Erro ao remover grupo:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
-})
 
 // Rotas de Relatórios Mensais
 app.get('/api/monthly-reports/configs/monitor/:monitorId', authenticateToken, async (req, res) => {
@@ -1263,52 +1192,6 @@ app.get('/api/status-page/:slug', async (req, res) => {
   try {
     const { slug } = req.params
     
-    // Verificar se é uma página de status de grupo ou de monitor individual
-    const group = await databaseService.getGroupBySlug(slug)
-    
-    if (group) {
-      // É uma página de grupo
-      const monitors = await databaseService.getMonitorsByGroup(group.id)
-      
-      // Adicionar status em tempo real
-      const monitorsWithStatus = monitors
-        .filter((m: any) => m.is_active)
-        .map((monitor: any) => {
-          const realTimeStatus = monitoringService.getMonitor(monitor.id)
-          return {
-            id: monitor.id,
-            name: monitor.name,
-            url: monitor.url,
-            type: monitor.type,
-            logo_url: monitor.logo_url,
-            status: realTimeStatus?.status || monitor.status || 'unknown',
-            last_check: realTimeStatus?.last_check || monitor.last_check,
-            response_time: realTimeStatus?.response_time || monitor.response_time,
-            uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
-            uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
-            uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0,
-            group_name: group.name
-          }
-        })
-      
-      // Calcular status geral do grupo
-      const hasDown = monitorsWithStatus.some((m: any) => m.status === 'offline')
-      const hasWarning = monitorsWithStatus.some((m: any) => m.status === 'warning')
-      
-      let overall_status = 'operational'
-      if (hasDown) overall_status = 'outage'
-      else if (hasWarning) overall_status = 'degraded'
-      
-      return res.json({
-        title: group.name,
-        description: group.description,
-        monitors: monitorsWithStatus,
-        overall_status,
-        last_updated: new Date().toISOString(),
-        type: 'group'
-      })
-    }
-    
     // Verificar se é um monitor individual
     const monitor = await databaseService.getMonitorBySlug(slug)
     
@@ -1329,8 +1212,7 @@ app.get('/api/status-page/:slug', async (req, res) => {
         response_time: realTimeStatus?.response_time || monitor.response_time,
         uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
         uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
-        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0,
-        group_name: monitor.group_name || 'Sem grupo'
+        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0
       }
       
       let overall_status = 'operational'
@@ -1429,13 +1311,7 @@ app.get('/api/public/monitors/:id/incidents', async (req, res) => {
 
 // Rotas públicas de listagem (usadas por hooks no frontend)
 app.get('/api/public/groups', async (_req, res) => {
-  try {
-    const groups = await databaseService.getGroups()
-    res.json(groups)
-  } catch (error) {
-    console.error('Erro ao buscar grupos públicos:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
+  res.status(404).json({ error: 'Funcionalidade de grupos removida' })
 })
 
 app.get('/api/public/monitors', async (_req, res) => {
@@ -1485,8 +1361,7 @@ app.get('/api/public/status/all', async (_req, res) => {
         response_time: realTimeStatus?.response_time || monitor.response_time,
         uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
         uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
-        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0,
-        group_name: monitor.group_name
+        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0
       }
     })
     
@@ -1509,69 +1384,9 @@ app.get('/api/public/status/all', async (_req, res) => {
   }
 })
 
-// Rota pública para status por grupo
+// Rota pública para status por grupo - REMOVIDA
 app.get('/api/public/status/group/:id', async (req, res) => {
-  try {
-    const { id } = req.params
-    
-    // Verificar se é UUID
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
-    
-    let groupId = id
-    
-    // Se não for UUID, tentar buscar grupo pelo slug
-    if (!isUuid) {
-      const group = await databaseService.getGroupBySlug(id)
-      if (group) {
-        groupId = group.id
-      } else {
-        // Se não encontrou grupo pelo slug, pode ser que o frontend esteja tentando
-        // usar essa rota mas o ID não é de grupo. Retornar 404.
-        return res.status(404).json({ error: 'Grupo não encontrado' })
-      }
-    }
-    
-    const monitors = await databaseService.getMonitors()
-    // databaseService.getMonitors retorna um campo 'enabled' mapeado de 'is_active'
-    const groupMonitors = monitors.filter((m: any) => m.group_id === groupId && m.enabled === true)
-    
-    const monitorsWithStatus = groupMonitors.map((monitor: any) => {
-      const realTimeStatus = monitoringService.getMonitor(monitor.id)
-      return {
-        id: monitor.id,
-        name: monitor.name,
-        url: monitor.url,
-        logo_url: monitor.logo_url,
-        status: realTimeStatus?.status || monitor.status || 'unknown',
-        last_check: realTimeStatus?.last_check || monitor.last_check,
-        response_time: realTimeStatus?.response_time || monitor.response_time,
-        uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
-        uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
-        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0,
-        group_name: monitor.group_name
-      }
-    })
-    
-    const hasDown = monitorsWithStatus.some((m: any) => m.status === 'offline')
-    const hasWarning = monitorsWithStatus.some((m: any) => m.status === 'warning')
-    
-    let overall_status = 'operational'
-    if (hasDown) overall_status = 'outage'
-    else if (hasWarning) overall_status = 'degraded'
-    
-    // Buscar informações do grupo para retornar no response (opcional, mas útil)
-    const groupInfo = await databaseService.getGroupById(groupId)
-    
-    res.json({
-      group: groupInfo, // Adicionado para ajudar o frontend a saber que é um grupo válido
-      monitors: monitorsWithStatus,
-      overall_status,
-      last_updated: new Date().toISOString()
-    })
-  } catch (error) {
-    console.error('Erro ao buscar status do grupo:', error)
-    res.status(500).json({ error: 'Erro interno do servidor' })
-  }
+  res.status(404).json({ error: 'Funcionalidade de grupos removida' })
 })
 
 // Rota pública para status de monitor individual
@@ -1606,8 +1421,7 @@ app.get('/api/public/status/monitor/:id', async (req, res) => {
       response_time: realTimeStatus?.response_time || monitor.response_time,
       uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
       uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
-      uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0,
-      group_name: monitor.groups?.name || 'Sem grupo'
+      uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0
     }
     
     let overall_status = 'operational'
@@ -1629,12 +1443,12 @@ app.get('/api/public/status/monitor/:id', async (req, res) => {
 // Rota pública para histórico de incidentes
 app.get('/api/public/incidents', async (req, res) => {
   try {
-    const { monitor_id, group_id, limit = 10 } = req.query
+    const { monitor_id, limit = 10 } = req.query
     
     // Implementação simplificada: retornar vazio ou buscar incidentes reais se tiver tabela
     // Por enquanto, vamos retornar lista vazia para não quebrar o frontend
     // TODO: Implementar busca real de incidentes
-    console.log(`Buscando incidentes públicos para monitor=${monitor_id} group=${group_id} limit=${limit}`)
+    console.log(`Buscando incidentes públicos para monitor=${monitor_id} limit=${limit}`)
     res.json([])
   } catch (error) {
     console.error('Erro ao buscar incidentes:', error)
@@ -1645,9 +1459,9 @@ app.get('/api/public/incidents', async (req, res) => {
 // Rota pública para histórico de uptime (gráfico)
 app.get('/api/public/uptime-history', async (req, res) => {
   try {
-    const { monitor_id, group_id, days = 30 } = req.query
+    const { monitor_id, days = 30 } = req.query
     
-    console.log(`Buscando histórico de uptime público para monitor=${monitor_id} group=${group_id} days=${days}`)
+    console.log(`Buscando histórico de uptime público para monitor=${monitor_id} days=${days}`)
     
     // Gerar dados simulados/reais de uptime diário
     const history = []

@@ -14,7 +14,7 @@ import {
   PieChart
 } from 'lucide-react'
 import { formatDuration } from '../lib/utils'
-import { apiGet } from '../utils/apiUtils'
+// import { apiGet } from '../utils/apiUtils'
 
 import {
   Chart as ChartJS,
@@ -53,7 +53,6 @@ interface PublicMonitor {
   uptime_24h: number
   uptime_7d: number
   uptime_30d: number
-  group_name: string
 }
 
 interface StatusPageData {
@@ -82,14 +81,14 @@ interface MonitorStats {
 }
 
 // Função para buscar dados históricos reais de uptime
-const fetchUptimeHistory = async (groupId?: string) => {
+const fetchUptimeHistory = async (monitorId?: string) => {
   try {
     const params = new URLSearchParams({
       days: '30'
     })
     
-    if (groupId && groupId !== 'all') {
-      params.append('group_id', groupId)
+    if (monitorId && monitorId !== 'all') {
+      params.append('monitor_id', monitorId)
     }
     
     const response = await fetch(`/api/public/uptime-history?${params}`)
@@ -166,12 +165,12 @@ const generateStatusDistributionData = (monitors: PublicMonitor[]) => {
 }
 
 export function StatusPage() {
-  const { groupId } = useParams<{ groupId: string }>()
+  const { slug } = useParams<{ slug: string }>()
   const [data, setData] = useState<StatusPageData | null>(null)
   const [loading, setLoading] = useState(true)
   // const [refreshing, setRefreshing] = useState(false)
   const [incidents, setIncidents] = useState<IncidentHistory[]>([])
-  const [groupName, setGroupName] = useState<string>('')
+  const [pageTitle, setPageTitle] = useState<string>('')
   const [uptimeChartData, setUptimeChartData] = useState<any>(null)
   // Removido: responseTimeHistory não utilizado
   const [monitorStats, setMonitorStats] = useState<MonitorStats | null>(null)
@@ -184,18 +183,13 @@ export function StatusPage() {
 
   useEffect(() => {
     fetchStatusData()
-    fetchGroupName()
-    loadUptimeData()
-    loadIncidentsData()
     
     // Atualizar a cada 30 segundos
     const interval = setInterval(() => {
       fetchStatusData()
-      loadUptimeData()
-      loadIncidentsData()
     }, 30000)
     return () => clearInterval(interval)
-  }, [groupId])
+  }, [slug])
 
   // Carregar estatísticas quando os dados do monitor estiverem disponíveis
   useEffect(() => {
@@ -208,7 +202,9 @@ export function StatusPage() {
 
   const loadUptimeData = async () => {
     try {
-      const chartData = await fetchUptimeHistory(groupId)
+      // Se for página geral, não passa ID. Se for monitor, passa ID do primeiro monitor
+      const monitorId = (!slug || slug === 'all') ? undefined : data?.monitors[0]?.id
+      const chartData = await fetchUptimeHistory(monitorId)
       setUptimeChartData(chartData)
       
       // Calcular dados de uptime para os cards de métricas
@@ -251,103 +247,47 @@ export function StatusPage() {
   }
 
   const fetchStatusData = async () => {
-    
     try {
       let statusUrl: string
       let incidentsUrl: string
-      // Removido: isMonitorIndividual não utilizado
-      let currentGroupId: string | null = null
-      let currentMonitorId: string | null = null
       
-      if (!groupId || groupId === 'all') {
+      if (!slug || slug === 'all') {
         statusUrl = `/api/public/status/all`
         incidentsUrl = `/api/public/incidents`
+        setPageTitle('Status Geral dos Serviços')
       } else {
-        // Primeiro, tentar buscar como slug de grupo
-        statusUrl = `/api/public/status/group/${groupId}`
-        incidentsUrl = `/api/public/incidents`
+        statusUrl = `/api/public/status/monitor/${slug}`
+        incidentsUrl = `/api/public/incidents` // Será ajustado após obter o ID
       }
         
       const statusResponse = await fetch(statusUrl)
-      let statusData = null
 
       if (statusResponse.ok) {
-        statusData = await statusResponse.json()
+        const statusData = await statusResponse.json()
         setData(statusData)
         
-        // Se é um grupo, usar o group_id para filtrar incidentes
-        if (statusData.group && statusData.group.id) {
-          currentGroupId = statusData.group.id
-          incidentsUrl = `/api/public/incidents?group_id=${currentGroupId}`
-        }
-      } else if (statusResponse.status === 404 && groupId !== 'all') {
-        // Se não encontrou como grupo, tentar buscar como monitor individual
-        try {
-          const monitorUrl = `/api/public/status/monitor/${groupId}`
-          const monitorResponse = await fetch(monitorUrl)
-          if (monitorResponse.ok) {
-            const monitorData = await monitorResponse.json()
-            // Converter a estrutura de monitor individual para o formato esperado
-            const adaptedData = {
-              monitors: [{
-                ...monitorData.monitor,
-                group_name: monitorData.monitor.name // Para monitor individual, usar o próprio nome
-              }],
-              overall_status: monitorData.overall_status,
-              last_updated: monitorData.last_updated
+        if (slug && slug !== 'all') {
+            setPageTitle(statusData.monitor?.name || 'Status do Serviço')
+            // Ajustar URL de incidentes com o ID do monitor
+            if (statusData.monitor?.id) {
+                incidentsUrl = `/api/public/incidents?monitor_id=${statusData.monitor.id}`
             }
-            setData(adaptedData)
-            statusData = adaptedData
-            // Removido: isMonitorIndividual = true (não utilizado)
-            currentMonitorId = monitorData.monitor.id
-            
-            // Para monitor individual, filtrar incidentes por monitor_id
-            incidentsUrl = `/api/public/incidents?monitor_id=${currentMonitorId}`
-          }
-        } catch (monitorError) {
-          console.error('Erro ao buscar monitor por slug:', monitorError)
         }
-      }
 
-      // Buscar incidentes com os filtros apropriados
-      const incidentsResponse = await fetch(incidentsUrl)
-      if (incidentsResponse.ok) {
-        const incidentsData = await incidentsResponse.json()
-        setIncidents(incidentsData)
+        // Buscar incidentes com os filtros apropriados
+        const incidentsResponse = await fetch(incidentsUrl)
+        if (incidentsResponse.ok) {
+            const incidentsData = await incidentsResponse.json()
+            setIncidents(incidentsData)
+        }
+      } else {
+        setPageTitle('Página não encontrada')
       }
     } catch (error) {
       console.error('Erro ao buscar dados de status:', error)
+      setPageTitle('Erro ao carregar')
     } finally {
       setLoading(false)
-      // refreshing removido conforme solicitação
-    }
-  }
-
-  const fetchGroupName = async () => {
-    if (!groupId || groupId === 'all') {
-      setGroupName('Todos os Grupos')
-      return
-    }
-    
-    try {
-      // Primeiro, tentar buscar como slug de grupo
-      const groupResult = await apiGet(`/public/status/group/${groupId}`)
-      if (groupResult.success && groupResult.data?.group) {
-        setGroupName(groupResult.data.group.name)
-        return
-      }
-      
-      // Se não encontrou como grupo, tentar buscar como monitor individual
-      const monitorResult = await apiGet(`/public/status/monitor/${groupId}`)
-      if (monitorResult.success && monitorResult.data?.monitor) {
-        setGroupName(monitorResult.data.monitor.name)
-        return
-      }
-      
-      setGroupName('Página não encontrada')
-    } catch (error) {
-      console.error('Erro ao buscar nome:', error)
-      setGroupName('Erro ao carregar')
     }
   }
 
@@ -475,39 +415,31 @@ export function StatusPage() {
         backgroundImage: 'linear-gradient(135deg, #0282ff 0%, #0369a1 100%)'
       }}>
         <div className="max-w-4xl mx-auto text-center">
-          <h1 className="text-2xl font-semibold mb-6 text-white/80">Status dos Serviços</h1>
-          
-          {groupName && (
-            <div className="flex items-center justify-center mb-4">
-              {/* Exibir logo apenas para monitores individuais */}
-              {data?.monitors.length === 1 && logoSrc && (
-                <div className="w-24 h-24 bg-white rounded-xl shadow-lg flex items-center justify-center mr-6 p-3">
-                  <img 
-                    src={logoSrc}
-                    alt={`Logo ${data.monitors[0].name}`}
-                    className="w-full h-full object-contain"
-                    style={{
-                      aspectRatio: '1/1'
-                    }}
-                    crossOrigin="anonymous"
-                    referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      const target = e.target as HTMLImageElement;
-                      const container = target.parentElement;
-                      if (container) {
-                        container.style.display = 'none';
-                      }
-                    }}
-                  />
-                </div>
-              )}
-              <h2 className="text-4xl font-bold text-white">
-                {groupName}
-              </h2>
+        <div className="flex items-center gap-4 justify-center md:justify-start">
+          {logoSrc ? (
+            <img 
+              src={logoSrc} 
+              alt="Logo" 
+              className="h-16 w-16 object-contain rounded-lg bg-white p-1 shadow-md"
+            />
+          ) : (
+            <div className="p-3 bg-white/10 rounded-lg backdrop-blur-sm">
+              <Globe className="h-8 w-8 text-white" />
             </div>
           )}
-          
-          <p className="text-lg text-white/90">Acompanhe o status em tempo real dos nossos serviços</p>
+          <div className="text-left">
+            <h1 className="text-3xl font-bold text-white shadow-sm">{pageTitle}</h1>
+            <div className="flex items-center gap-3 mt-2">
+              <Badge className={getOverallStatusInfo(data?.overall_status || 'operational').bgColor + ' ' + getOverallStatusInfo(data?.overall_status || 'operational').color + ' border px-3 py-1'}>
+                {getOverallStatusInfo(data?.overall_status || 'operational').text}
+              </Badge>
+              <span className="text-xs text-blue-100 flex items-center gap-1 bg-white/10 px-2 py-1 rounded-full">
+                <Clock className="h-3 w-3" />
+                Atualizado: {new Date().toLocaleTimeString()}
+              </span>
+            </div>
+          </div>
+        </div>
         </div>
       </div>
 
@@ -644,7 +576,6 @@ export function StatusPage() {
                       <div>
                         <h4 className="font-medium" style={{ color: '#1f2937' }}>{monitor.name}</h4>
                         <p className="text-sm" style={{ color: '#6b7280' }}>{monitor.url}</p>
-                        <p className="text-xs" style={{ color: '#6b7280' }}>{monitor.group_name}</p>
                       </div>
                     </div>
                     

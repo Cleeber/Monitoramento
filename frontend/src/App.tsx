@@ -6,7 +6,6 @@ import { Layout } from './components/Layout'
 import { LoginPage } from './pages/LoginPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { DomainsPage } from './pages/DomainsPage'
-import { GroupsPage } from './pages/GroupsPage'
 import { StatusPage } from './pages/StatusPage'
 import { SmtpConfigPage } from './pages/SmtpConfigPage'
 import ReportsPage from './pages/ReportsPage'
@@ -27,7 +26,7 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               
               {/* Rota pública de status */}
-              <Route path="/status/:groupId" element={<StatusPage />} />
+              <Route path="status/:slug" element={<StatusPage />} />
               
               {/* Rotas protegidas */}
               <Route path="/" element={
@@ -38,7 +37,6 @@ function App() {
                 <Route index element={<Navigate to="/dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
                 <Route path="dominios" element={<DomainsPage />} />
-                <Route path="grupos" element={<GroupsPage />} />
                 <Route path="config/smtp" element={<SmtpConfigPage />} />
                 <Route path="relatorios" element={<ReportsPage />} />
                 <Route path="paginas-status" element={<StatusPagesPage />} />

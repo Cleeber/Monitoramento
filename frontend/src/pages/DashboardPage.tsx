@@ -14,7 +14,6 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 // Removido import não utilizado: Link
 // import { Link } from 'react-router-dom'
-import { cn, formatDuration, calculateUptime } from '../lib/utils'
 import { apiGet } from '../utils/apiUtils'
 // Removidos imports não utilizados: formatDistanceToNow, ptBR
 // import { formatDistanceToNow } from 'date-fns'
@@ -27,7 +26,6 @@ interface Monitor {
   status: 'online' | 'offline' | 'warning' | 'unknown'
   last_check: string | null
   response_time: number | null
-  group_name: string
   uptime_24h: number
   uptime_7d: number
   uptime_30d: number
@@ -39,7 +37,6 @@ interface DashboardStats {
   offline_monitors: number
   warning_monitors: number
   avg_response_time: number
-  total_groups: number
   avg_uptime: number
 }
 
@@ -98,7 +95,7 @@ export function DashboardPage() {
     }
   }
 
-  const getStatusIcon = (status: string, monitorId?: string) => {
+  const getStatusIcon = (status: string) => {
     switch (status) {
       case 'online':
         return <CheckCircle className="h-4 w-4 text-green-400" />
@@ -163,7 +160,7 @@ export function DashboardPage() {
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-400">Total de Sites</CardTitle>
@@ -172,34 +169,36 @@ export function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold text-white">{stats.total_monitors}</div>
               <p className="text-xs text-gray-400">
-                {stats.total_groups > 0 ? `Distribuídos em ${stats.total_groups} grupo${stats.total_groups > 1 ? 's' : ''}` : 'Nenhum grupo configurado'}
+                Monitorando {stats.total_monitors} serviço{stats.total_monitors !== 1 ? 's' : ''}
               </p>
             </CardContent>
           </Card>
 
           <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-400">Sites Online</CardTitle>
+              <CardTitle className="text-sm font-medium text-gray-400">Status</CardTitle>
               <CheckCircle className="h-4 w-4 text-gray-400" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-white">{stats.online_monitors}</div>
-              <p className="text-xs text-green-400">
-                {stats.total_monitors > 0 ? `${((stats.online_monitors / stats.total_monitors) * 100).toFixed(1)}% do total` : 'Nenhum site configurado'}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium text-gray-400">Sites Offline</CardTitle>
-              <XCircle className="h-4 w-4 text-gray-400" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-white">{stats.offline_monitors}</div>
-              <p className="text-xs text-red-400">
-                {stats.offline_monitors > 0 ? `${stats.warning_monitors > 0 ? `+${stats.warning_monitors} com problemas` : 'Requer atenção imediata'}` : 'Todos os sites funcionando'}
-              </p>
+              <div className="flex items-center gap-4">
+                <div>
+                  <div className="text-2xl font-bold text-green-500">{stats.online_monitors}</div>
+                  <p className="text-xs text-gray-400">Online</p>
+                </div>
+                {(stats.offline_monitors > 0 || stats.warning_monitors > 0) && (
+                  <>
+                    <div className="h-8 w-px bg-gray-700"></div>
+                    <div>
+                      <div className="text-2xl font-bold text-red-500">{stats.offline_monitors}</div>
+                      <p className="text-xs text-gray-400">Offline</p>
+                    </div>
+                    <div>
+                      <div className="text-2xl font-bold text-yellow-500">{stats.warning_monitors}</div>
+                      <p className="text-xs text-gray-400">Alerta</p>
+                    </div>
+                  </>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -252,7 +251,6 @@ export function DashboardPage() {
                   <TableHead className="text-gray-300">Status</TableHead>
                   <TableHead className="text-gray-300">Nome</TableHead>
                   <TableHead className="text-gray-300">URL</TableHead>
-                  <TableHead className="text-gray-300">Grupo</TableHead>
                   <TableHead className="text-gray-300">Uptime 24h</TableHead>
                   <TableHead className="text-gray-300">Tempo de Resposta</TableHead>
                 </TableRow>
@@ -262,7 +260,7 @@ export function DashboardPage() {
                   <TableRow key={monitor.id} style={{borderColor: '#2c313a'}} className="hover:bg-gray-800/50">
                     <TableCell className="text-white">
                       <div className="flex items-center space-x-2">
-                        {getStatusIcon(monitor.status, monitor.id)}
+                        {getStatusIcon(monitor.status)}
                         <span className="text-xs capitalize">{monitor.status}</span>
                       </div>
                     </TableCell>
@@ -273,9 +271,6 @@ export function DashboardPage() {
                       <code className="text-xs bg-gray-800 px-2 py-1 rounded">
                         {monitor.url}
                       </code>
-                    </TableCell>
-                    <TableCell className="text-gray-300">
-                      <span>{monitor.group_name || 'Sem grupo'}</span>
                     </TableCell>
                     <TableCell className="text-gray-300">
                       <Badge className={getStatusColor(monitor.status)}>

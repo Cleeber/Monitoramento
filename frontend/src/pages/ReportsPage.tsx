@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -42,7 +42,6 @@ interface Monitor {
   name: string
   url: string
   status: string
-  group_name?: string
 }
 
 interface Report {
@@ -319,8 +318,6 @@ function ReportsPage() {
         ],
       }
     } else {
-      const periodRange = calculatePeriodRange(selectedTimeRange)
-      
       const dailyData: { [key: string]: { total: number, successful: number } } = {}
       
       monitorChecks.forEach(check => {
@@ -405,7 +402,6 @@ function ReportsPage() {
         return { labels: [], datasets: [] }
       }
       
-      const periodRange = calculatePeriodRange(selectedTimeRange)
       const labels: string[] = []
       const responseTimeData: number[] = []
       
@@ -499,7 +495,6 @@ function ReportsPage() {
   }
 
   const overallStatsCalculated = calculateOverallStats()
-  const periodRange = calculatePeriodRange(selectedTimeRange)
 
   if (loading) {
     return (
@@ -547,7 +542,7 @@ function ReportsPage() {
       <div className="flex flex-col sm:flex-row gap-4">
         <PeriodFilter 
           selectedTimeRange={selectedTimeRange} 
-          onTimeRangeChange={setSelectedTimeRange}
+          onTimeRangeChange={(value) => setSelectedTimeRange(value as TimeRange)}
           className="w-full sm:w-auto"
         />
         
@@ -837,10 +832,6 @@ function ReportsPage() {
                                       {monitor.url}
                                     </a>
                                   </td>
-                                </tr>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Grupo</td>
-                                  <td className="py-3 px-4" style={{ color: '#ffffff' }}>{monitor.group_name || 'Sem grupo'}</td>
                                 </tr>
                                 <tr className="border-b" style={{ borderColor: '#2c313a' }}>
                                   <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Status Atual</td>

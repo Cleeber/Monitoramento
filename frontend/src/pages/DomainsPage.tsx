@@ -16,8 +16,6 @@ import {
   Globe,
   Clock,
   CheckCircle,
-  XCircle,
-  AlertCircle,
   Upload,
   X,
   Activity,
@@ -25,7 +23,7 @@ import {
   Eraser
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
-import { apiGet, apiPost, apiPut, apiDelete, apiRequest, apiUpload } from '../utils/apiUtils'
+import { apiGet, apiPost, apiPut, apiDelete, apiUpload } from '../utils/apiUtils'
 
 interface Monitor {
   id: string
@@ -36,8 +34,6 @@ interface Monitor {
   timeout: number
   status: 'online' | 'offline' | 'warning' | 'unknown'
   enabled: boolean
-  group_id: string | null
-  group_name: string | null
   last_check: string | null
   response_time: number | null
   created_at: string
@@ -48,19 +44,12 @@ interface Monitor {
   logo_url?: string | null
 }
 
-interface Group {
-  id: string
-  name: string
-  description: string
-}
-
 interface MonitorFormData {
   name: string
   url: string
   type: 'http' | 'ping' | 'tcp'
   interval: number
   timeout: number
-  group_id: string | null
   enabled: boolean
   slug: string
   logo_url?: string | null
@@ -71,10 +60,8 @@ interface MonitorFormData {
 
 export function DomainsPage() {
   const [monitors, setMonitors] = useState<Monitor[]>([])
-  const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [selectedGroup, setSelectedGroup] = useState<string>('all')
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingMonitor, setEditingMonitor] = useState<Monitor | null>(null)
   const [formData, setFormData] = useState<MonitorFormData>({
@@ -83,7 +70,6 @@ export function DomainsPage() {
     type: 'http',
     interval: 60,
     timeout: 30,
-    group_id: null,
     enabled: true,
     slug: '',
     logo_url: null,
@@ -104,22 +90,12 @@ export function DomainsPage() {
 
   const fetchData = async () => {
     try {
-      const [monitorsResult, groupsResult] = await Promise.all([
-        apiGet('/dashboard/monitors'),
-        apiGet('/groups')
-      ])
+      const monitorsResult = await apiGet('/dashboard/monitors')
 
-      if (monitorsResult.success && groupsResult.success) {
+      if (monitorsResult.success) {
         setMonitors(monitorsResult.data)
-        setGroups(groupsResult.data)
       } else {
-        // Mostrar erro específico se alguma requisição falhou
-        if (!monitorsResult.success) {
-          addToast({ title: 'Erro ao carregar monitores', description: monitorsResult.error, variant: 'destructive' })
-        }
-        if (!groupsResult.success) {
-          addToast({ title: 'Erro ao carregar grupos', description: groupsResult.error, variant: 'destructive' })
-        }
+        addToast({ title: 'Erro ao carregar monitores', description: monitorsResult.error, variant: 'destructive' })
       }
     } catch (error) {
       console.error('Erro ao buscar dados:', error)
@@ -234,7 +210,6 @@ export function DomainsPage() {
       type: monitor.type,
       interval: Math.floor(monitor.interval / 1000), // Converter de milissegundos para segundos
       timeout: Math.floor(monitor.timeout / 1000),   // Converter de milissegundos para segundos
-      group_id: monitor.group_id,
       enabled: monitor.enabled,
       slug: monitor.slug || '',
       logo_url: monitor.logo_url,
@@ -261,7 +236,6 @@ export function DomainsPage() {
       type: 'http',
       interval: 60,
       timeout: 30,
-      group_id: null,
       enabled: true,
       slug: '',
       logo_url: null,
@@ -365,10 +339,7 @@ export function DomainsPage() {
   const filteredMonitors = monitors.filter(monitor => {
     const matchesSearch = monitor.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          monitor.url.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesGroup = selectedGroup === 'all' || 
-                        (selectedGroup === 'none' && !monitor.group_id) ||
-                        monitor.group_id === selectedGroup
-    return matchesSearch && matchesGroup
+    return matchesSearch
   })
 
   if (loading) {
@@ -484,23 +455,6 @@ export function DomainsPage() {
                     <p className="text-xs text-gray-400">
                       Será usado na URL da página de status: /status/seu-slug
                     </p>
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <Label htmlFor="group" className="text-white">Grupo (opcional)</Label>
-                    <Select value={formData.group_id || 'none'} onValueChange={(value) => setFormData({ ...formData, group_id: value === 'none' ? null : value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um grupo (opcional)" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Nenhum grupo</SelectItem>
-                        {groups.map((group) => (
-                          <SelectItem key={group.id} value={group.id}>
-                            {group.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </div>
                   
                   <div className="flex items-center space-x-2">
@@ -670,20 +624,6 @@ export function DomainsPage() {
             className="pl-10"
           />
         </div>
-        <Select value={selectedGroup} onValueChange={setSelectedGroup}>
-          <SelectTrigger className="w-full sm:w-[200px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">Todos os grupos</SelectItem>
-            <SelectItem value="none">Sem grupo</SelectItem>
-            {groups.map((group) => (
-              <SelectItem key={group.id} value={group.id}>
-                {group.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
       </div>
 
       {/* Monitors List */}
@@ -699,15 +639,15 @@ export function DomainsPage() {
             <div className="text-center py-8">
               <Globe className="h-12 w-12 text-gray-400 mx-auto mb-4" />
               <h3 className="text-lg font-medium text-white mb-2">
-                {searchTerm || selectedGroup !== 'all' ? 'Nenhum monitor encontrado' : 'Nenhum monitor configurado'}
+                {searchTerm ? 'Nenhum monitor encontrado' : 'Nenhum monitor configurado'}
               </h3>
               <p className="text-gray-400 mb-4">
-                {searchTerm || selectedGroup !== 'all' 
+                {searchTerm 
                   ? 'Tente ajustar os filtros de busca'
                   : 'Comece adicionando seus primeiros domínios para monitorar'
                 }
               </p>
-              {!searchTerm && selectedGroup === 'all' && (
+              {!searchTerm && (
                 <Button onClick={openCreateDialog}>
                   <Plus className="h-4 w-4 mr-2" />
                   Adicionar Monitor
@@ -722,7 +662,6 @@ export function DomainsPage() {
                   <TableHead className="text-gray-300">Nome</TableHead>
                   <TableHead className="text-gray-300">URL</TableHead>
                   <TableHead className="text-gray-300">Tipo</TableHead>
-                  <TableHead className="text-gray-300">Grupo</TableHead>
                   <TableHead className="text-gray-300">Intervalo</TableHead>
                   <TableHead className="text-gray-300">Resposta</TableHead>
                   <TableHead className="text-gray-300">Ações</TableHead>
@@ -753,9 +692,6 @@ export function DomainsPage() {
                     </TableCell>
                     <TableCell>
                       <span className="text-gray-400 text-sm">{monitor.type.toUpperCase()}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-gray-400 text-sm">{monitor.group_name || 'Sem grupo'}</span>
                     </TableCell>
                     <TableCell>
                       <span className="text-gray-400 text-sm">{Math.floor(monitor.interval / 1000)}s</span>
