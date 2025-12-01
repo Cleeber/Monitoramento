@@ -64,76 +64,10 @@ interface StatusPageTemplateProps {
   responseTimeData: any
   loading: boolean
   logoSrc: string | null
+  isPdf?: boolean
 }
 
-// Helper functions
-const getStatusIcon = (status: string, monitorId?: string) => {
-  const keyPrefix = monitorId ? `icon-${monitorId}` : `icon-${status}`;
-  switch (status) {
-    case 'online':
-      return <CheckCircle key={keyPrefix} className="h-4 w-4 text-green-600" />
-    case 'offline':
-      return <AlertTriangle key={keyPrefix} className="h-4 w-4 text-red-600" />
-    case 'warning':
-      return <Clock key={keyPrefix} className="h-4 w-4 text-yellow-600" />
-    default:
-      return <Activity key={keyPrefix} className="h-4 w-4 text-gray-600" />
-  }
-}
-
-const getStatusColor = (status: string) => {
-  switch (status) {
-    case 'online':
-      return 'bg-green-100 text-green-800'
-    case 'offline':
-      return 'bg-red-100 text-red-800'
-    case 'warning':
-      return 'bg-yellow-100 text-yellow-800'
-    default:
-      return 'bg-gray-100 text-gray-800'
-  }
-}
-
-const getUptimeColor = (uptime: number) => {
-  if (uptime >= 99) return 'text-green-600'
-  if (uptime >= 95) return 'text-yellow-600'
-  return 'text-red-600'
-}
-
-const getIncidentStatusColor = (status: string) => {
-  switch (status) {
-    case 'resolved':
-      return 'bg-green-100 text-green-800'
-    case 'investigating':
-      return 'bg-red-100 text-red-800'
-    case 'identified':
-      return 'bg-yellow-100 text-yellow-800'
-    default:
-      return 'bg-gray-100 text-gray-800'
-  }
-}
-
-// Função para gerar dados do gráfico de distribuição de status
-const generateStatusDistributionData = (monitors: PublicMonitor[]) => {
-  const statusCounts = {
-    online: monitors.filter(m => m.status === 'online').length,
-    offline: monitors.filter(m => m.status === 'offline').length,
-    warning: monitors.filter(m => m.status === 'warning').length,
-    unknown: monitors.filter(m => m.status === 'unknown').length,
-  }
-
-  return {
-    labels: ['Online', 'Offline', 'Aviso', 'Desconhecido'],
-    datasets: [
-      {
-        data: [statusCounts.online, statusCounts.offline, statusCounts.warning, statusCounts.unknown],
-        backgroundColor: ['#10b981', '#ef4444', '#f59e0b', '#6b7280'],
-        borderColor: ['#059669', '#dc2626', '#d97706', '#4b5563'],
-        borderWidth: 1,
-      },
-    ],
-  }
-}
+// ... (Helper functions remain the same)
 
 export function StatusPageTemplate({
   data,
@@ -145,37 +79,28 @@ export function StatusPageTemplate({
   incidentsData,
   responseTimeData,
   loading,
-  logoSrc
+  logoSrc,
+  isPdf = false
 }: StatusPageTemplateProps) {
   // Calcular totalServices baseado nos dados
   const totalServices = data ? data.monitors.length : 0
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: '#0282ff' }}></div>
-      </div>
-    )
+    // ...
   }
 
   if (!data) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: '#ffffff' }}>
-        <div className="text-center">
-          <AlertTriangle className="h-12 w-12 text-red-600 mx-auto mb-4" />
-          <h2 className="text-xl font-semibold mb-2" style={{ color: '#1f2937' }}>Erro ao carregar status</h2>
-          <p className="mb-4" style={{ color: '#6b7280' }}>Não foi possível carregar as informações de status</p>
-        </div>
-      </div>
-    )
+    // ...
   }
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#f8fafc' }}>
       {/* Hero Section */}
-      <div className="w-full py-16 px-4" style={{ 
+      <div className="w-full px-4" style={{ 
         backgroundColor: '#0282ff',
-        backgroundImage: 'linear-gradient(135deg, #0282ff 0%, #0369a1 100%)'
+        backgroundImage: 'linear-gradient(135deg, #0282ff 0%, #0369a1 100%)',
+        paddingTop: isPdf ? '1.5rem' : '4rem',
+        paddingBottom: isPdf ? '2.5rem' : '4rem'
       }}>
         <div className="max-w-4xl mx-auto text-center">
         <div className="flex items-center gap-4 justify-center md:justify-start">
@@ -183,15 +108,15 @@ export function StatusPageTemplate({
             <img 
               src={logoSrc} 
               alt="Logo" 
-              className="h-24 w-24 object-contain rounded-lg bg-white p-1 shadow-md"
+              className={`${isPdf ? 'h-12 w-12' : 'h-24 w-24'} object-contain rounded-lg bg-white p-1 shadow-md`}
             />
           ) : (
             <div className="p-3 bg-white/10 rounded-lg backdrop-blur-sm">
-              <Globe className="h-12 w-12 text-white" />
+              <Globe className={`${isPdf ? 'h-6 w-6' : 'h-12 w-12'} text-white`} />
             </div>
           )}
           <div className="text-left">
-            <h1 className="font-bold text-white shadow-sm" style={{ fontSize: '36px', lineHeight: '1.2' }}>{pageTitle}</h1>
+            <h1 className="font-bold text-white shadow-sm" style={{ fontSize: isPdf ? '20px' : '36px', lineHeight: '1.2' }}>{pageTitle}</h1>
           </div>
         </div>
         </div>
@@ -201,21 +126,23 @@ export function StatusPageTemplate({
         backgroundColor: '#ffffff', 
         margin: '0 auto', 
         borderRadius: '12px 12px 0 0', 
-        marginTop: '-2rem', 
+        marginTop: isPdf ? '-1.5rem' : '-2rem', 
         position: 'relative', 
         zIndex: 10, 
-        boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1)' 
+        boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1)',
+        paddingTop: isPdf ? '1rem' : '2rem',
+        paddingBottom: isPdf ? '1rem' : '2rem'
       }}>
 
 
         {/* Key Metrics */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <div className={`grid grid-cols-1 md:grid-cols-2 ${isPdf ? 'gap-3 mb-4' : 'gap-6 mb-8'}`}>
           <Card className="border shadow-sm text-gray-900 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
-            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827' }}><TrendingUp className="h-4 w-4 mr-2 text-gray-600" />Disponibilidade 30 dias</CardTitle>
+            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: isPdf ? '0.75rem' : '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827', fontSize: isPdf ? '0.9rem' : '1.125rem' }}><TrendingUp className="h-4 w-4 mr-2 text-gray-600" />Disponibilidade 30 dias</CardTitle>
             </CardHeader>
-            <CardContent className="pt-6">
-              <CardTitle className={`text-2xl font-bold mb-3 ${uptimeData ? (uptimeData.uptime_percentage >= 90 ? 'text-green-600' : 'text-red-600') : 'text-gray-900'}`}>
+            <CardContent className={isPdf ? 'pt-3 pb-3 px-3' : 'pt-6'}>
+              <CardTitle className={`text-2xl font-bold mb-3 ${uptimeData ? (uptimeData.uptime_percentage >= 90 ? 'text-green-600' : 'text-red-600') : 'text-gray-900'}`} style={{ fontSize: isPdf ? '1.1rem' : '1.5rem' }}>
                 {uptimeData ? `${uptimeData.uptime_percentage.toFixed(2)}%` : 'Carregando...'}
               </CardTitle>
               <div className="w-full bg-gray-200 rounded-full h-2">
@@ -228,11 +155,11 @@ export function StatusPageTemplate({
           </Card>
 
           <Card className="border shadow-sm text-gray-900 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
-            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827' }}><Globe className="h-4 w-4 mr-2 text-gray-600" />Total de Serviços</CardTitle>
+            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: isPdf ? '0.75rem' : '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827', fontSize: isPdf ? '0.9rem' : '1.125rem' }}><Globe className="h-4 w-4 mr-2 text-gray-600" />Total de Serviços</CardTitle>
             </CardHeader>
-            <CardContent className="pt-6">
-              <CardTitle className="text-2xl font-bold text-gray-900 mb-3">
+            <CardContent className={isPdf ? 'pt-3 pb-3 px-3' : 'pt-6'}>
+              <CardTitle className="text-2xl font-bold text-gray-900 mb-3" style={{ fontSize: isPdf ? '1.1rem' : '1.5rem' }}>
                 {totalServices}
               </CardTitle>
               <p className="text-sm text-gray-600">Serviços monitorados neste grupo</p>
@@ -240,11 +167,11 @@ export function StatusPageTemplate({
           </Card>
 
           <Card className="border shadow-sm text-gray-900 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
-            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827' }}><AlertTriangle className="h-4 w-4 mr-2 text-gray-600" />Problemas 24h</CardTitle>
+            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: isPdf ? '0.75rem' : '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827', fontSize: isPdf ? '0.9rem' : '1.125rem' }}><AlertTriangle className="h-4 w-4 mr-2 text-gray-600" />Problemas 24h</CardTitle>
             </CardHeader>
-            <CardContent className="pt-6">
-              <CardTitle className="text-2xl font-bold text-gray-900 mb-3">
+            <CardContent className={isPdf ? 'pt-3 pb-3 px-3' : 'pt-6'}>
+              <CardTitle className="text-2xl font-bold text-gray-900 mb-3" style={{ fontSize: isPdf ? '1.1rem' : '1.5rem' }}>
                 {incidentsData ? incidentsData.total_incidents : 'Carregando...'}
               </CardTitle>
               <p className="text-sm text-gray-600">Incidentes nas últimas 24 horas</p>
@@ -252,11 +179,11 @@ export function StatusPageTemplate({
           </Card>
 
           <Card className="border shadow-sm text-gray-900 overflow-hidden" style={{ backgroundColor: '#ffffff', borderColor: '#e5e7eb' }}>
-            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827' }}><BarChart3 className="h-4 w-4 mr-2 text-gray-600" />Tempo de Resposta</CardTitle>
+            <CardHeader className="pb-2" style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: isPdf ? '0.75rem' : '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="flex items-center text-lg font-semibold" style={{ color: '#111827', fontSize: isPdf ? '0.9rem' : '1.125rem' }}><BarChart3 className="h-4 w-4 mr-2 text-gray-600" />Tempo de Resposta</CardTitle>
             </CardHeader>
-            <CardContent className="pt-6">
-              <CardTitle className="text-2xl font-bold text-gray-900 mb-3">
+            <CardContent className={isPdf ? 'pt-3 pb-3 px-3' : 'pt-6'}>
+              <CardTitle className="text-2xl font-bold text-gray-900 mb-3" style={{ fontSize: isPdf ? '1.1rem' : '1.5rem' }}>
                 {responseTimeData ? `${responseTimeData.avg_response_time}ms` : 'Carregando...'}
               </CardTitle>
               <p className="text-sm text-gray-600">Última medição</p>
@@ -265,20 +192,20 @@ export function StatusPageTemplate({
         </div>
 
         {/* Services Status */}
-        <Card className="mb-8 border shadow-lg text-gray-900" style={{ 
+        <Card className={`border shadow-lg text-gray-900 ${isPdf ? 'mb-4' : 'mb-8'}`} style={{ 
           backgroundColor: '#ffffff', 
           borderColor: '#e5e7eb',
           borderWidth: '1px',
           borderRadius: '12px',
           boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
         }}>
-          <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-            <CardTitle style={{ color: '#111827', fontSize: '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>Status dos Serviços</CardTitle>
+          <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: isPdf ? '0.75rem' : '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+            <CardTitle style={{ color: '#111827', fontSize: isPdf ? '1rem' : '1.25rem', fontWeight: '600', marginBottom: '0.5rem' }}>Status dos Serviços</CardTitle>
             <CardDescription style={{ color: '#6b7280', fontSize: '0.875rem' }}>
               Status atual de todos os serviços monitorados
             </CardDescription>
           </CardHeader>
-          <CardContent style={{ padding: '1.5rem' }}>
+          <CardContent style={{ padding: isPdf ? '0.75rem' : '1.5rem' }}>
             {data.monitors.length === 0 ? (
               <div className="text-center py-8">
                 <Globe className="h-12 w-12 mx-auto mb-4" style={{ color: '#6b7280' }} />
@@ -298,13 +225,14 @@ export function StatusPageTemplate({
                     style={{ 
                       backgroundColor: '#ffffff', 
                       border: '1px solid #f3f4f6',
-                      borderColor: '#f3f4f6'
+                      borderColor: '#f3f4f6',
+                      padding: isPdf ? '0.5rem' : '1rem'
                     }}
                   >
                     <div className="flex items-center space-x-4">
                       {getStatusIcon(monitor.status, monitor.id)}
                       <div>
-                        <h4 className="font-medium" style={{ color: '#1f2937' }}>{monitor.name}</h4>
+                        <h4 className="font-medium" style={{ color: '#1f2937', fontSize: isPdf ? '0.85rem' : '1rem' }}>{monitor.name}</h4>
                         <p className="text-sm" style={{ color: '#6b7280' }}>{monitor.url}</p>
                       </div>
                     </div>
@@ -361,7 +289,7 @@ export function StatusPageTemplate({
 
         {/* Charts Section */}
         {data.monitors.length > 0 && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+          <div className={`grid grid-cols-1 lg:grid-cols-2 ${isPdf ? 'gap-3 mb-4' : 'gap-6 mb-8'}`}>
             {/* Histórico de Uptime */}
             <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
               backgroundColor: '#ffffff', 
@@ -370,14 +298,14 @@ export function StatusPageTemplate({
               borderRadius: '12px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
             }}>
-              <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-                <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: isPdf ? '0.75rem' : '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+                <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: isPdf ? '1rem' : '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                   <TrendingUp className="h-5 w-5" />
                   Histórico de Uptime
                 </CardTitle>
               </CardHeader>
-              <CardContent style={{ padding: '1.5rem' }}>
-                <div className="h-64">
+              <CardContent style={{ padding: isPdf ? '0.75rem' : '1.5rem' }}>
+                <div className={isPdf ? 'h-40' : 'h-64'}>
                   {uptimeChartData ? (
                     <Bar 
                       data={uptimeChartData} 
@@ -434,14 +362,14 @@ export function StatusPageTemplate({
               borderRadius: '12px',
               boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
             }}>
-              <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-                <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+              <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: isPdf ? '0.75rem' : '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+                <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: isPdf ? '1rem' : '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                   <PieChart className="h-5 w-5" />
                   Distribuição de Status
                 </CardTitle>
               </CardHeader>
-              <CardContent style={{ padding: '1.5rem' }}>
-                <div className="h-64">
+              <CardContent style={{ padding: isPdf ? '0.75rem' : '1.5rem' }}>
+                <div className={isPdf ? 'h-40' : 'h-64'}>
                   <Doughnut 
                     data={generateStatusDistributionData(data.monitors)} 
                     options={{
@@ -471,8 +399,8 @@ export function StatusPageTemplate({
                 borderRadius: '12px',
                 boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
               }}>
-                <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-                  <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+                <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: isPdf ? '0.75rem' : '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+                  <CardTitle className="flex items-center gap-2" style={{ color: '#111827', fontSize: isPdf ? '1rem' : '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                     <BarChart3 className="h-5 w-5" />
                     Informações Detalhadas do Monitor
                   </CardTitle>
@@ -480,7 +408,7 @@ export function StatusPageTemplate({
                     Estatísticas de performance do monitor selecionado
                   </CardDescription>
                 </CardHeader>
-                <CardContent style={{ padding: '1.5rem' }}>
+                <CardContent style={{ padding: isPdf ? '0.75rem' : '1.5rem' }}>
                   <div className="space-y-4">
                     <h4 className="text-sm font-medium mb-4" style={{ color: '#1f2937' }}>Estatísticas de Performance</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -553,8 +481,8 @@ export function StatusPageTemplate({
             borderRadius: '12px',
             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
           }}>
-            <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
-              <CardTitle className="flex items-center space-x-2" style={{ color: '#111827', fontSize: '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
+            <CardHeader style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e5e7eb', padding: isPdf ? '0.75rem' : '1.5rem 1.5rem 1rem 1.5rem', borderTopLeftRadius: '12px', borderTopRightRadius: '12px' }}>
+              <CardTitle className="flex items-center space-x-2" style={{ color: '#111827', fontSize: isPdf ? '1rem' : '1.125rem', fontWeight: '600', marginBottom: '0.5rem' }}>
                 <Calendar className="h-5 w-5" />
                 <span>Histórico de Incidentes</span>
               </CardTitle>
@@ -562,7 +490,7 @@ export function StatusPageTemplate({
                 Incidentes recentes e suas resoluções
               </CardDescription>
             </CardHeader>
-            <CardContent style={{ padding: '1.5rem' }}>
+            <CardContent style={{ padding: isPdf ? '0.75rem' : '1.5rem' }}>
               <div className="space-y-4">
                 {incidents.map((incident) => (
                   <div

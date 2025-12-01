@@ -230,7 +230,8 @@ function ReportsPage() {
           ? (statusData.monitor.logo_url.startsWith('http') || statusData.monitor.logo_url.startsWith('data:') 
               ? statusData.monitor.logo_url 
               : `/api${statusData.monitor.logo_url.startsWith('/') ? '' : '/'}${statusData.monitor.logo_url}`)
-          : null
+          : null,
+        isPdf: true
       })
       
       // Aguardar renderização
@@ -244,10 +245,16 @@ function ReportsPage() {
       const fileName = `status-${safeName}-${date.toISOString().split('T')[0]}.pdf`
 
       const opt = {
-        margin: 0,
+        margin: [10, 10, 10, 10], // Margens pequenas para não cortar
         filename: fileName,
         image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: '#f8fafc', windowWidth: 1200 },
+        html2canvas: { 
+          scale: 2, 
+          useCORS: true, 
+          backgroundColor: '#f8fafc', 
+          windowWidth: 800, // Reduzir largura para melhor fit em A4
+          scrollY: 0
+        },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       }
 
@@ -990,7 +997,7 @@ function ReportsPage() {
       </div>
       
       {/* Hidden template for PDF generation */}
-      <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '1200px' }}>
+      <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '800px' }}>
         <div ref={pdfTemplateRef}>
           {pdfData && (
             <StatusPageTemplate
