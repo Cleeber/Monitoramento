@@ -271,7 +271,7 @@ export function StatusPageTemplate({
             </CardDescription>
           </CardHeader>
           <CardContent style={{ padding: isPdf ? '0.75rem' : '1.5rem' }}>
-            {data.monitors.length === 0 ? (
+            {!data || data.monitors.length === 0 ? (
               <div className="text-center py-8">
                 <Globe className="h-12 w-12 mx-auto mb-4" style={{ color: '#6b7280' }} />
                 <h3 className="text-lg font-medium mb-2" style={{ color: '#1f2937' }}>
@@ -353,7 +353,7 @@ export function StatusPageTemplate({
         </Card>
 
         {/* Charts Section */}
-        {data.monitors.length > 0 && (
+        {data && data.monitors.length > 0 && (
           <div className={`grid grid-cols-1 lg:grid-cols-2 ${isPdf ? 'gap-3 mb-4' : 'gap-6 mb-8'}`}>
             {/* Histórico de Uptime */}
             <Card className="border shadow-lg hover:shadow-xl transition-shadow duration-300" style={{ 
