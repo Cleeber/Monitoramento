@@ -40,6 +40,9 @@ RUN npm install --only=production && npm cache clean --force
 # Copy built application from builder stage
 COPY --from=builder /app/dist ./dist
 
+# Copy scripts
+COPY --from=builder /app/scripts ./scripts
+
 # Copy any additional runtime files
 COPY --from=builder /app/database ./database
 
