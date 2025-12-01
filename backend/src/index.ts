@@ -931,25 +931,15 @@ app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res
         if (monitor) {
           let pdfBuffer: Buffer;
           
-          // Tentar usar o método otimizado (mesmo do e-mail) se houver slug
-           if (monitor.slug) {
-             console.log(`📄 Usando layout otimizado (slug: ${monitor.slug})`);
-             // Usar generateOptimizedMonitorPDF para garantir que busca apenas monitor e NÃO grupo
-             pdfBuffer = await pdfService.generateOptimizedMonitorPDF(
-               monitor.slug,
-               `${monitor.name} - Relatório Mensal`,
-               Number(year),
-               Number(month)
-             )
-           } else {
-            // Fallback para relatório padrão se não houver slug
-            console.log(`📄 Monitor sem slug, usando layout padrão`);
-            pdfBuffer = await pdfService.generateMonthlyReportPDF(
-              monitorId,
-              Number(year),
-              Number(month)
-            )
-          }
+          // Usar generateOptimizedMonitorPDF com slug ou ID
+          // Isso garante o layout "print da página de status" mesmo sem slug
+          console.log(`📄 Usando layout otimizado (Monitor: ${monitor.name})`);
+          pdfBuffer = await pdfService.generateOptimizedMonitorPDF(
+            monitor.slug || monitor.id,
+            `${monitor.name} - Relatório Mensal`,
+            Number(year),
+            Number(month)
+          )
 
           const safeName = (monitor.slug || monitor.name || 'monitor').replace(/[^a-zA-Z0-9]/g, '-')
           // Adicionar timestamp para evitar cache
