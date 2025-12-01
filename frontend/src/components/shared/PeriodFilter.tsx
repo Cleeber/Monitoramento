@@ -30,10 +30,7 @@ export function PeriodFilter({ selectedTimeRange, onTimeRangeChange, className }
         <SelectContent>
           {timeRanges.map((range) => (
             <SelectItem key={range.value} value={range.value}>
-              <div className="flex flex-col">
-                <span className="font-medium">{range.label}</span>
-                <span className="text-xs text-muted-foreground">{range.description}</span>
-              </div>
+              {range.label}
             </SelectItem>
           ))}
         </SelectContent>
