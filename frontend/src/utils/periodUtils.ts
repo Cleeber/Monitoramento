@@ -12,6 +12,17 @@ export function calculatePeriodRange(timeRange: string): PeriodRange {
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   
   switch (timeRange) {
+    case '24h': {
+      const now = new Date()
+      const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+      
+      return {
+        startDate: twentyFourHoursAgo,
+        endDate: now,
+        label: 'Últimas 24 horas'
+      }
+    }
+    
     case 'yesterday': {
       // Ontem - dia anterior completo
       const yesterday = new Date(today)
@@ -130,7 +141,7 @@ export function getDaysBetween(startDate: Date, endDate: Date): number {
  * Verifica se um período é "corrido" (inclui hoje) ou "completo" (período fechado)
  */
 export function isPeriodRunning(timeRange: string): boolean {
-  return ['7d', '30d', '90d'].includes(timeRange)
+  return ['24h', '7d', '30d', '90d'].includes(timeRange)
 }
 
 /**

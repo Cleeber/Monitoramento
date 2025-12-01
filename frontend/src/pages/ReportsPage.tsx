@@ -79,7 +79,7 @@ interface ChartData {
   datasets: any[]
 }
 
-type TimeRange = 'yesterday' | 'last_week' | 'last_month' | '7d' | '30d' | '90d'
+type TimeRange = '24h' | '7d' | '30d'
 
 function ReportsPage() {
   const [reports, setReports] = useState<Report[]>([])
@@ -133,6 +133,11 @@ function ReportsPage() {
       }
       
       setMonitors(result.data)
+      
+      // Se houver monitores, selecionar o primeiro por padrão
+      if (result.data.length > 0 && selectedMonitor === 'all') {
+        setSelectedMonitor(result.data[0].id)
+      }
     } catch (error) {
       console.error('Erro ao carregar monitores:', error)
       toast.error('Erro ao carregar monitores')
@@ -189,8 +194,8 @@ function ReportsPage() {
       }
       
       // Definir ano e mês com base no período selecionado
-      const { startDate, endDate } = calculatePeriodRange(selectedTimeRange)
-      const targetDate = selectedTimeRange === 'last_month' ? startDate : endDate
+      const { endDate } = calculatePeriodRange(selectedTimeRange)
+      const targetDate = endDate
       const year = targetDate.getFullYear()
       const month = targetDate.getMonth() + 1
       
@@ -251,8 +256,8 @@ function ReportsPage() {
       const email = configResult.data.email as string
       
       // Definir ano e mês com base no período selecionado
-      const { startDate, endDate } = calculatePeriodRange(selectedTimeRange)
-      const targetDate = selectedTimeRange === 'last_month' ? startDate : endDate
+      const { endDate } = calculatePeriodRange(selectedTimeRange)
+      const targetDate = endDate
       const year = targetDate.getFullYear()
       const month = targetDate.getMonth() + 1
       
@@ -411,7 +416,7 @@ function ReportsPage() {
         let groupKey: string
         const checkDate = new Date(check.checked_at)
         
-        if (selectedTimeRange === 'yesterday') {
+        if (selectedTimeRange === '24h') {
           groupKey = checkDate.toISOString().slice(0, 13)
         } else {
           groupKey = checkDate.toISOString().slice(0, 10)
@@ -430,7 +435,7 @@ function ReportsPage() {
         const avgResponseTime = responseTimes.reduce((sum, time) => sum + time, 0) / responseTimes.length
         
         let label: string
-        if (selectedTimeRange === 'yesterday') {
+        if (selectedTimeRange === '24h') {
           const date = new Date(key + ':00:00')
           label = date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
         } else {
