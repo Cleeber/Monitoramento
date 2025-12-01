@@ -14,6 +14,8 @@ export interface MonitorStats {
   total_checks: number
   successful_checks: number
   failed_checks: number
+  min_response_time: number
+  max_response_time: number
   avg_response_time: number
   incidents: Array<{
     date: string
@@ -108,11 +110,13 @@ export class ReportService {
       const failedChecks = totalChecks - successfulChecks
       const uptimePercentage = totalChecks > 0 ? (successfulChecks / totalChecks) * 100 : 0
       
-      // Calcular tempo médio de resposta
+      // Calcular tempo médio, mínimo e máximo de resposta
       const responseTimes = checks.filter((check: any) => check.response_time > 0).map((check: any) => check.response_time)
       const avgResponseTime = responseTimes.length > 0 
         ? responseTimes.reduce((sum: any, time: any) => sum + time, 0) / responseTimes.length 
         : 0
+      const minResponseTime = responseTimes.length > 0 ? Math.min(...responseTimes) : 0
+      const maxResponseTime = responseTimes.length > 0 ? Math.max(...responseTimes) : 0
 
       // Identificar incidentes (períodos de downtime)
       const incidents = this.identifyIncidents(checks)
@@ -132,6 +136,8 @@ export class ReportService {
         total_checks: totalChecks,
         successful_checks: successfulChecks,
         failed_checks: failedChecks,
+        min_response_time: minResponseTime,
+        max_response_time: maxResponseTime,
         avg_response_time: Math.round(avgResponseTime),
         incidents
       }

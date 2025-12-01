@@ -468,8 +468,8 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
         successful_checks: stats.successful_checks,
         failed_checks: stats.failed_checks,
         avg_response_time: stats.avg_response_time,
-        min_response_time: 0, 
-        max_response_time: 0,
+        min_response_time: stats.min_response_time, 
+        max_response_time: stats.max_response_time,
         incidents: stats.incidents.length,
         last_incident: stats.incidents.length > 0 ? stats.incidents[stats.incidents.length - 1].date : null
       })
@@ -1557,8 +1557,8 @@ app.get('/api/public/monitor-stats/:id', async (req, res) => {
       totalChecks: stats.total_checks,
       successfulChecks: stats.successful_checks,
       failedChecks: stats.failed_checks,
-      minResponseTime: 0, // reportService não retorna min/max ainda, pode ser melhorado
-      maxResponseTime: 0,
+      minResponseTime: stats.min_response_time,
+      maxResponseTime: stats.max_response_time,
       avgResponseTime: stats.avg_response_time
     })
   } catch (error) {

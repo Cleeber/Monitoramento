@@ -428,7 +428,7 @@ export function StatusPage() {
             </div>
           )}
           <div className="text-left">
-            <h1 className="font-bold text-white shadow-sm" style={{ fontSize: '5rem', lineHeight: '1' }}>{pageTitle}</h1>
+            <h1 className="font-bold text-white shadow-sm" style={{ fontSize: '36px', lineHeight: '1.2' }}>{pageTitle}</h1>
           </div>
         </div>
         </div>
