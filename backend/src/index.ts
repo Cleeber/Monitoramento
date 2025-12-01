@@ -1385,7 +1385,7 @@ app.get('/api/public/status/all', async (_req, res) => {
 })
 
 // Rota pública para status por grupo - REMOVIDA
-app.get('/api/public/status/group/:id', async (req, res) => {
+app.get('/api/public/status/group/:id', async (_req, res) => {
   res.status(404).json({ error: 'Funcionalidade de grupos removida' })
 })
 

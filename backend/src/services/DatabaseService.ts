@@ -492,7 +492,7 @@ export class DatabaseService {
   }
 
   // ===== REPORTS =====
-  async getReports(filters?: { period?: string }) {
+  async getReports(_filters?: { period?: string }) {
     let query = (supabase as any)
       .from('reports')
       .select('*')
