@@ -67,7 +67,70 @@ interface StatusPageTemplateProps {
   isPdf?: boolean
 }
 
-// ... (Helper functions remain the same)
+function getStatusIcon(status: string, id?: string) {
+  switch (status) {
+    case 'online':
+      return <CheckCircle className="h-5 w-5 text-green-500" />
+    case 'offline':
+      return <AlertTriangle className="h-5 w-5 text-red-500" />
+    case 'warning':
+      return <AlertTriangle className="h-5 w-5 text-yellow-500" />
+    default:
+      return <Activity className="h-5 w-5 text-gray-400" />
+  }
+}
+
+function getStatusColor(status: string) {
+  switch (status) {
+    case 'online':
+      return 'bg-green-100 text-green-800 border-green-200'
+    case 'offline':
+      return 'bg-red-100 text-red-800 border-red-200'
+    case 'warning':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-200'
+  }
+}
+
+function getUptimeColor(uptime: number) {
+  if (!uptime && uptime !== 0) return 'text-gray-400'
+  if (uptime >= 99) return 'text-green-600'
+  if (uptime >= 95) return 'text-yellow-600'
+  return 'text-red-600'
+}
+
+function getIncidentStatusColor(status: string) {
+  switch (status) {
+    case 'resolved':
+      return 'bg-green-100 text-green-800 border-green-200'
+    case 'investigating':
+      return 'bg-red-100 text-red-800 border-red-200'
+    case 'identified':
+      return 'bg-yellow-100 text-yellow-800 border-yellow-200'
+    default:
+      return 'bg-gray-100 text-gray-800 border-gray-200'
+  }
+}
+
+function generateStatusDistributionData(monitors: PublicMonitor[]) {
+  const online = monitors.filter(m => m.status === 'online').length
+  const warning = monitors.filter(m => m.status === 'warning').length
+  const offline = monitors.filter(m => m.status === 'offline').length
+  const unknown = monitors.filter(m => m.status === 'unknown').length
+
+  return {
+    labels: ['Online', 'Aviso', 'Offline', 'Desconhecido'],
+    datasets: [
+      {
+        data: [online, warning, offline, unknown],
+        backgroundColor: ['#10b981', '#f59e0b', '#ef4444', '#6b7280'],
+        borderColor: ['#059669', '#d97706', '#dc2626', '#4b5563'],
+        borderWidth: 1,
+      },
+    ],
+  }
+}
 
 export function StatusPageTemplate({
   data,
