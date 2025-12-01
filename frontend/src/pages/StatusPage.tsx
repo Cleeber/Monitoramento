@@ -428,7 +428,7 @@ export function StatusPage() {
             </div>
           )}
           <div className="text-left">
-            <h1 className="text-7xl font-bold text-white shadow-sm">{pageTitle}</h1>
+            <h1 className="font-bold text-white shadow-sm" style={{ fontSize: '5rem', lineHeight: '1' }}>{pageTitle}</h1>
           </div>
         </div>
         </div>
@@ -443,31 +443,7 @@ export function StatusPage() {
         zIndex: 10, 
         boxShadow: '0 -4px 6px -1px rgba(0, 0, 0, 0.1)' 
       }}>
-        {/* Overall Status */}
-        <Card className="mb-8 border shadow-lg text-gray-900" style={{ 
-          backgroundColor: '#ffffff', 
-          borderColor: '#e5e7eb',
-          borderWidth: '1px',
-          borderRadius: '12px',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
-        }}>
-          <CardContent className="p-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-4">
-                {statusInfo.icon}
-                <div>
-                  <h2 className={`text-xl font-semibold ${statusInfo.color}`}>
-                    {statusInfo.text}
-                  </h2>
-                  <p className="text-sm" style={{ color: '#6b7280' }}>
-                    Última atualização: {new Date(data.last_updated).toLocaleString('pt-BR')}
-                  </p>
-                </div>
-              </div>
-              {/* Botão de atualização removido conforme solicitação */}
-            </div>
-          </CardContent>
-        </Card>
+
 
         {/* Key Metrics */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
