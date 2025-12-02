@@ -1,655 +1,299 @@
 import PDFDocument from 'pdfkit'
-import fs from 'fs'
-import path from 'path'
-import { databaseService } from './DatabaseService.js'
+
+export interface PDFReportMonitorData {
+  name: string
+  url: string
+  type: string
+  status: string
+  slug?: string
+}
+
+export interface PDFReportStatsData {
+  uptime: number
+  total_checks: number
+  successful_checks: number
+  failed_checks: number
+  avg_response_time: number
+  incidents: Array<{
+    date: string
+    duration: number | string
+    message?: string
+  }>
+}
 
 export interface PDFReportOptions {
+  monitor: PDFReportMonitorData
+  stats: PDFReportStatsData
+  period: string
   title?: string
-  includeCharts?: boolean
-  includeIncidents?: boolean
-  period?: string
 }
 
 export class PDFService {
-  // Removido: captura com Puppeteer. A geração agora é totalmente baseada em PDFKit e dados do banco.
   
   /**
-   * Gera PDF dinâmico da página de status com dados dos últimos 30 dias
+   * Gera um PDF de relatório mensal de forma modular e pura (sem acesso a banco de dados)
    */
-  async generateDynamicStatusPDF(monitorSlug: string, monitorName: string): Promise<Buffer> {
-    try {
-      console.log(`📊 Gerando PDF dinâmico (texto) para monitor: ${monitorName} (${monitorSlug})`)
+  async generateReportPDF(options: PDFReportOptions): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        console.log(`📄 Gerando PDF modular para: ${options.monitor.name}`)
+        
+        const doc = new PDFDocument({ margin: 50, size: 'A4' })
+        const chunks: Buffer[] = []
 
-      const doc = new PDFDocument({ size: 'A4', margin: 50 })
-      const chunks: Buffer[] = []
-      doc.on('data', chunk => chunks.push(chunk))
-
-      return new Promise(async (resolve, reject) => {
+        doc.on('data', chunk => chunks.push(chunk))
         doc.on('end', () => {
-          const pdfBuffer = Buffer.concat(chunks)
-          console.log(`✅ PDF dinâmico gerado (${Math.round(pdfBuffer.length / 1024)}KB)`)
-          resolve(pdfBuffer)
+          const result = Buffer.concat(chunks)
+          console.log(`✅ PDF gerado com sucesso: ${result.length} bytes`)
+          resolve(result)
         })
         doc.on('error', reject)
 
-        // Cabeçalho
-        this.addHeader(doc, monitorName || 'Página de Status')
+        // 1. Cabeçalho
+        this.addHeader(doc, options.title || 'Relatório Mensal', options.period)
 
-        // Recuperar monitor por slug
-        try {
-          const monitors = await databaseService.getMonitors()
-          const monitor = monitors.find((m: any) => m.slug === monitorSlug)
+        // 2. Informações do Monitor
+        this.addMonitorDetails(doc, options.monitor)
 
-          if (monitor) {
-            this.addMonitorDetails(doc, monitor)
-            await this.addMonthlyStats(doc, monitor, new Date().getFullYear(), new Date().getMonth() + 1)
-            this.addUptimeChart(doc, monitor)
-            this.addIncidentsList(doc, monitor)
-          } else {
-            doc.fontSize(12)
-               .fillColor('#dc2626')
-               .text('Monitor não encontrado para o slug informado.', 50, doc.y)
-          }
+        // 3. Estatísticas
+        this.addStats(doc, options.stats)
 
-          this.addFooter(doc)
-        } catch (e) {
-          doc.fontSize(12)
-             .fillColor('#dc2626')
-             .text('Erro ao recuperar dados para o PDF.', 50, doc.y)
-        }
+        // 4. Gráfico de Disponibilidade (Simulado Visualmente)
+        this.addUptimeVisual(doc, options.stats.uptime)
 
-        doc.end()
-      })
-    } catch (error) {
-      console.error('❌ Erro ao gerar PDF dinâmico:', error)
-      throw error
-    }
-  }
+        // 5. Lista de Incidentes
+        this.addIncidents(doc, options.stats.incidents)
 
-  /**
-   * Gera PDF otimizado a partir de captura de página de status
-   */
-  async generateOptimizedStatusPDF(monitorSlug: string, monitorName: string): Promise<Buffer> {
-    try {
-      console.log(`📄 Gerando PDF otimizado (texto) para: ${monitorName}`)
-
-      const doc = new PDFDocument({ margin: 50 })
-      const chunks: Buffer[] = []
-      doc.on('data', chunk => chunks.push(chunk))
-
-      return new Promise(async (resolve, reject) => {
-        doc.on('end', () => resolve(Buffer.concat(chunks)))
-        doc.on('error', reject)
-
-        // Cabeçalho
-        this.addHeader(doc, monitorName || 'Status')
-
-        // Carregar dados
-        const monitors = await databaseService.getMonitors()
-
-        // Primeiro: tentar encontrar MONITOR pelo slug para evitar colisão com slug de grupo
-        const monitor = monitors.find((m: any) => m.slug === monitorSlug)
-        if (monitor) {
-          // Se for monitor, gerar relatório estilo mensal
-          this.addMonitorDetails(doc, monitor)
-          await this.addMonthlyStats(doc, monitor, new Date().getFullYear(), new Date().getMonth() + 1)
-          this.addUptimeChart(doc, monitor)
-          this.addIncidentsList(doc, monitor)
-          this.addFooter(doc)
-          doc.end()
-          return
-        }
-
-        doc.fontSize(12)
-           .fillColor('#dc2626')
-           .text('Monitor não encontrado para o slug informado.', 50, 150)
-        this.addFooter(doc)
-        doc.end()
-      })
-    } catch (error) {
-      console.error('❌ Erro ao gerar PDF otimizado:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Gera PDF otimizado SOMENTE para um monitor (sem considerar grupos)
-   * Usado para garantir que exportações mensais retornem o PDF do monitor selecionado.
-   * Aceita slug ou ID como identificador.
-   */
-  async generateOptimizedMonitorPDF(monitorIdentifier: string, monitorName: string, year?: number, month?: number): Promise<Buffer> {
-    try {
-      const doc = new PDFDocument({ margin: 50 })
-      const chunks: Buffer[] = []
-      doc.on('data', chunk => chunks.push(chunk))
-
-      return new Promise(async (resolve, reject) => {
-        doc.on('end', () => resolve(Buffer.concat(chunks)))
-        doc.on('error', reject)
-
-        // Cabeçalho
-        this.addHeader(doc, monitorName || 'Status')
-
-        // Carregar dados
-        const monitors = await databaseService.getMonitors()
-
-        // Tentar encontrar MONITOR pelo slug ou ID
-        const monitor = monitors.find((m: any) => m.slug === monitorIdentifier || m.id === monitorIdentifier)
-        
-        if (monitor) {
-          // Relatório estilo mensal do monitor
-          this.addMonitorDetails(doc, monitor)
-          await this.addMonthlyStats(doc, monitor, year || new Date().getFullYear(), (month || (new Date().getMonth() + 1)))
-          this.addUptimeChart(doc, monitor)
-          this.addIncidentsList(doc, monitor)
-          this.addFooter(doc)
-          doc.end()
-          return
-        }
-
-        // Se não encontrar monitor, deixar o caller decidir o fallback
-        doc.fontSize(12)
-           .fillColor('#dc2626')
-           .text('Monitor não encontrado para o identificador informado.', 50, 150)
-        this.addFooter(doc)
-        doc.end()
-      })
-    } catch (error) {
-      console.error('❌ Erro ao gerar PDF otimizado de monitor:', error)
-      throw error
-    }
-  }
-  /**
-   * Gera PDF com status de todos os monitores usando captura otimizada quando possível
-   */
-  async generateStatusPDF(options: PDFReportOptions = {}): Promise<Buffer> {
-    try {
-      // Buscar dados dos monitores
-      const monitors = await databaseService.getMonitors()
-      
-      console.log(`📄 Gerando PDF de status básico`)
-      
-      // Fallback para o método original
-      return this.generateBasicStatusPDF(options, monitors)
-    } catch (error) {
-      console.error('❌ Erro ao gerar PDF de status:', error)
-      throw error
-    }
-  }
-  
-  /**
-   * Gera PDF básico com status de todos os monitores (fallback)
-   */
-  private async generateBasicStatusPDF(options: PDFReportOptions, monitors: any[]): Promise<Buffer> {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const doc = new PDFDocument({ margin: 50 })
-        const chunks: Buffer[] = []
-
-        doc.on('data', chunk => chunks.push(chunk))
-        doc.on('end', () => resolve(Buffer.concat(chunks)))
-        doc.on('error', reject)
-
-        // Cabeçalho do documento
-        this.addHeader(doc, options.title || 'Status dos Monitores')
-        
-        // Informações gerais
-        this.addGeneralInfo(doc, monitors)
-        
-        // Lista de Monitores (substituindo grupos)
-        this.addMonitorsList(doc, monitors)
-        
-        // Resumo de estatísticas
-        this.addStatisticsSummary(doc, monitors)
-        
-        // Rodapé
+        // 6. Rodapé
         this.addFooter(doc)
 
         doc.end()
       } catch (error) {
+        console.error('❌ Erro ao gerar PDF:', error)
         reject(error)
       }
     })
   }
 
-  /**
-   * Adiciona lista de monitores
-   */
-  private addMonitorsList(doc: PDFKit.PDFDocument, monitors: any[]) {
-    doc.fontSize(16)
-       .fillColor('#1f2937')
-       .text('Lista de Monitores', 50, doc.y)
-    
-    doc.moveDown(1)
-    
-    monitors.forEach(monitor => {
-      const statusIcon = this.getStatusIcon(monitor.status)
-      const uptimeText = monitor.uptime_24h ? `${monitor.uptime_24h.toFixed(1)}%` : 'N/A'
-      const responseTime = monitor.avg_response_time ? `${monitor.avg_response_time}ms` : 'N/A'
-      
-      doc.fontSize(11)
-         .fillColor('#374151')
-         .text(`${statusIcon} ${monitor.name}`, 70, doc.y)
-      
-      doc.fontSize(9)
-         .fillColor('#6b7280')
-         .text(`${monitor.url} | Uptime 24h: ${uptimeText} | Resposta: ${responseTime}`, 90, doc.y + 15)
-      
-      doc.moveDown(1.5)
-    })
-    
-    doc.moveDown(1)
-  }
-
-  /**
-   * Gera PDF de relatório mensal para um monitor específico usando captura otimizada
-   */
-  async generateMonthlyReportPDF(monitorId: string, year: number, month: number): Promise<Buffer> {
-    try {
-      // Buscar dados do monitor
-      const monitors = await databaseService.getMonitors()
-      const monitor = monitors.find((m: any) => m.id === monitorId)
-      
-      if (!monitor) {
-        throw new Error('Monitor não encontrado')
-      }
-
-      // Verificar se o monitor tem slug para página de status
-      if (monitor.slug) {
-        console.log(`📄 Gerando relatório mensal otimizado (monitor-only) para: ${monitor.name}`)
-        
-        // Forçar geração apenas do monitor; se falhar, fazer fallback para o básico
-        try {
-          return await this.generateOptimizedMonitorPDF(monitor.slug, `${monitor.name} - Relatório Mensal`, year, month)
-        } catch (e) {
-          console.warn('⚠️ Fallback para relatório mensal básico (slug não encontrado como monitor):', e)
-          return this.generateBasicMonthlyReportPDF(monitorId, year, month)
-        }
-      } else {
-        console.log(`📄 Gerando relatório mensal básico para: ${monitor.name} (sem página de status)`)
-        
-        // Fallback para o método original se não houver slug
-        return this.generateBasicMonthlyReportPDF(monitorId, year, month)
-      }
-    } catch (error) {
-      console.error('❌ Erro ao gerar relatório mensal:', error)
-      throw error
-    }
-  }
-  
-  /**
-   * Gera PDF básico de relatório mensal (fallback)
-   */
-  private async generateBasicMonthlyReportPDF(monitorId: string, year: number, month: number): Promise<Buffer> {
-    return new Promise(async (resolve, reject) => {
-      try {
-        const doc = new PDFDocument({ margin: 50 })
-        const chunks: Buffer[] = []
-
-        doc.on('data', chunk => chunks.push(chunk))
-        doc.on('end', () => resolve(Buffer.concat(chunks)))
-        doc.on('error', reject)
-
-        // Buscar dados do monitor
-        const monitors = await databaseService.getMonitors()
-        const monitor = monitors.find((m: any) => m.id === monitorId)
-        
-        if (!monitor) {
-          reject(new Error('Monitor não encontrado'))
-          return
-        }
-
-        const monthName = this.getMonthName(month)
-        const title = `Relatório Mensal - ${monitor.name}`
-        const period = `${monthName} ${year}`
-
-        // Cabeçalho
-        this.addHeader(doc, title, period)
-        
-        // Informações do monitor
-        this.addMonitorDetails(doc, monitor)
-        
-        // Estatísticas do período
-        await this.addMonthlyStats(doc, monitor, year, month)
-        
-        // Gráfico de uptime (simulado)
-        this.addUptimeChart(doc, monitor)
-        
-        // Incidentes do período
-        this.addIncidentsList(doc, monitor)
-        
-        // Rodapé
-        this.addFooter(doc)
-
-        doc.end()
-      } catch (error) {
-        reject(error)
-      }
-    })
-  }
-
-  /**
-   * Adiciona cabeçalho ao documento
-   */
-  private addHeader(doc: PDFKit.PDFDocument, title: string, subtitle?: string) {
-    // Logo/Título principal
+  private addHeader(doc: PDFKit.PDFDocument, title: string, subtitle: string) {
+    // Logo/Brand
     doc.fontSize(24)
-       .fillColor('#2563eb')
+       .fillColor('#2563eb') // Blue 600
        .text('Uptime Monitor', 50, 50)
     
-    // Título do relatório
+    // Título
     doc.fontSize(18)
-       .fillColor('#1f2937')
+       .fillColor('#1f2937') // Gray 800
        .text(title, 50, 90)
     
-    if (subtitle) {
-      doc.fontSize(14)
-         .fillColor('#6b7280')
-         .text(subtitle, 50, 120)
-    }
-    
-    // Data de geração
-    const now = new Date()
-    doc.fontSize(10)
-       .fillColor('#9ca3af')
-       .text(`Gerado em: ${now.toLocaleString('pt-BR')}`, 50, subtitle ? 145 : 125)
-    
-    // Linha separadora
-    doc.moveTo(50, subtitle ? 170 : 150)
-       .lineTo(550, subtitle ? 170 : 150)
+    // Subtítulo (Período)
+    doc.fontSize(14)
+       .fillColor('#6b7280') // Gray 500
+       .text(subtitle, 50, 120)
+
+    // Linha divisória
+    doc.moveTo(50, 150)
+       .lineTo(545, 150) // A4 width is ~595. 595 - 50 = 545
+       .lineWidth(1)
        .strokeColor('#e5e7eb')
        .stroke()
-    
-    doc.moveDown(2)
   }
 
-  /**
-   * Adiciona informações gerais
-   */
-  private addGeneralInfo(doc: PDFKit.PDFDocument, monitors: any[]) {
-    const totalMonitors = monitors.length
-    const onlineMonitors = monitors.filter(m => m.status === 'up').length
-    const offlineMonitors = monitors.filter(m => m.status === 'down').length
-    const unknownMonitors = monitors.filter(m => !m.status || m.status === 'unknown').length
+  private addMonitorDetails(doc: PDFKit.PDFDocument, monitor: PDFReportMonitorData) {
+    const startY = 180
     
-    const startY = doc.y + 20
-    
-    doc.fontSize(16)
-       .fillColor('#1f2937')
-       .text('Resumo Geral', 50, startY)
-    
-    doc.fontSize(12)
-       .fillColor('#374151')
-    
-    const infoY = startY + 30
-    doc.text(`Total de Monitores: ${totalMonitors}`, 50, infoY)
-    doc.text(`🟢 Online: ${onlineMonitors}`, 50, infoY + 20)
-    doc.text(`🔴 Offline: ${offlineMonitors}`, 50, infoY + 40)
-    doc.text(`⚪ Desconhecido: ${unknownMonitors}`, 50, infoY + 60)
-    
-    // Percentual de disponibilidade geral
-    const overallUptime = totalMonitors > 0 ? ((onlineMonitors / totalMonitors) * 100).toFixed(1) : '0'
-    doc.fontSize(14)
-       .fillColor('#059669')
-       .text(`Disponibilidade Geral: ${overallUptime}%`, 300, infoY + 20)
-    
-    doc.moveDown(4)
-  }
-
-
-
-  /**
-   * Adiciona resumo de estatísticas
-   */
-  private addStatisticsSummary(doc: PDFKit.PDFDocument, monitors: any[]) {
-    // Nova página se necessário
-    if (doc.y > 600) {
-      doc.addPage()
-    }
-    
-    doc.fontSize(16)
-       .fillColor('#1f2937')
-       .text('Estatísticas Detalhadas', 50, doc.y)
-    
-    doc.moveDown(1)
-    
-    // Calcular estatísticas
-    const avgUptime = monitors.length > 0 
-      ? monitors.reduce((sum, m) => sum + (m.uptime_24h || 0), 0) / monitors.length 
-      : 0
-    
-    const avgResponseTime = monitors.length > 0 
-      ? monitors.reduce((sum, m) => sum + (m.avg_response_time || 0), 0) / monitors.length 
-      : 0
-    
-    doc.fontSize(12)
-       .fillColor('#374151')
-       .text(`Uptime Médio (24h): ${avgUptime.toFixed(2)}%`, 50, doc.y)
-       .text(`Tempo de Resposta Médio: ${Math.round(avgResponseTime)}ms`, 50, doc.y + 20)
-    
-    doc.moveDown(2)
-  }
-
-  /**
-   * Adiciona detalhes do monitor
-   */
-  private addMonitorDetails(doc: PDFKit.PDFDocument, monitor: any) {
     doc.fontSize(14)
        .fillColor('#1f2937')
-       .text('Informações do Monitor', 50, doc.y)
-    
-    doc.moveDown(1)
-    
+       .text('Informações do Monitor', 50, startY)
+
     doc.fontSize(11)
-       .fillColor('#374151')
-       .text(`Nome: ${monitor.name}`, 50, doc.y)
-       .text(`URL: ${monitor.url}`, 50, doc.y + 20)
-       .text(`Tipo: ${monitor.type}`, 50, doc.y + 40)
-       .text(`Status: ${this.getStatusIcon(monitor.status)} ${this.getStatusText(monitor.status)}`, 50, doc.y + 60)
-    
-    doc.moveDown(3)
+       .fillColor('#374151') // Gray 700
+       
+    const details = [
+      { label: 'Nome', value: monitor.name },
+      { label: 'URL', value: monitor.url },
+      { label: 'Tipo', value: monitor.type.toUpperCase() },
+      { label: 'Status Atual', value: this.formatStatus(monitor.status) }
+    ]
+
+    let currentY = startY + 30
+    details.forEach(item => {
+      doc.font('Helvetica-Bold').text(`${item.label}:`, 50, currentY)
+      doc.font('Helvetica').text(item.value, 150, currentY)
+      currentY += 20
+    })
   }
 
-  /**
-   * Adiciona estatísticas mensais
-   */
-  private async addMonthlyStats(doc: PDFKit.PDFDocument, monitor: any, _: number, __: number) {
+  private addStats(doc: PDFKit.PDFDocument, stats: PDFReportStatsData) {
+    const startY = doc.y + 30
+    
     doc.fontSize(14)
+       .font('Helvetica-Bold')
        .fillColor('#1f2937')
-       .text('Estatísticas do Período', 50, doc.y)
+       .text('Estatísticas do Período', 50, startY)
+
+    const boxTop = startY + 30
     
-    doc.moveDown(1)
-    
-    // Dados simulados - você pode implementar a lógica real
-    const uptime = monitor.uptime_30d || 99.5
-    const totalChecks = 2880 // 30 dias * 24 horas * 4 checks/hora
-    const successfulChecks = Math.round(totalChecks * (uptime / 100))
-    const failedChecks = totalChecks - successfulChecks
-    
-    doc.fontSize(11)
-       .fillColor('#374151')
-       .text(`Uptime: ${uptime.toFixed(2)}%`, 50, doc.y)
-       .text(`Total de Verificações: ${totalChecks.toLocaleString('pt-BR')}`, 50, doc.y + 20)
-       .text(`Verificações Bem-sucedidas: ${successfulChecks.toLocaleString('pt-BR')}`, 50, doc.y + 40)
-       .text(`Verificações com Falha: ${failedChecks.toLocaleString('pt-BR')}`, 50, doc.y + 60)
-       .text(`Tempo Médio de Resposta: ${monitor.avg_response_time || 250}ms`, 50, doc.y + 80)
-    
-    doc.moveDown(3)
+    // Desenhar caixas de estatísticas
+    this.drawStatBox(doc, 50, boxTop, 'Uptime', `${stats.uptime.toFixed(2)}%`, stats.uptime >= 99 ? '#059669' : '#dc2626')
+    this.drawStatBox(doc, 180, boxTop, 'Checks Totais', stats.total_checks.toString())
+    this.drawStatBox(doc, 310, boxTop, 'Falhas', stats.failed_checks.toString(), stats.failed_checks > 0 ? '#dc2626' : '#059669')
+    this.drawStatBox(doc, 440, boxTop, 'Resp. Média', `${Math.round(stats.avg_response_time)}ms`)
   }
 
-  /**
-   * Adiciona gráfico de uptime (representação textual)
-   */
-  private addUptimeChart(doc: PDFKit.PDFDocument, _: any) {
-    doc.fontSize(14)
-       .fillColor('#1f2937')
-       .text('Gráfico de Disponibilidade', 50, doc.y)
+  private drawStatBox(doc: PDFKit.PDFDocument, x: number, y: number, label: string, value: string, color: string = '#1f2937') {
+    doc.rect(x, y, 110, 60)
+       .fillAndStroke('#f9fafb', '#e5e7eb')
     
-    doc.moveDown(1)
-    
-    // Simular dados de uptime dos últimos 30 dias
-    const days = 30
-    let chartLine = ''
-    
-    for (let i = 0; i < days; i++) {
-      const uptime = Math.random() > 0.05 ? '█' : ' ' // 95% de chance de estar online
-      chartLine += uptime
-    }
-    
-    doc.fontSize(8)
-       .font('Courier')
-       .fillColor('#059669')
-       .text(chartLine, 50, doc.y)
-    
-    doc.fontSize(9)
+    doc.fontSize(10)
        .font('Helvetica')
        .fillColor('#6b7280')
-       .text('█ Online    Offline', 50, doc.y + 15)
-       .text('(Últimos 30 dias)', 50, doc.y + 30)
-    
-    doc.moveDown(3)
-  }
-
-  /**
-   * Adiciona lista de incidentes
-   */
-  private addIncidentsList(doc: PDFKit.PDFDocument, _: any) {
+       .text(label, x + 10, y + 10, { width: 90, align: 'center' })
+       
     doc.fontSize(14)
-       .fillColor('#1f2937')
-       .text('Incidentes Recentes', 50, doc.y)
-    
-    doc.moveDown(1)
-    
-    // Dados simulados de incidentes
-    const incidents = [
-      { date: '2024-01-15', duration: '5 min', reason: 'Timeout de conexão' },
-      { date: '2024-01-08', duration: '12 min', reason: 'Servidor indisponível' }
-    ]
-    
-    if (incidents.length === 0) {
-      doc.fontSize(11)
-         .fillColor('#059669')
-         .text('🎉 Nenhum incidente registrado no período!', 50, doc.y)
-    } else {
-      incidents.forEach((incident, index) => {
-        doc.fontSize(11)
-           .fillColor('#374151')
-           .text(`${index + 1}. ${incident.date} - Duração: ${incident.duration}`, 50, doc.y)
-           .text(`   Motivo: ${incident.reason}`, 50, doc.y + 15)
-        
-        doc.moveDown(1.5)
-      })
-    }
-    
-    doc.moveDown(2)
+       .font('Helvetica-Bold')
+       .fillColor(color)
+       .text(value, x + 10, y + 30, { width: 90, align: 'center' })
   }
 
-  /**
-   * Adiciona rodapé
-   */
+  private addUptimeVisual(doc: PDFKit.PDFDocument, uptime: number) {
+    const startY = doc.y + 80 // Espaço após as caixas
+    
+    doc.fontSize(14)
+       .font('Helvetica-Bold')
+       .fillColor('#1f2937')
+       .text('Disponibilidade', 50, startY)
+
+    // Barra de progresso visual
+    const barWidth = 495
+    const barHeight = 20
+    const filledWidth = (uptime / 100) * barWidth
+
+    // Fundo da barra
+    doc.rect(50, startY + 30, barWidth, barHeight)
+       .fill('#e5e7eb')
+
+    // Parte preenchida (verde se alto uptime, vermelho se baixo)
+    const color = uptime >= 98 ? '#059669' : (uptime >= 90 ? '#d97706' : '#dc2626')
+    doc.rect(50, startY + 30, filledWidth, barHeight)
+       .fill(color)
+       
+    doc.fontSize(10)
+       .font('Helvetica')
+       .fillColor('#6b7280')
+       .text('0%', 50, startY + 55)
+       .text('100%', 50 + barWidth - 25, startY + 55)
+  }
+
+  private addIncidents(doc: PDFKit.PDFDocument, incidents: any[]) {
+    const startY = doc.y + 80
+    
+    doc.fontSize(14)
+       .font('Helvetica-Bold')
+       .fillColor('#1f2937')
+       .text('Histórico de Incidentes', 50, startY)
+
+    if (!incidents || incidents.length === 0) {
+      doc.fontSize(11)
+         .font('Helvetica')
+         .fillColor('#059669')
+         .text('Nenhum incidente registrado no período. O serviço operou perfeitamente! 🎉', 50, startY + 30)
+      return
+    }
+
+    let currentY = startY + 30
+    
+    incidents.forEach((incident, index) => {
+      // Verificar se precisa de nova página
+      if (currentY > 700) {
+        doc.addPage()
+        currentY = 50
+      }
+
+      const duration = typeof incident.duration === 'number' 
+        ? (incident.duration < 60 ? `${incident.duration} min` : `${Math.round(incident.duration/60)}h`)
+        : incident.duration
+
+      doc.rect(50, currentY, 495, 50)
+         .fillAndStroke('#fef2f2', '#fee2e2')
+
+      doc.fontSize(11)
+         .font('Helvetica-Bold')
+         .fillColor('#991b1b')
+         .text(`🔴 Falha em ${incident.date} - Duração: ${duration}`, 60, currentY + 10)
+      
+      if (incident.message) {
+        doc.fontSize(10)
+           .font('Helvetica')
+           .fillColor('#7f1d1d')
+           .text(`Motivo: ${incident.message}`, 60, currentY + 30)
+      }
+
+      currentY += 60
+    })
+  }
+
   private addFooter(doc: PDFKit.PDFDocument) {
-    const pageHeight = doc.page.height
-    const footerY = pageHeight - 50
+    const bottom = doc.page.height - 50
     
     doc.fontSize(8)
+       .font('Helvetica')
        .fillColor('#9ca3af')
-       .text('Gerado automaticamente pelo Uptime Monitor', 50, footerY)
-       .text(`Página ${doc.bufferedPageRange().count}`, 500, footerY)
+       .text('Gerado automaticamente pelo Uptime Monitor', 50, bottom)
+       .text(new Date().toLocaleString('pt-BR'), 50, bottom + 12)
+  }
+
+  private formatStatus(status: string): string {
+    const map: any = {
+      'up': 'Online',
+      'down': 'Offline',
+      'paused': 'Pausado',
+      'maintenance': 'Manutenção'
+    }
+    return map[status] || status
   }
 
   /**
-   * Gera PDF de status para um monitor específico pelo ID
-   * Garante que não haverá fallback para relatório geral
+   * Gera um PDF com visão geral de todos os monitores
    */
-  async generateMonitorStatusPDF(monitorId: string, monitorName: string, year?: number, month?: number): Promise<Buffer> {
-    try {
-      console.log(`📄 Gerando PDF de status (texto) para monitor ID: ${monitorId}`)
+  async generateOverviewPDF(monitors: any[]): Promise<Buffer> {
+    return new Promise((resolve, reject) => {
+      try {
+        const doc = new PDFDocument({ margin: 50, size: 'A4' })
+        const chunks: Buffer[] = []
 
-      const doc = new PDFDocument({ margin: 50 })
-      const chunks: Buffer[] = []
-      doc.on('data', chunk => chunks.push(chunk))
-
-      return new Promise(async (resolve, reject) => {
+        doc.on('data', chunk => chunks.push(chunk))
         doc.on('end', () => resolve(Buffer.concat(chunks)))
         doc.on('error', reject)
 
-        // Cabeçalho
-        this.addHeader(doc, monitorName || 'Status')
+        this.addHeader(doc, 'Visão Geral do Sistema', new Date().toLocaleDateString('pt-BR'))
 
-        // Buscar monitor pelo ID diretamente
-        const monitor = await databaseService.getMonitorById(monitorId)
-        
-        if (monitor) {
-          // Relatório estilo mensal do monitor
-          this.addMonitorDetails(doc, monitor)
-          await this.addMonthlyStats(doc, monitor, year || new Date().getFullYear(), (month || (new Date().getMonth() + 1)))
-          this.addUptimeChart(doc, monitor)
-          this.addIncidentsList(doc, monitor)
-        } else {
-          doc.fontSize(12)
-             .fillColor('#dc2626')
-             .text('Monitor não encontrado.', 50, 150)
-        }
+        const total = monitors.length
+        const up = monitors.filter(m => m.status === 'up').length
+        const down = monitors.filter(m => m.status === 'down').length
+        const uptimeAvg = monitors.reduce((acc, m) => acc + (m.uptime_24h || 0), 0) / (total || 1)
+
+        // Resumo
+        doc.fontSize(14).text('Resumo', 50, doc.y + 20)
+        doc.fontSize(11).text(`Total: ${total} | Online: ${up} | Offline: ${down}`, 50, doc.y + 10)
+        doc.text(`Disponibilidade Média (24h): ${uptimeAvg.toFixed(2)}%`)
+
+        // Lista
+        doc.moveDown(2)
+        monitors.forEach(m => {
+          const color = m.status === 'up' ? '#059669' : '#dc2626'
+          doc.fillColor(color).text(m.status === 'up' ? '●' : '●', 50, doc.y)
+          doc.fillColor('#1f2937').text(m.name, 70, doc.y - 11)
+          doc.fontSize(9).fillColor('#6b7280').text(`${m.url} - ${m.uptime_24h?.toFixed(2)}%`, 70, doc.y + 2)
+          doc.fontSize(11).moveDown(0.5)
+        })
 
         this.addFooter(doc)
         doc.end()
-      })
-    } catch (error) {
-      console.error('❌ Erro ao gerar PDF de status do monitor:', error)
-      throw error
-    }
-  }
-
-  /**
-   * Obtém ícone do status
-   */
-  private getStatusIcon(status: string): string {
-    const icons: { [key: string]: string } = {
-      'up': '🟢',
-      'down': '🔴',
-      'unknown': '⚪'
-    }
-    return icons[status] || '⚪'
-  }
-
-  /**
-   * Obtém texto do status
-   */
-  private getStatusText(status: string): string {
-    const texts: { [key: string]: string } = {
-      'up': 'Online',
-      'down': 'Offline',
-      'unknown': 'Desconhecido'
-    }
-    return texts[status] || 'Desconhecido'
-  }
-
-  /**
-   * Obtém nome do mês
-   */
-  private getMonthName(month: number): string {
-    const months = [
-      'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
-      'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
-    ]
-    return months[month - 1] || 'Mês Inválido'
-  }
-
-  /**
-   * Salva PDF em arquivo
-   */
-  async savePDFToFile(pdfBuffer: Buffer, filename: string): Promise<string> {
-    const uploadsDir = path.join(process.cwd(), 'uploads', 'reports')
-    
-    // Criar diretório se não existir
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true })
-    }
-    
-    const filePath = path.join(uploadsDir, filename)
-    fs.writeFileSync(filePath, pdfBuffer)
-    
-    return filePath
+      } catch (error) {
+        reject(error)
+      }
+    })
   }
 }
 

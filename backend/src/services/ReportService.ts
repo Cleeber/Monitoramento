@@ -85,9 +85,6 @@ export class ReportService {
     }
   }
 
-
-
-
   /**
    * Coleta estatísticas de um monitor para um período específico
    */
@@ -101,7 +98,7 @@ export class ReportService {
         throw new Error(`Monitor ${monitorId} não encontrado`)
       }
 
-      // Buscar checks do período (simulado - você pode implementar uma query específica)
+      // Buscar checks do período
       const checks = await this.getMonitorChecksForPeriod(monitorId, startDate, endDate)
       
       // Calcular estatísticas
@@ -238,8 +235,6 @@ export class ReportService {
     return incidents
   }
 
-
-
   /**
    * Gera o conteúdo em texto do relatório
    */
@@ -274,13 +269,9 @@ ${this.generateAnalysis(stats)}
 
 === FIM DO RELATÓRIO ===
 `
-
     return content
   }
 
-  /**
-   * Gera resumo de uptime
-   */
   private generateUptimeSummary(uptime: number): string {
     if (uptime >= 99.9) {
       return '✅ Excelente disponibilidade! O serviço manteve-se estável durante todo o período.'
@@ -293,9 +284,6 @@ ${this.generateAnalysis(stats)}
     }
   }
 
-  /**
-   * Gera resumo de incidentes
-   */
   private generateIncidentsSummary(incidents: any[]): string {
     if (incidents.length === 0) {
       return 'Nenhum incidente registrado no período. 🎉'
@@ -318,9 +306,6 @@ ${this.generateAnalysis(stats)}
     return summary
   }
 
-  /**
-   * Gera análise do desempenho
-   */
   private generateAnalysis(stats: MonitorStats): string {
     let analysis = ''
     
@@ -350,9 +335,6 @@ ${this.generateAnalysis(stats)}
     return analysis || 'Desempenho dentro dos parâmetros esperados.'
   }
 
-  /**
-   * Converte status para texto legível
-   */
   private getStatusText(status: string): string {
     const statusMap: { [key: string]: string } = {
       'up': '🟢 Online',
@@ -362,9 +344,6 @@ ${this.generateAnalysis(stats)}
     return statusMap[status] || status
   }
 
-  /**
-   * Converte número do mês para nome
-   */
   private getMonthName(month: number): string {
     const months = [
       'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -402,45 +381,50 @@ ${this.generateAnalysis(stats)}
         throw new Error('Não foi possível coletar estatísticas do monitor')
       }
       
-      // Conteúdo do relatório será gerado dinamicamente no email
-      
+      // Gerar PDF usando o novo serviço modular
       let pdfBuffer: Buffer | undefined
       
       try {
-        if (monitor.slug) {
-          console.log(`📄 Gerando PDF otimizado para monitor: ${monitor.name} (${monitor.slug})`)
-          
-          // Usar o mesmo método que funciona na exportação manual
-          pdfBuffer = await pdfService.generateOptimizedStatusPDF(
-            monitor.slug,
-            `${monitor.name} - Relatório Mensal`
-          )
-          
-          // Verificação de tamanho ajustada: PDFs vetoriais podem ser leves (ex: 2-5KB)
-          if (pdfBuffer && pdfBuffer.length > 1000) { 
-            console.log(`✅ PDF otimizado gerado com sucesso (${Math.round(pdfBuffer.length / 1024)}KB - ${pdfBuffer.length} bytes)`)
-          } else {
-            console.warn(`⚠️ PDF gerado muito pequeno (${pdfBuffer ? pdfBuffer.length : 0} bytes), enviando e-mail sem anexo`)
-            pdfBuffer = undefined
-          }
-        } else {
-          console.warn('⚠️ Monitor sem slug de status. Enviaremos o e-mail sem anexo de PDF.')
-          pdfBuffer = undefined
-        }
-        console.log('📄 Processo de geração de PDF concluído')
+        const now = new Date()
+        const monthName = now.toLocaleDateString('pt-BR', { month: 'long' })
+        const yearNum = now.getFullYear()
+        const periodTitle = `${monthName} de ${yearNum}`
+
+        console.log(`📄 Gerando PDF modular para monitor: ${monitor.name}`)
+        
+        pdfBuffer = await pdfService.generateReportPDF({
+          monitor: {
+            name: monitor.name,
+            url: monitor.url,
+            type: monitor.type,
+            status: stats.status,
+            slug: monitor.slug
+          },
+          stats: {
+            uptime: stats.uptime_30d,
+            total_checks: stats.total_checks,
+            successful_checks: stats.successful_checks,
+            failed_checks: stats.failed_checks,
+            avg_response_time: stats.avg_response_time,
+            incidents: stats.incidents
+          },
+          period: periodTitle,
+          title: `${monitor.name} - Relatório Mensal`
+        })
+        
+        console.log(`✅ PDF gerado com sucesso (${pdfBuffer.length} bytes)`)
       } catch (pdfError) {
-        console.warn('⚠️ Erro inesperado na geração do PDF. O e-mail será enviado sem anexo:', pdfError)
+        console.warn('⚠️ Erro ao gerar PDF, enviando sem anexo:', pdfError)
         pdfBuffer = undefined
       }
       
       // Montar link da página de status (se disponível)
-      // Ajuste: adicionar fallback público quando FRONTEND_BASE_URL não estiver definido
       const baseUrl = process.env.FRONTEND_BASE_URL || 'https://monitor.pagina1digital.com.br'
       const statusLink = monitor.slug
         ? `${baseUrl}/status/${monitor.slug}`
         : undefined
       
-      // Nome amigável do arquivo: "Relatório Mensal - Nome do monitor - mês de ano"
+      // Nome amigável do arquivo
       const now = new Date()
       const monthName = now.toLocaleDateString('pt-BR', { month: 'long' })
       const yearNum = now.getFullYear()
@@ -473,53 +457,24 @@ ${this.generateAnalysis(stats)}
           sent_at: now.toISOString(),
           status: 'sent'
         })
-        console.log(`💾 Histórico do relatório dinâmico salvo no banco de dados`)
       } catch (historyError) {
-        console.warn(`⚠️ Erro ao salvar histórico (e-mail foi enviado com sucesso):`, historyError)
+        console.warn(`⚠️ Erro ao salvar histórico:`, historyError)
       }
       
     } catch (error) {
       console.error('❌ Erro ao enviar relatório mensal dinâmico:', error)
-      
-      // Salvar histórico de erro
-      try {
-        const now = new Date()
-        await databaseService.createMonthlyReportHistory({
-          monitor_id: monitorId,
-          email: email,
-          year: now.getFullYear(),
-          month: now.getMonth() + 1,
-          report_data: JSON.stringify({ error: error instanceof Error ? error.message : 'Erro desconhecido' }),
-          sent_at: now.toISOString(),
-          status: 'failed',
-          error_message: error instanceof Error ? error.message : 'Erro desconhecido'
-        })
-        console.log(`💾 Histórico de erro salvo no banco de dados`)
-      } catch (historyError) {
-        console.warn(`⚠️ Erro ao salvar histórico de erro:`, historyError)
-      }
-      
       throw error
     }
   }
 
-  /**
-   * Recarrega configuração SMTP
-   */
   async reloadSmtpConfig() {
     await emailService.reloadConfig()
   }
 
-  /**
-   * Envia email de teste
-   */
   async sendTestEmail(email: string) {
     return await emailService.sendTestEmail(email)
   }
 
-  /**
-   * Envia relatório mensal por e-mail
-   */
   async sendMonthlyReport(
     monitorId: string, 
     toEmail: string, 
@@ -530,55 +485,53 @@ ${this.generateAnalysis(stats)}
     try {
       console.log(`📊 Iniciando geração de relatório mensal - Monitor: ${monitorId}, Período: ${month}/${year}`)
       
-      // Buscar dados do monitor
       const monitors = await databaseService.getMonitors()
       const monitor = monitors.find((m: any) => m.id === monitorId)
       
       if (!monitor) {
-        const error = `Monitor não encontrado: ${monitorId}`
-        console.error(`❌ ${error}`)
-        return {
-          success: false,
-          message: error
-        }
+        return { success: false, message: `Monitor não encontrado: ${monitorId}` }
       }
 
-      console.log(`📋 Monitor encontrado: ${monitor.name} (${monitor.url})`)
-      console.log(`📝 Gerando estatísticas do período...`)
-
-      // Gerar estatísticas
       const stats = await this.collectMonitorStats(monitorId, new Date(year, month - 1, 1), new Date(year, month, 0, 23, 59, 59))
-      
-      console.log(`📈 Estatísticas coletadas - Uptime: ${stats.uptime_30d.toFixed(2)}%, Checks: ${stats.total_checks}`)
-      console.log(`📝 Gerando conteúdo do relatório...`)
-      
-      // Conteúdo do relatório será gerado dinamicamente no email
       
       let pdfBuffer: Buffer | undefined
       let fileName: string | undefined
       
-      // Gerar PDF se solicitado
       if (includePdf) {
         try {
           console.log(`📄 Gerando PDF do relatório mensal...`)
-          pdfBuffer = await pdfService.generateMonthlyReportPDF(monitorId, year, month)
+          const monthName = this.getMonthName(month)
+          
+          pdfBuffer = await pdfService.generateReportPDF({
+            monitor: {
+              name: monitor.name,
+              url: monitor.url,
+              type: monitor.type,
+              status: stats.status,
+              slug: monitor.slug
+            },
+            stats: {
+              uptime: stats.uptime_30d,
+              total_checks: stats.total_checks,
+              successful_checks: stats.successful_checks,
+              failed_checks: stats.failed_checks,
+              avg_response_time: stats.avg_response_time,
+              incidents: stats.incidents
+            },
+            period: `${monthName} de ${year}`,
+            title: `${monitor.name} - Relatório Mensal`
+          })
+          
           fileName = `relatorio-mensal-${monitor.name.replace(/[^a-zA-Z0-9]/g, '-')}-${month}-${year}.pdf`
-          console.log(`✅ PDF do relatório gerado (${Math.round(pdfBuffer.length / 1024)}KB)`) 
+          console.log(`✅ PDF gerado (${pdfBuffer.length} bytes)`) 
         } catch (pdfError) {
           console.warn('⚠️ Erro ao gerar PDF, enviando apenas texto:', pdfError)
         }
       }
       
-      console.log(`📧 Enviando relatório para: ${toEmail}`)
-
-      // Montar link da página de status (se disponível)
-      // Ajuste: adicionar fallback público quando FRONTEND_BASE_URL não estiver definido
       const baseUrl2 = process.env.FRONTEND_BASE_URL || 'https://monitor.pagina1digital.com.br'
-      const statusLink = monitor.slug
-        ? `${baseUrl2}/status/${monitor.slug}`
-        : undefined
+      const statusLink = monitor.slug ? `${baseUrl2}/status/${monitor.slug}` : undefined
       
-      // Enviar e-mail usando o método específico para relatórios mensais
       const result = await emailService.sendMonthlyReport(
         toEmail,
         monitor.name,
@@ -588,9 +541,6 @@ ${this.generateAnalysis(stats)}
       )
       
       if (result.success) {
-        console.log(`✅ Relatório mensal enviado com sucesso`)
-        
-        // Tentar salvar histórico (não falhar se houver erro)
         try {
           await databaseService.createMonthlyReportHistory({
             monitor_id: monitorId,
@@ -601,17 +551,14 @@ ${this.generateAnalysis(stats)}
             sent_at: new Date().toISOString(),
             status: 'sent'
           })
-          console.log(`💾 Histórico do relatório salvo no banco de dados`)
         } catch (historyError) {
-          console.warn(`⚠️ Erro ao salvar histórico (e-mail foi enviado com sucesso):`, historyError)
+          console.warn(`⚠️ Erro ao salvar histórico:`, historyError)
         }
-      } else {
-        console.error(`❌ Falha ao enviar relatório: ${result.message}`)
       }
       
       return result
     } catch (error) {
-      console.error(`❌ Erro ao enviar relatório mensal (Monitor: ${monitorId}, ${month}/${year}):`, error)
+      console.error(`❌ Erro ao enviar relatório mensal:`, error)
       return {
         success: false,
         message: `Erro ao enviar relatório: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
@@ -626,55 +573,52 @@ ${this.generateAnalysis(stats)}
     month: number
   ): Promise<{ success: boolean; message: string }> {
     try {
-      console.log(`📊📄 Iniciando geração de relatório mensal + status PDF - Monitor: ${monitorId}, Período: ${month}/${year}`)
+      console.log(`📊📄 Iniciando geração de relatório completo - Monitor: ${monitorId}, Período: ${month}/${year}`)
       
-      // Buscar dados do monitor
       const monitors = await databaseService.getMonitors()
       const monitor = monitors.find((m: any) => m.id === monitorId)
       
       if (!monitor) {
-        const error = `Monitor não encontrado: ${monitorId}`
-        console.error(`❌ ${error}`)
-        return {
-          success: false,
-          message: error
-        }
+        return { success: false, message: `Monitor não encontrado: ${monitorId}` }
       }
 
-      console.log(`📋 Monitor encontrado: ${monitor.name} (${monitor.url})`)
-      console.log(`📝 Gerando estatísticas do período...`)
-
-      // Gerar estatísticas
       const stats = await this.collectMonitorStats(monitorId, new Date(year, month - 1, 1), new Date(year, month, 0, 23, 59, 59))
-      
-      console.log(`📈 Estatísticas coletadas - Uptime: ${stats.uptime_30d.toFixed(2)}%, Checks: ${stats.total_checks}`)
-      console.log(`📝 Gerando conteúdo do relatório...`)
-      
-      // Gerar conteúdo do relatório
       const reportContent = this.generateTextContent(monitor, stats, `${this.getMonthName(month)} ${year}`)
       
       let attachments: any[] = []
       
       try {
-        console.log(`📄 Gerando PDF do relatório mensal...`)
-        // Gerar PDF do relatório mensal
-        const monthlyPdfBuffer = await pdfService.generateMonthlyReportPDF(monitorId, year, month)
+        // 1. PDF do Monitor
+        const monthlyPdfBuffer = await pdfService.generateReportPDF({
+          monitor: {
+            name: monitor.name,
+            url: monitor.url,
+            type: monitor.type,
+            status: stats.status,
+            slug: monitor.slug
+          },
+          stats: {
+            uptime: stats.uptime_30d,
+            total_checks: stats.total_checks,
+            successful_checks: stats.successful_checks,
+            failed_checks: stats.failed_checks,
+            avg_response_time: stats.avg_response_time,
+            incidents: stats.incidents
+          },
+          period: `${this.getMonthName(month)} de ${year}`,
+          title: `${monitor.name} - Relatório Mensal`
+        })
+
         const monthlyFileName = `relatorio-mensal-${monitor.name.replace(/[^a-zA-Z0-9]/g, '-')}-${month}-${year}.pdf`
-        
-        console.log(`✅ PDF do relatório mensal gerado (${Math.round(monthlyPdfBuffer.length / 1024)}KB)`)
-        
         attachments.push({
           filename: monthlyFileName,
           content: monthlyPdfBuffer,
           contentType: 'application/pdf'
         })
         
-        console.log(`📄 Gerando PDF do status geral...`)
-        // Gerar PDF do status geral
-        const statusPdfBuffer = await pdfService.generateStatusPDF()
+        // 2. PDF Geral (Visão Global)
+        const statusPdfBuffer = await pdfService.generateOverviewPDF(monitors)
         const statusFileName = `status-geral-${new Date().toISOString().split('T')[0]}.pdf`
-        
-        console.log(`✅ PDF do status geral gerado (${Math.round(statusPdfBuffer.length / 1024)}KB)`)
         
         attachments.push({
           filename: statusFileName,
@@ -683,17 +627,12 @@ ${this.generateAnalysis(stats)}
         })
         
       } catch (pdfError) {
-        console.warn('⚠️ Erro ao gerar PDFs, enviando apenas texto:', pdfError)
+        console.warn('⚠️ Erro ao gerar PDFs:', pdfError)
       }
       
-      console.log(`📧 Enviando relatório com ${attachments.length} anexos PDF para: ${toEmail}`)
-
-      // Montar link público da página de status SEM depender de variável de ambiente
-      // Observação: todos os monitores possuem página pública; sempre incluir o link
       const baseUrl = process.env.FRONTEND_BASE_URL || 'https://monitor.pagina1digital.com.br'
       const statusLink = `${baseUrl}/status/${monitor.slug}`
       
-      // Enviar e-mail com anexos
       const result = await emailService.sendNotificationEmail(
         [toEmail],
         `📊 Relatório Completo - ${monitor.name} - ${month}/${year}`,
@@ -718,9 +657,6 @@ ${this.generateAnalysis(stats)}
       )
       
       if (result.success) {
-        console.log(`✅ Relatório mensal + status PDF enviado com sucesso`)
-        
-        // Tentar salvar histórico (não falhar se houver erro)
         try {
           await databaseService.createMonthlyReportHistory({
             monitor_id: monitorId,
@@ -731,17 +667,14 @@ ${this.generateAnalysis(stats)}
             sent_at: new Date().toISOString(),
             status: 'sent'
           })
-          console.log(`💾 Histórico do relatório salvo no banco de dados`)
         } catch (historyError) {
-          console.warn(`⚠️ Erro ao salvar histórico (e-mail foi enviado com sucesso):`, historyError)
+          console.warn(`⚠️ Erro ao salvar histórico:`, historyError)
         }
-      } else {
-        console.error(`❌ Falha ao enviar relatório: ${result.message}`)
       }
       
       return result
     } catch (error) {
-      console.error(`❌ Erro ao enviar relatório completo (Monitor: ${monitorId}, ${month}/${year}):`, error)
+      console.error(`❌ Erro ao enviar relatório completo:`, error)
       return {
         success: false,
         message: `Erro ao enviar relatório: ${error instanceof Error ? error.message : 'Erro desconhecido'}`

@@ -900,9 +900,8 @@ app.get('/api/pdf/status', authenticateToken, async (req, res) => {
   try {
     const { title } = req.query
     
-    const pdfBuffer = await pdfService.generateStatusPDF({
-      title: title as string || 'Status dos Monitores'
-    })
+    const monitors = await databaseService.getMonitors()
+    const pdfBuffer = await pdfService.generateOverviewPDF(monitors)
     
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', 'attachment; filename="status-report.pdf"')
@@ -922,53 +921,40 @@ app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res
       return res.status(400).json({ error: 'Ano e mês são obrigatórios' })
     }
 
-    // Novo: opção de layout baseado na página de status pública
-    if (style === 'status') {
-      try {
-        console.log(`📄 Iniciando geração de PDF status para monitor ${monitorId} (Mês: ${month}/${year})`);
-        const monitor = await databaseService.getMonitorById(monitorId)
-        
-        if (monitor) {
-          let pdfBuffer: Buffer;
-          
-          // Usar generateOptimizedMonitorPDF com slug ou ID
-          // Isso garante o layout "print da página de status" mesmo sem slug
-          console.log(`📄 Usando layout otimizado (Monitor: ${monitor.name})`);
-          pdfBuffer = await pdfService.generateOptimizedMonitorPDF(
-            monitor.slug || monitor.id,
-            `${monitor.name} - Relatório Mensal`,
-            Number(year),
-            Number(month)
-          )
+    const monitors = await databaseService.getMonitors()
+    const monitor = monitors.find((m: any) => m.id === monitorId)
 
-          const safeName = (monitor.slug || monitor.name || 'monitor').replace(/[^a-zA-Z0-9]/g, '-')
-          // Adicionar timestamp para evitar cache
-          const filename = `relatorio-mensal-status-${safeName}-${month}-${year}-${Date.now()}.pdf`
-          
-          // Headers anti-cache
-          res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate')
-          res.setHeader('Pragma', 'no-cache')
-          res.setHeader('Expires', '0')
-          
-          res.setHeader('Content-Type', 'application/pdf')
-          res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
-          return res.send(pdfBuffer)
-        } else {
-           console.warn(`⚠️ Monitor ${monitorId} não encontrado para relatório de status.`);
-           return res.status(404).json({ error: 'Monitor não encontrado' });
-        }
-      } catch (innerErr) {
-        console.error('❌ Falha ao gerar PDF com layout de status:', innerErr)
-        return res.status(500).json({ error: 'Erro ao gerar PDF de status' });
-      }
+    if (!monitor) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
     }
 
-    // Comportamento padrão existente
-    const pdfBuffer = await pdfService.generateMonthlyReportPDF(
-      monitorId,
-      Number(year),
-      Number(month)
-    )
+    // Coletar estatísticas
+    const startDate = new Date(Number(year), Number(month) - 1, 1)
+    const endDate = new Date(Number(year), Number(month), 0, 23, 59, 59)
+    const stats = await reportService.collectMonitorStats(monitorId, startDate, endDate)
+    
+    const monthName = new Date(startDate).toLocaleDateString('pt-BR', { month: 'long' })
+    const periodTitle = `${monthName} de ${year}`
+
+    const pdfBuffer = await pdfService.generateReportPDF({
+      monitor: {
+        name: monitor.name,
+        url: monitor.url,
+        type: monitor.type,
+        status: stats.status,
+        slug: monitor.slug
+      },
+      stats: {
+        uptime: stats.uptime_30d,
+        total_checks: stats.total_checks,
+        successful_checks: stats.successful_checks,
+        failed_checks: stats.failed_checks,
+        avg_response_time: stats.avg_response_time,
+        incidents: stats.incidents
+      },
+      period: periodTitle,
+      title: style === 'status' ? `${monitor.name} - Status` : `${monitor.name} - Relatório Mensal`
+    })
 
     const filename = `relatorio-mensal-${monitorId}-${year}-${month}.pdf`
 
