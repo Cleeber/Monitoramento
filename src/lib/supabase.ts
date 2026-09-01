@@ -1,9 +1,10 @@
-import { createClient } from '@supabase/supabase-js'
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
+import type { Database } from './database.types.js'
 
-let _supabase: any = null
+let _supabase: SupabaseClient<Database> | null = null
 
 // Função para obter o cliente Supabase (lazy loading)
-function getSupabaseClient() {
+function getSupabaseClient(): SupabaseClient<Database> {
   if (_supabase) {
     return _supabase
   }
@@ -17,7 +18,7 @@ function getSupabaseClient() {
     throw new Error('Variáveis de ambiente do Supabase não configuradas no backend')
   }
 
-  _supabase = createClient(supabaseUrl, supabaseServiceKey, {
+  _supabase = createClient<Database>(supabaseUrl, supabaseServiceKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false
@@ -28,261 +29,22 @@ function getSupabaseClient() {
 }
 
 // Cliente Supabase com service role para operações administrativas
-export const supabase = new Proxy({} as any, {
+export const supabase = new Proxy({} as SupabaseClient<Database>, {
   get(_, prop) {
-    return getSupabaseClient()[prop]
+    return getSupabaseClient()[prop as keyof SupabaseClient<Database>]
   }
 })
 
-// Tipos para o banco de dados
-export interface Database {
-  public: {
-    Tables: {
-      users: {
-        Row: {
-          id: string
-          email: string
-          password_hash: string
-          name: string
-          role: 'admin' | 'user'
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          email: string
-          password_hash: string
-          name: string
-          role?: 'admin' | 'user'
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          email?: string
-          password_hash?: string
-          name?: string
-          role?: 'admin' | 'user'
-          updated_at?: string
-        }
-      }
-      groups: {
-        Row: {
-          id: string
-          name: string
-          description: string | null
-          slug: string | null
-          notification_emails: string[]
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          name: string
-          description?: string | null
-          slug?: string | null
-          notification_emails?: string[]
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          name?: string
-          description?: string | null
-          slug?: string | null
-          notification_emails?: string[]
-          updated_at?: string
-        }
-      }
-      monitors: {
-        Row: {
-          id: string
-          group_id: string
-          name: string
-          url: string
-          slug: string | null
-          type: 'http' | 'ping' | 'tcp'
-          interval: number
-          timeout: number
-          status: 'online' | 'offline' | 'warning' | 'unknown'
-          last_check: string | null
-          response_time: number | null
-          uptime_24h: number
-          uptime_7d: number
-          uptime_30d: number
-          error_message: string | null
-          created_at: string
-          is_active: boolean
-          updated_at: string
-          logo_url: string | null
-          report_email: string | null
-          report_send_day: number
-          report_send_time: string
-          ignore_http_403: boolean
-          content_validation_enabled: boolean
-          min_content_length: number
-          min_text_length: number
-        }
-        Insert: {
-          id?: string
-          group_id: string
-          name: string
-          url: string
-          slug?: string | null
-          type: 'http' | 'ping' | 'tcp'
-          interval?: number
-          timeout?: number
-          status?: 'online' | 'offline' | 'warning' | 'unknown'
-          last_check?: string | null
-          response_time?: number | null
-          uptime_24h?: number
-          uptime_7d?: number
-          uptime_30d?: number
-          error_message?: string | null
-          created_at?: string
-          is_active?: boolean
-          updated_at?: string
-          logo_url?: string | null
-          report_email?: string | null
-          report_send_day?: number
-          report_send_time?: string
-          ignore_http_403?: boolean
-          content_validation_enabled?: boolean
-          min_content_length?: number
-          min_text_length?: number
-        }
-        Update: {
-          id?: string
-          group_id?: string
-          name?: string
-          url?: string
-          slug?: string | null
-          type?: 'http' | 'ping' | 'tcp'
-          interval?: number
-          timeout?: number
-          status?: 'online' | 'offline' | 'warning' | 'unknown'
-          last_check?: string | null
-          response_time?: number | null
-          uptime_24h?: number
-          uptime_7d?: number
-          uptime_30d?: number
-          error_message?: string | null
-          is_active?: boolean
-          updated_at?: string
-          logo_url?: string | null
-          report_email?: string | null
-          report_send_day?: number
-          report_send_time?: string
-          ignore_http_403?: boolean
-          content_validation_enabled?: boolean
-          min_content_length?: number
-          min_text_length?: number
-        }
-      }
-      monitor_checks: {
-        Row: {
-          id: string
-          monitor_id: string
-          status: 'online' | 'offline' | 'warning'
-          response_time: number | null
-          error_message: string | null
-          checked_at: string
-        }
-        Insert: {
-          id?: string
-          monitor_id: string
-          status: 'online' | 'offline' | 'warning'
-          response_time?: number | null
-          error_message?: string | null
-          checked_at?: string
-        }
-        Update: {
-          id?: string
-          monitor_id?: string
-          status?: 'online' | 'offline' | 'warning'
-          response_time?: number | null
-          error_message?: string | null
-          checked_at?: string
-        }
-      }
-      smtp_config: {
-        Row: {
-          id: string
-          host: string
-          port: number
-          secure: boolean
-          user: string
-          pass: string
-          from_name: string
-          from_email: string
-          is_configured: boolean
-          created_at: string
-          updated_at: string
-        }
-        Insert: {
-          id?: string
-          host?: string
-          port?: number
-          secure?: boolean
-          user?: string
-          pass?: string
-          from_name?: string
-          from_email?: string
-          is_configured?: boolean
-          created_at?: string
-          updated_at?: string
-        }
-        Update: {
-          id?: string
-          host?: string
-          port?: number
-          secure?: boolean
-          user?: string
-          pass?: string
-          from_name?: string
-          from_email?: string
-          is_configured?: boolean
-          updated_at?: string
-        }
-      }
-      reports: {
-        Row: {
-          id: string
-          group_id: string
-          month: string
-          year: number
-          uptime_percentage: number
-          total_checks: number
-          successful_checks: number
-          avg_response_time: number
-          created_at: string
-        }
-        Insert: {
-          id?: string
-          group_id: string
-          month: string
-          year: number
-          uptime_percentage: number
-          total_checks: number
-          successful_checks: number
-          avg_response_time: number
-          created_at?: string
-        }
-        Update: {
-          id?: string
-          group_id?: string
-          month?: string
-          year?: number
-          uptime_percentage?: number
-          total_checks?: number
-          successful_checks?: number
-          avg_response_time?: number
-        }
-      }
-    }
-  }
-}
+// Re-exporta os tipos gerados do schema para uso no resto do backend.
+// Estes são os mesmos tipos usados pelo frontend (em `client/lib/supabase.ts`),
+// garantindo que ambos os lados enxergam a mesma forma do banco.
+export type { Database, TablesInsert, TablesUpdate, Enums } from './database.types.js'
 
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
-export type Inserts<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Insert']
-export type Updates<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Update']
+// Aliases de conveniência para o estilo antigo `Tables<'monitors'>` etc.
+// (continuam funcionando, mas agora vêm do tipo gerado)
+export type Tables<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Row']
+export type Inserts<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Insert']
+export type Updates<T extends keyof Database['public']['Tables']> =
+  Database['public']['Tables'][T]['Update']

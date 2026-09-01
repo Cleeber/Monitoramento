@@ -142,8 +142,9 @@ async function createRequiredTables() {
   try {
     console.log('🔧 Verificando e criando tabelas necessárias...')
     
-    // Verificar se as tabelas existem
-    const { data: tables, error: checkError } = await supabase
+    // Verificar se as tabelas existem. Como `information_schema` nao esta
+    // exposto via PostgREST, usamos o cliente sem tipagem forte aqui.
+    const { data: tables, error: checkError } = await (supabase as any)
       .from('information_schema.tables')
       .select('table_name')
       .eq('table_schema', 'public')
@@ -298,7 +299,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       // Se a senha não estava hashada, vamos hashar para o futuro
       if (validPassword) {
         const hashedPassword = await bcrypt.hash(password, 10)
-        await databaseService.updateUser(user.id, { password_hash: hashedPassword })
+        await databaseService.updateUser(user.id, { password: hashedPassword })
       }
     }
 

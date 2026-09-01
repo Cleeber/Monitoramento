@@ -8,7 +8,7 @@ import { PeriodFilter, DEFAULT_TIME_RANGE } from '@/components/shared/PeriodFilt
 import { calculatePeriodRange, getPeriodLabel } from '@/utils/periodUtils'
 import { toast } from 'sonner'
 import { apiGet, apiPost } from '@/utils/apiUtils'
-// import html2pdf from 'html2pdf.js'
+// Geração de PDF é feita no backend (pdfkit); nada de html2pdf no frontend.
 import {
   Chart as ChartJS,
   CategoryScale,

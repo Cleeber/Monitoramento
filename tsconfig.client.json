@@ -20,6 +20,6 @@
       "@/*": ["./client/*"]
     }
   },
-  "include": ["client"],
+  "include": ["client", "src/lib/database.types.ts"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
