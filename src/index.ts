@@ -869,6 +869,49 @@ app.delete('/api/monitors/:id/history', authenticateToken, async (req, res) => {
   }
 })
 
+// Rota admin: limpa histórico de TODOS os monitores
+app.post('/api/admin/clear-all-history', authenticateToken, async (req, res) => {
+  try {
+    // Limpar todas as checagens do banco
+    const { error: checksError } = await supabase
+      .from('monitor_checks')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000')
+
+    if (checksError) throw checksError
+
+    // Limpar todos os relatórios mensais enviados
+    const { error: reportsError } = await supabase
+      .from('monthly_report_history')
+      .delete()
+      .neq('id', '00000000-0000-0000-0000-000000000000')
+
+    if (reportsError) throw reportsError
+
+    // Resetar estatísticas em memória de todos os monitores
+    for (const [monitorId, monitor] of (monitoringService as any).monitors || new Map()) {
+      monitoringService.updateMonitor({
+        ...monitor,
+        uptime_24h: 0,
+        uptime_7d: 0,
+        uptime_30d: 0,
+        last_check: null,
+        response_time: null,
+        status: 'unknown',
+      })
+      // Limpar contador de falhas consecutivas
+      ;(monitoringService as any).consecutiveFailures?.set(monitorId, 0)
+    }
+
+    apiLogger('info', 'Histórico de TODOS os monitores limpo', { userEmail: req.user?.email, requestId: req.requestId })
+
+    res.json({ message: 'Histórico de todos os monitores limpo com sucesso' })
+  } catch (error) {
+    console.error('Erro ao limpar todos os históricos:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
 // Rota para obter histórico de checks (persistente no banco)
 app.get('/api/monitors/:id/checks', authenticateToken, async (req, res) => {
   const { id } = req.params

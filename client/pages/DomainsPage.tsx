@@ -122,6 +122,8 @@ export function DomainsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [isClearHistoryDialogOpen, setIsClearHistoryDialogOpen] = useState(false)
   const [monitorToClearHistory, setMonitorToClearHistory] = useState<Monitor | null>(null)
+  const [isClearAllDialogOpen, setIsClearAllDialogOpen] = useState(false)
+  const [clearingAll, setClearingAll] = useState(false)
   const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
   const [detailsMonitor, setDetailsMonitor] = useState<Monitor | null>(null)
   const [detailsChecks, setDetailsChecks] = useState<any[]>([])
@@ -272,6 +274,27 @@ export function DomainsPage() {
       console.error('Erro ao buscar detalhes:', error)
     } finally {
       setLoadingDetails(false)
+    }
+  }
+
+  // Limpa o histórico de TODOS os monitores
+  const clearAllHistory = async () => {
+    setClearingAll(true)
+    try {
+      const result = await apiPost('/admin/clear-all-history')
+
+      if (result.success) {
+        addToast({ title: 'Histórico de todos os monitores foi limpo', variant: 'success' })
+        await fetchData()
+      } else {
+        addToast({ title: 'Erro ao limpar históricos', description: result.error, variant: 'destructive' })
+      }
+    } catch (error) {
+      console.error('Erro ao limpar históricos:', error)
+      addToast({ title: 'Erro ao limpar históricos', variant: 'destructive' })
+    } finally {
+      setClearingAll(false)
+      setIsClearAllDialogOpen(false)
     }
   }
 
@@ -461,13 +484,22 @@ export function DomainsPage() {
           <h1 className="text-2xl font-bold text-white">Domínios</h1>
           <p className="text-gray-400">Gerencie os domínios monitorados</p>
         </div>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openCreateDialog}>
-              <Plus className="h-4 w-4 mr-2" />
-              Adicionar Monitor
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={() => setIsClearAllDialogOpen(true)}
+            className="bg-gray-700 border-gray-600 text-yellow-400 hover:bg-yellow-600 hover:text-white hover:border-yellow-500"
+          >
+            <Eraser className="h-4 w-4 mr-2" />
+            Limpar Histórico de Todos
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openCreateDialog}>
+                <Plus className="h-4 w-4 mr-2" />
+                Adicionar Monitor
+              </Button>
+            </DialogTrigger>
           <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <DialogHeader>
               <DialogTitle className="text-white">
@@ -738,6 +770,27 @@ export function DomainsPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Dialog: Limpar Histórico de TODOS os monitores */}
+        <Dialog open={isClearAllDialogOpen} onOpenChange={setIsClearAllDialogOpen}>
+          <DialogContent style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
+            <DialogHeader>
+              <DialogTitle className="text-white">Limpar Histórico de Todos os Monitores</DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Esta ação irá remover TODAS as checagens e TODOS os relatórios mensais de TODOS os monitores.
+                Os monitores em si serão mantidos. Esta ação não pode ser desfeita.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" onClick={() => setIsClearAllDialogOpen(false)} disabled={clearingAll}>
+                Cancelar
+              </Button>
+              <Button variant="destructive" onClick={clearAllHistory} disabled={clearingAll}>
+                {clearingAll ? 'Limpando...' : 'Limpar Tudo'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+
         {/* Dialog de Detalhes do Monitor */}
         <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
           <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
@@ -872,6 +925,7 @@ export function DomainsPage() {
             )}
           </DialogContent>
         </Dialog>
+      </div>
       </div>
 
       {/* Filters */}
