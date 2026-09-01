@@ -7,6 +7,9 @@ import * as http from 'http'
 import * as https from 'https'
 import { exec } from 'child_process'
 import { promisify } from 'util'
+import type { CheckContext, Verdict } from './validators/types.js'
+import { runAllValidators } from './validators/index.js'
+
 const execAsync = promisify(exec)
 
 interface MonitorCheck {
@@ -41,6 +44,22 @@ interface Monitor {
   content_validation_enabled?: boolean
   min_content_length?: number
   min_text_length?: number
+  // Novos campos de validação
+  expected_status_codes?: number[]
+  expected_keywords?: string[]
+  forbidden_keywords?: string[]
+  api_health_enabled?: boolean
+  api_health_path?: string
+  api_health_expected_status?: number
+  api_health_expected_body?: string
+  check_ssl?: boolean
+  content_pattern_ok?: string
+  content_pattern_fail?: string
+  require_css?: boolean
+  require_js?: boolean
+  require_html?: boolean
+  response_time_warning_ms?: number
+  response_time_critical_ms?: number
 }
 
 interface ContentValidationConfig {
@@ -313,7 +332,7 @@ class MonitoringService extends EventEmitter {
           status = result.status
           responseTime = result.responseTime
           errorMessage = result.error
-          statusCode = (result as any).statusCode ?? null
+          statusCode = result.statusCode ?? null
           break
           
         case 'ping':
@@ -463,7 +482,7 @@ class MonitoringService extends EventEmitter {
     }
   }
 
-  // Nova versão: usa configuração específica do monitor
+  // Nova versão: usa o sistema de validadores plugáveis
   private async checkHttpFromConfig(monitor: Pick<Monitor, 'url' | 'timeout' | 'ignore_http_403' | 'ignore_ssl_errors' | 'content_validation_enabled' | 'min_content_length' | 'min_text_length'>): Promise<{
     status: 'online' | 'offline' | 'warning'
     responseTime: number | null
@@ -471,242 +490,227 @@ class MonitoringService extends EventEmitter {
     statusCode?: number
   }> {
     const startTime = Date.now()
-    // Derivar origem para uso como Referer quando possível
+
+    // Derivar origem para headers
     let refererOrigin: string | undefined
     try {
-      const u = new URL(monitor.url)
-      refererOrigin = u.origin
-    } catch {
-      refererOrigin = undefined
-    }
-    
+      refererOrigin = new URL(monitor.url).origin
+    } catch { /* ignora */ }
+
+    let lastError: string | null = null
+    let lastStatusCode: number | null = null
+    let lastResponseTime: number | null = null
+    let responseBody: string | null = null
+    let responseHeaders: Record<string, string> = {}
+    let isTimeout = false
+    let isDnsFail = false
+    let isConnectionRefused = false
+    let isSslError = false
+
     try {
-      // 1) Primeiro tenta HEAD com headers mínimos para evitar bloqueios/WAF
-      let headStatusCode: number | null = null
-      let headResponseTime: number | null = null
-      let headOk = false
+      // 1) Primeiro tenta HEAD
       try {
         const headStart = Date.now()
         const headResp = await this.requestWithFallback('head', monitor.url, {
           timeout: monitor.timeout,
-          validateStatus: (status: number) => status < 500,
+          validateStatus: () => true,
           headers: {
-            'User-Agent': process.env.MONITOR_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': process.env.MONITOR_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': '*/*',
-            'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
             'Accept-Encoding': 'identity',
             'Connection': 'close',
             ...(refererOrigin ? { 'Origin': refererOrigin } : {}),
-            ...(refererOrigin ? { 'Referer': refererOrigin } : {})
-          }
+            ...(refererOrigin ? { 'Referer': refererOrigin } : {}),
+          },
         }, monitor)
-        headResponseTime = Date.now() - headStart
-        headStatusCode = headResp.status
-        headOk = true
+        lastResponseTime = Date.now() - headStart
+        lastStatusCode = headResp.status
+        responseHeaders = headResp.headers as Record<string, string>
       } catch (headErr: any) {
-        // Se HEAD não é permitido (405/501) ou falhou por reset/timeout, vamos tentar GET
-        headOk = false
+        this.parseError(headErr, { isTimeout, isDnsFail, isConnectionRefused, isSslError })
+        lastError = headErr.message
       }
 
-      // Determinar configuração efetiva de validação
+      // 2) Se HEAD retornou código < 500 e não precisamos de body, usa o resultado
       const validationEnabled = (monitor.content_validation_enabled ?? this.contentValidation.enabled) === true
-      const minContentLength = monitor.min_content_length ?? this.contentValidation.minContentLength
-      const minTextLength = monitor.min_text_length ?? this.contentValidation.minTextLength
-
-      // Se HEAD funcionou e não precisamos validar conteúdo, decidir pelo HEAD
-      if (headOk && !validationEnabled && headStatusCode != null) {
-        const statusCode = headStatusCode
-        const responseTime = headResponseTime
-        if (statusCode >= 200 && statusCode < 400) {
-          return { status: 'online', responseTime, error: null, statusCode }
-        } else if (statusCode >= 400 && statusCode < 500) {
-          // 403 Forbidden no HEAD: Servidor está online e respondendo
-          if (statusCode === 403) {
-            return { status: 'online', responseTime, error: null, statusCode }
-          }
-          return { status: 'warning', responseTime, error: `HTTP ${statusCode}`, statusCode }
-        } else {
-          return { status: 'offline', responseTime, error: `HTTP ${statusCode}`, statusCode }
-        }
+      if (lastStatusCode !== null && lastStatusCode < 500 && !validationEnabled) {
+        const outcome = await this.runValidation({
+          url: monitor.url,
+          statusCode: lastStatusCode,
+          responseTime: lastResponseTime,
+          responseHeaders,
+          responseBody: null,
+          error: lastError,
+          isTimeout,
+          isDnsFail,
+          isConnectionRefused,
+          isSslError,
+          monitorId: monitor.url,
+          monitorName: monitor.url,
+          config: {
+            expectedStatusCodes: undefined,
+            expectedKeywords: undefined,
+            forbiddenKeywords: undefined,
+            apiHealthEnabled: false,
+            checkSsl: false,
+            requireCss: false,
+            requireJs: false,
+            requireHtml: false,
+            responseTimeWarningMs: 5000,
+            responseTimeCriticalMs: 30000,
+            minContentLength: 1000,
+            minTextLength: 100,
+          },
+        })
+        return this.translateVerdict(outcome)
       }
 
-      // 2) Fallback (ou necessidade de validação): realizar GET completo
-      const response = await this.requestWithFallback('get', monitor.url, {
-        timeout: monitor.timeout,
-        validateStatus: (status: number) => status < 500, // 4xx é warning, 5xx é offline
-        headers: {
-          // Ajuste de headers para reduzir bloqueios por WAF/CDN e parecer um navegador real
-          'User-Agent': process.env.MONITOR_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Connection': 'keep-alive',
-          'Upgrade-Insecure-Requests': '1',
-          // Cabeçalhos hints de navegador modernos (Chrome) para aumentar a compatibilidade
-          'sec-ch-ua': '"Chromium";v="122", "Not=A?Brand";v="24", "Google Chrome";v="122"',
-          'sec-ch-ua-mobile': '?0',
-          'sec-ch-ua-platform': '"Windows"',
-          'Sec-Fetch-Dest': 'document',
-          'Sec-Fetch-Mode': 'navigate',
-          'Sec-Fetch-Site': 'none',
-          'Sec-Fetch-User': '?1',
-          ...(refererOrigin ? { 'Origin': refererOrigin } : {}),
-          ...(refererOrigin ? { 'Referer': refererOrigin } : {})
-        }
-      }, monitor)
-      
-      const responseTime = Date.now() - startTime
-      const statusCode = response.status
-
-      if (statusCode >= 200 && statusCode < 400) {
-        // Verificar conteúdo apenas se a validação estiver habilitada
-        if (validationEnabled) {
-          const content = response.data || ''
-          const contentLength = typeof content === 'string' ? content.length : JSON.stringify(content).length
-          
-          // Considerar página vazia ou com menos caracteres que o mínimo como warning
-          if (contentLength < minContentLength) {
-            return { 
-              status: 'warning', 
-              responseTime, 
-              error: `Página com conteúdo insuficiente (${contentLength} caracteres, mínimo: ${minContentLength})`,
-              statusCode
-            }
-          }
-          
-          // Verificar se é apenas HTML vazio ou com tags básicas
-          if (typeof content === 'string') {
-            const cleanContent = content
-              .replace(/<[^>]*>/g, '') // Remove tags HTML
-              .replace(/\s+/g, ' ')    // Normaliza espaços
-              .trim()
-            
-            if (cleanContent.length < minTextLength) {
-              return { 
-                status: 'warning', 
-                responseTime, 
-                error: `Página com conteúdo textual insuficiente (${cleanContent.length} caracteres de texto, mínimo: ${minTextLength})`,
-                statusCode
-              }
-            }
-          }
-        }
-        
-        return { status: 'online', responseTime, error: null, statusCode }
-      } else if (statusCode >= 400 && statusCode < 500) {
-        // 403 Forbidden: Servidor está online e respondendo, apenas bloqueando o acesso (WAF, ACL, etc)
-        // Consideramos ONLINE para fins de monitoramento de disponibilidade, pois o site existe e responde.
-        if (statusCode === 403) {
-          return { status: 'online', responseTime, error: null, statusCode }
-        }
-        
-        return { 
-          status: 'warning', 
-          responseTime, 
-          error: `HTTP ${statusCode}: ${response.statusText}`,
-          statusCode
-        }
-      } else {
-        // Para 5xx, validar via ping antes de classificar como offline
-        const pingResult = await this.checkPing(monitor.url, monitor.timeout)
-        if (pingResult.status === 'online') {
-          return { 
-            status: 'online', 
-            responseTime: pingResult.responseTime, 
-            error: `HTTP ${statusCode}: ${response.statusText}`,
-            statusCode
-          }
-        }
-        return { 
-          status: 'offline', 
-          responseTime, 
-          error: `HTTP ${statusCode}: ${response.statusText}`,
-          statusCode
-        }
+      // 3) GET completo para validação de conteúdo
+      const getStart = Date.now()
+      try {
+        const getResp = await this.requestWithFallback('get', monitor.url, {
+          timeout: monitor.timeout,
+          validateStatus: () => true,
+          headers: {
+            'User-Agent': process.env.MONITOR_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'text/html,application/xhtml+xml,*/*',
+            'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+            'Accept-Encoding': 'gzip, deflate, br',
+            'Cache-Control': 'no-cache',
+            ...(refererOrigin ? { 'Origin': refererOrigin } : {}),
+            ...(refererOrigin ? { 'Referer': refererOrigin } : {}),
+          },
+        }, monitor)
+        lastResponseTime = Date.now() - getStart
+        lastStatusCode = getResp.status
+        responseHeaders = getResp.headers as Record<string, string>
+        responseBody = typeof getResp.data === 'string'
+          ? getResp.data
+          : JSON.stringify(getResp.data)
+      } catch (getErr: any) {
+        this.parseError(getErr, { isTimeout, isDnsFail, isConnectionRefused, isSslError })
+        lastError = getErr.message
       }
+
+      const outcome = await this.runValidation({
+        url: monitor.url,
+        statusCode: lastStatusCode,
+        responseTime: lastResponseTime,
+        responseHeaders,
+        responseBody,
+        error: lastError,
+        isTimeout,
+        isDnsFail,
+        isConnectionRefused,
+        isSslError,
+        monitorId: monitor.url,
+        monitorName: monitor.url,
+        config: {
+          expectedStatusCodes: undefined,
+          expectedKeywords: undefined,
+          forbiddenKeywords: undefined,
+          apiHealthEnabled: false,
+          checkSsl: false,
+          requireCss: false,
+          requireJs: false,
+          requireHtml: false,
+          responseTimeWarningMs: 5000,
+          responseTimeCriticalMs: 30000,
+          minContentLength: 1000,
+          minTextLength: 100,
+        },
+      })
+      return this.translateVerdict(outcome)
+
     } catch (error) {
-      // 3) Se GET falhar por ECONNRESET, tentar uma última HEAD para decidir status
-      if (axios.isAxiosError(error)) {
-        if (error.code === 'ECONNABORTED') {
-          // Timeout: verificar se o host responde ao ping para classificar como aviso
-          const pingResult = await this.checkPing(monitor.url, monitor.timeout)
-          if (pingResult.status === 'online') {
-            return { status: 'online', responseTime: pingResult.responseTime, error: 'Timeout' }
-          }
-          return { status: 'offline', responseTime: null, error: 'Timeout' }
-        } else if (error.code === 'ENOTFOUND' || error.code === 'ECONNREFUSED') {
-          // Falha de resolução/recusa de conexão: verificar ping
-          const pingResult = await this.checkPing(monitor.url, monitor.timeout)
-          if (pingResult.status === 'online') {
-            return { status: 'online', responseTime: pingResult.responseTime, error: 'Conexão recusada' }
-          }
-          return { status: 'offline', responseTime: null, error: 'Conexão recusada' }
-        } else if (error.code === 'ECONNRESET') {
-          try {
-            const headStart = Date.now()
-            const headResp = await axios.head(monitor.url, {
-              timeout: monitor.timeout,
-              validateStatus: (status) => status < 500,
-              headers: {
-                'User-Agent': process.env.MONITOR_USER_AGENT || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-                'Accept': '*/*',
-                'Accept-Language': 'pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7',
-                'Accept-Encoding': 'identity',
-                'Connection': 'close',
-                ...(refererOrigin ? { 'Origin': refererOrigin } : {}),
-                ...(refererOrigin ? { 'Referer': refererOrigin } : {})
-              }
-            })
-            const responseTime = Date.now() - headStart
-            const statusCode = headResp.status
-            // 403 no fallback HEAD também é considerado Online
-            if (statusCode === 403) {
-               return { status: 'online', responseTime, error: null, statusCode }
-            }
-            
-            if (statusCode >= 200 && statusCode < 400) {
-              return { status: 'online', responseTime, error: null, statusCode }
-            } else if (statusCode >= 400 && statusCode < 500) {
-              return { status: 'warning', responseTime, error: `HTTP ${statusCode}`, statusCode }
-            }
-            // 5xx em fallback HEAD: validar via ping
-            const pingResult = await this.checkPing(monitor.url, monitor.timeout)
-            if (pingResult.status === 'online') {
-              return { status: 'online', responseTime: pingResult.responseTime, error: `HTTP ${statusCode}`, statusCode }
-            }
-            return { status: 'offline', responseTime, error: `HTTP ${statusCode}`, statusCode }
-          } catch (fallbackErr) {
-            // Mesmo fallback falhou: verificar ping para distinguir bloqueio de WAF/CDN
-            const pingResult = await this.checkPing(monitor.url, monitor.timeout)
-            if (pingResult.status === 'online') {
-              return { status: 'online', responseTime: pingResult.responseTime, error: 'read ECONNRESET' }
-            }
-            return { status: 'offline', responseTime: null, error: 'read ECONNRESET' }
-          }
-        }
-        const statusCode = error.response?.status
-        if (statusCode) {
-          // Erros 5xx lançados: checar ping antes de marcar como offline
-          const pingResult = await this.checkPing(monitor.url, monitor.timeout)
-          if (pingResult.status === 'online') {
-            return { status: 'online', responseTime: pingResult.responseTime, error: `HTTP ${statusCode}: ${error.response?.statusText || 'Erro'}`, statusCode }
-          }
-          return { status: 'offline', responseTime: null, error: `HTTP ${statusCode}: ${error.response?.statusText || 'Erro'}`, statusCode }
-        }
+      return {
+        status: 'offline',
+        responseTime: null,
+        error: error instanceof Error ? error.message : 'Erro desconhecido',
       }
-      
-      // Erro não classificado: checar ping para decidir
-      const pingResult = await this.checkPing(monitor.url, monitor.timeout)
-      if (pingResult.status === 'online') {
-        return { status: 'online', responseTime: pingResult.responseTime, error: error instanceof Error ? error.message : 'Erro desconhecido' }
-      }
-      return { 
-        status: 'offline', 
-        responseTime: null, 
-        error: error instanceof Error ? error.message : 'Erro desconhecido' 
-      }
+    }
+  }
+
+  // Constrói o CheckContext a partir do monitor
+  private buildCheckContext(monitor: Monitor, result: {
+    statusCode: number | null
+    responseTime: number | null
+    responseBody: string | null
+    responseHeaders: Record<string, string>
+    error: string | null
+    isTimeout: boolean
+    isDnsFail: boolean
+    isConnectionRefused: boolean
+    isSslError: boolean
+  }): CheckContext {
+    return {
+      url: monitor.url,
+      statusCode: result.statusCode,
+      responseTime: result.responseTime,
+      responseHeaders: result.responseHeaders,
+      responseBody: result.responseBody,
+      error: result.error,
+      isTimeout: result.isTimeout,
+      isDnsFail: result.isDnsFail,
+      isConnectionRefused: result.isConnectionRefused,
+      isSslError: result.isSslError,
+      monitorId: monitor.id,
+      monitorName: monitor.name,
+      config: {
+        expectedStatusCodes: monitor.expected_status_codes,
+        expectedKeywords: monitor.expected_keywords,
+        forbiddenKeywords: monitor.forbidden_keywords,
+        apiHealthEnabled: monitor.api_health_enabled,
+        apiHealthPath: monitor.api_health_path,
+        apiHealthExpectedStatus: monitor.api_health_expected_status,
+        apiHealthExpectedBody: monitor.api_health_expected_body,
+        checkSsl: monitor.check_ssl,
+        contentPatternOk: monitor.content_pattern_ok,
+        contentPatternFail: monitor.content_pattern_fail,
+        requireCss: monitor.require_css,
+        requireJs: monitor.require_js,
+        requireHtml: monitor.require_html,
+        responseTimeWarningMs: monitor.response_time_warning_ms,
+        responseTimeCriticalMs: monitor.response_time_critical_ms,
+        minContentLength: monitor.min_content_length,
+        minTextLength: monitor.min_text_length,
+      },
+    }
+  }
+
+  // Executa todos os validadores
+  private async runValidation(ctx: CheckContext) {
+    return runAllValidators(ctx)
+  }
+
+  // Traduz Verdict dos validadores para o formato antigo do MonitoringService
+  private translateVerdict(outcome: { verdict: Verdict; responseTime: number | null; error: string | null; statusCode: number | null }): {
+    status: 'online' | 'offline' | 'warning'
+    responseTime: number | null
+    error: string | null
+    statusCode?: number
+  } {
+    switch (outcome.verdict) {
+      case 'online':
+        return { status: 'online', responseTime: outcome.responseTime, error: null, statusCode: outcome.statusCode ?? undefined }
+      case 'degraded':
+        return { status: 'warning', responseTime: outcome.responseTime, error: outcome.error, statusCode: outcome.statusCode ?? undefined }
+      case 'error':
+      case 'offline':
+        return { status: 'offline', responseTime: outcome.responseTime, error: outcome.error, statusCode: outcome.statusCode ?? undefined }
+      default:
+        return { status: 'offline', responseTime: outcome.responseTime, error: outcome.error, statusCode: outcome.statusCode ?? undefined }
+    }
+  }
+
+  // Helper para classificar erros
+  private parseError(err: any, flags: { isTimeout: boolean; isDnsFail: boolean; isConnectionRefused: boolean; isSslError: boolean }) {
+    if (err.code === 'ECONNABORTED') flags.isTimeout = true
+    if (err.code === 'ENOTFOUND') flags.isDnsFail = true
+    if (err.code === 'ECONNREFUSED') flags.isConnectionRefused = true
+    if (err.code === 'CERT_HAS_EXPIRED' || err.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' || err.code === 'SELF_SIGNED_CERT_IN_CHAIN') {
+      flags.isSslError = true
     }
   }
 
