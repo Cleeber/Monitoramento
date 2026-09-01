@@ -19,6 +19,7 @@ import cors from 'cors'
 import helmet from 'helmet'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
+import cookieParser from 'cookie-parser'
 import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import multer from 'multer'
@@ -29,12 +30,33 @@ import { storageService } from './services/StorageService.js'
 import { pdfService } from './services/PDFService.js'
 import { reportService } from './services/ReportService.js'
 import { schedulerService } from './services/SchedulerService.js'
+import {
+  authMiddleware,
+} from './middleware/auth.middleware.js'
+import {
+  signAccessToken,
+  generateRefreshToken,
+  storeRefreshToken,
+  revokeAllUserRefreshTokens,
+  revokeRefreshToken,
+  verifyToken,
+  validateRefreshToken,
+  setAccessCookie,
+  clearAccessCookie,
+} from './lib/auth.js'
+import { apiLogger } from './lib/logger.js'
+import { requestIdMiddleware } from './middleware/requestId.middleware.js'
 
-// Estender o tipo Request do Express para incluir o usuário
+// Estender o tipo Request do Express para incluir o usuário e requestId
 declare global {
   namespace Express {
     interface Request {
-      user?: any;
+      user?: {
+        id: string
+        email: string
+        role: string
+      }
+      requestId?: string
     }
   }
 }
@@ -53,8 +75,22 @@ const monitoringService = new MonitoringService()
 app.set('trust proxy', 1)
 
 // Middlewares
-app.use(helmet())
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: ["'self'", "https://zhywrrzzezexlvtpqacl.supabase.co"],
+      frameAncestors: ["'none'"],
+      upgradeInsecureRequests: [],
+    }
+  }
+}))
 app.use(compression())
+app.use(cookieParser())
+app.use(requestIdMiddleware)
 app.use(cors({
   origin: [
     'http://localhost:3000',
@@ -100,39 +136,39 @@ const upload = multer({
 // Inicializar serviços
 async function initializeServices() {
   try {
-    console.log('🔧 Inicializando serviços...')
-    
+    apiLogger('info', 'Inicializando serviços')
+
     // Criar tabelas necessárias primeiro
     await createRequiredTables()
-    
+
     // Configurar referência do database service no monitoramento
     monitoringService.setDatabaseService(databaseService)
-    
+
     // Carregar monitores do banco de dados
-    console.log('📡 Carregando monitores do banco de dados...')
+    apiLogger('info', 'Carregando monitores do banco de dados')
     const monitors = await databaseService.getMonitors()
     monitors.forEach((monitor: any) => {
       monitoringService.addMonitor(monitor)
     })
-    console.log(`✅ ${monitors.length} monitores carregados.`)
-    
+    apiLogger('info', 'Monitores carregados', { count: monitors.length })
+
     // Carregar verificações recentes para cálculo de uptime
-    console.log('📡 Carregando verificações recentes...')
+    apiLogger('info', 'Carregando verificações recentes')
     await monitoringService.loadRecentChecks(databaseService)
-    console.log('✅ Verificações recentes carregadas.')
-    
+    apiLogger('info', 'Verificações recentes carregadas')
+
     // Iniciar serviço de monitoramento
     monitoringService.start()
-    
+
     // Configurar MonitoringService no ReportService
     reportService.setMonitoringService(monitoringService)
-    
+
     // Inicializar agendamento de relatórios
     await schedulerService.initialize()
-    
-    console.log('✅ Todos os serviços inicializados com sucesso')
+
+    apiLogger('info', 'Todos os serviços inicializados com sucesso')
   } catch (error) {
-    console.error('❌ Erro ao inicializar serviços:', error)
+    apiLogger('error', 'Erro ao inicializar serviços', { error: error instanceof Error ? error.message : String(error) })
     process.exit(1)
   }
 }
@@ -140,8 +176,8 @@ async function initializeServices() {
 // Função para criar tabelas necessárias se não existirem
 async function createRequiredTables() {
   try {
-    console.log('🔧 Verificando e criando tabelas necessárias...')
-    
+    apiLogger('info', 'Verificando e criando tabelas necessárias')
+
     // Verificar se as tabelas existem. Como `information_schema` nao esta
     // exposto via PostgREST, usamos o cliente sem tipagem forte aqui.
     const { data: tables, error: checkError } = await (supabase as any)
@@ -149,16 +185,16 @@ async function createRequiredTables() {
       .select('table_name')
       .eq('table_schema', 'public')
       .in('table_name', ['monthly_report_configs', 'monthly_report_history'])
-    
+
     if (checkError) {
-      console.log('⚠️ Não foi possível verificar tabelas, tentando criar...')
+      apiLogger('warn', 'Não foi possível verificar tabelas, tentando criar')
     }
-    
+
     const existingTables = tables?.map((t: any) => t.table_name) || []
-    
+
     // Criar monthly_report_configs se não existir
     if (!existingTables.includes('monthly_report_configs')) {
-      console.log('📋 Criando tabela monthly_report_configs...')
+      apiLogger('info', 'Criando tabela monthly_report_configs')
       const { error: configError } = await supabase.rpc('exec_sql', {
         sql: `
           CREATE TABLE IF NOT EXISTS public.monthly_report_configs (
@@ -170,22 +206,22 @@ async function createRequiredTables() {
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
           );
-          
+
           CREATE INDEX IF NOT EXISTS idx_monthly_report_configs_monitor_id ON public.monthly_report_configs(monitor_id);
           CREATE INDEX IF NOT EXISTS idx_monthly_report_configs_active ON public.monthly_report_configs(is_active);
         `
       })
-      
+
       if (configError) {
-        console.log('⚠️ Tabela monthly_report_configs pode já existir ou houve erro:', configError.message)
+        apiLogger('warn', 'Tabela monthly_report_configs pode já existir ou houve erro', { error: configError.message })
       } else {
-        console.log('✅ Tabela monthly_report_configs criada com sucesso!')
+        apiLogger('info', 'Tabela monthly_report_configs criada com sucesso')
       }
     }
-    
+
     // Criar monthly_report_history se não existir
     if (!existingTables.includes('monthly_report_history')) {
-      console.log('📋 Criando tabela monthly_report_history...')
+      apiLogger('info', 'Criando tabela monthly_report_history')
       const { error: historyError } = await supabase.rpc('exec_sql', {
         sql: `
           CREATE TABLE IF NOT EXISTS public.monthly_report_history (
@@ -198,22 +234,22 @@ async function createRequiredTables() {
             status VARCHAR(50) DEFAULT 'sent',
             error_message TEXT
           );
-          
+
           CREATE INDEX IF NOT EXISTS idx_monthly_report_history_monitor_id ON public.monthly_report_history(monitor_id);
           CREATE INDEX IF NOT EXISTS idx_monthly_report_history_sent_at ON public.monthly_report_history(sent_at);
         `
       })
-      
+
       if (historyError) {
-        console.log('⚠️ Tabela monthly_report_history pode já existir ou houve erro:', historyError.message)
+        apiLogger('warn', 'Tabela monthly_report_history pode já existir ou houve erro', { error: historyError.message })
       } else {
-        console.log('✅ Tabela monthly_report_history criada com sucesso!')
+        apiLogger('info', 'Tabela monthly_report_history criada com sucesso')
       }
     }
-    
-    console.log('✅ Verificação de tabelas concluída')
+
+    apiLogger('info', 'Verificação de tabelas concluída')
   } catch (error) {
-    console.log('⚠️ Erro ao criar tabelas (podem já existir):', error)
+    apiLogger('warn', 'Erro ao criar tabelas (podem já existir)', { error: error instanceof Error ? error.message : String(error) })
   }
 }
 
@@ -222,27 +258,27 @@ async function initializeDefaultData() {
   try {
     // Verificar se já existe um usuário admin
     const adminUser = await databaseService.getUserByEmail('admin@agencia.com')
-    
+
     if (!adminUser) {
-      console.log('🔧 Criando usuário administrador padrão...')
+      apiLogger('info', 'Criando usuário administrador padrão')
       await databaseService.createUser({
         email: 'admin@agencia.com',
         password: 'admin123',
         name: 'Administrador',
         role: 'admin'
       })
-      console.log('✅ Usuário administrador criado com sucesso')
+      apiLogger('info', 'Usuário administrador criado com sucesso')
     }
-    
+
     // Definir referência ao database service
     monitoringService.setDatabaseService(databaseService)
-    
+
     // Iniciar o monitoramento
-    console.log('🚀 Iniciando serviço de monitoramento...')
+    apiLogger('info', 'Iniciando serviço de monitoramento')
     await monitoringService.start()
-    console.log('✅ Serviço de monitoramento iniciado')
+    apiLogger('info', 'Serviço de monitoramento iniciado')
   } catch (error) {
-    console.error('Erro ao inicializar dados padrão:', error)
+    apiLogger('error', 'Erro ao inicializar dados padrão', { error: error instanceof Error ? error.message : String(error) })
   }
 }
 
@@ -250,27 +286,29 @@ async function initializeDefaultData() {
 initializeServices()
 initializeDefaultData()
 
-// Middleware de autenticação
-const authenticateToken = (req: any, res: any, next: any) => {
-  const authHeader = req.headers['authorization']
-  const token = authHeader && authHeader.split(' ')[1]
+// Middleware de autenticação — lê do cookie HttpOnly ou Authorization header (compat)
+const authenticateToken = authMiddleware
 
-  if (!token) {
-    return res.status(401).json({ error: 'Token de acesso requerido' })
-  }
+// Rota de Health Check — verifica dependências críticas
+app.get('/api/health', async (_req, res) => {
+  const start = Date.now()
 
-  jwt.verify(token, JWT_SECRET, (err: any, user: any) => {
-    if (err) {
-      return res.status(403).json({ error: 'Token inválido' })
-    }
-    req.user = user
-    next()
+  const [dbResult] = await Promise.allSettled([
+    supabase.from('monitors').select('id').limit(1),
+  ])
+
+  const dbOk = dbResult.status === 'fulfilled'
+  const healthy = dbOk
+
+  res.status(healthy ? 200 : 503).json({
+    status: healthy ? 'ok' : 'degraded',
+    timestamp: new Date().toISOString(),
+    checks: {
+      database: dbOk ? 'ok' : 'error',
+    },
+    uptime: Math.round(process.uptime()),
+    responseTime: `${Date.now() - start}ms`,
   })
-}
-
-// Rota de Health Check
-app.get('/api/health', (_req, res) => {
-  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() })
 })
 
 // Rotas de Autenticação
@@ -288,49 +326,104 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
       return res.status(401).json({ error: 'Credenciais inválidas' })
     }
 
-    // Em produção, use bcrypt.compare
-    // Para simplificar neste exemplo, comparamos texto plano se a senha não estiver hashada
-    // ou usamos bcrypt se estiver
-    let validPassword = false
-    if (user.password.startsWith('$2a$') || user.password.startsWith('$2b$')) {
-      validPassword = await bcrypt.compare(password, user.password)
-    } else {
-      validPassword = password === user.password
-      // Se a senha não estava hashada, vamos hashar para o futuro
-      if (validPassword) {
-        const hashedPassword = await bcrypt.hash(password, 10)
-        await databaseService.updateUser(user.id, { password: hashedPassword })
-      }
+    // Usa bcrypt para validar senha. Todas as senhas no banco DEVEM ser hashadas.
+    const storedPassword = user.password
+    if (!storedPassword.startsWith('$2a$') && !storedPassword.startsWith('$2b$')) {
+      apiLogger('error', 'Senha não-hashada no banco', { userId: user.id })
+      return res.status(401).json({ error: 'Credenciais inválidas' })
     }
 
+    const validPassword = await bcrypt.compare(password, storedPassword)
     if (!validPassword) {
       return res.status(401).json({ error: 'Credenciais inválidas' })
     }
 
-    const token = jwt.sign(
-      { id: user.id, email: user.email, role: user.role },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    )
+    // Emitir access token (15min, vai para cookie HttpOnly)
+    const accessToken = signAccessToken({
+      id: user.id,
+      email: user.email,
+      role: user.role,
+    })
 
-    // Remover senha do objeto retornado
+    // Gerar e armazenar refresh token (7 dias)
+    const refreshToken = generateRefreshToken()
+    await storeRefreshToken(supabase, user.id, refreshToken)
+
+    // Seta o access token no cookie HttpOnly
+    setAccessCookie(res, accessToken)
+
+    // Remove senha do objeto retornado
     const { password: _, ...userWithoutPassword } = user
 
-    res.json({ token, user: userWithoutPassword })
+    res.json({ token: accessToken, user: userWithoutPassword })
   } catch (error) {
-    console.error('Erro no login:', error)
+    apiLogger('error', 'Erro no login', { error: error instanceof Error ? error.message : String(error) })
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
 
-app.get('/api/auth/me', authenticateToken, async (req: any, res) => {
+app.post('/api/auth/logout', async (req, res) => {
+  // Revogar refresh tokens do usuário
+  if (req.user) {
+    await revokeAllUserRefreshTokens(supabase, req.user.id)
+  }
+  clearAccessCookie(res)
+  res.json({ ok: true })
+})
+
+// POST /api/auth/refresh — troca refresh token por novo access token (silent refresh)
+app.post('/api/auth/refresh', async (req, res) => {
   try {
-    const user = await databaseService.getUserByEmail(req.user.email)
+    // Lê o cookie HttpOnly (refresh token)
+    const refreshToken = req.cookies?.auth_token
+
+    if (!refreshToken) {
+      res.status(401).json({ error: 'Refresh token requerido' })
+      return
+    }
+
+    const payload = verifyToken(refreshToken)
+    if (!payload || payload.type !== 'refresh') {
+      res.status(401).json({ error: 'Refresh token inválido' })
+      return
+    }
+
+    // Valida contra o banco
+    const userData = await validateRefreshToken(supabase, refreshToken)
+    if (!userData) {
+      res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' })
+      return
+    }
+
+    // Emite novo access token
+    const newAccessToken = signAccessToken({
+      id: userData.userId,
+      email: userData.email,
+      role: userData.role,
+    })
+
+    setAccessCookie(res, newAccessToken)
+
+    res.json({
+      token: newAccessToken,
+      user: { id: userData.userId, email: userData.email, role: userData.role },
+      refreshed: true,
+    })
+  } catch (error) {
+    apiLogger('error', 'Erro no refresh', { error: error instanceof Error ? error.message : String(error) })
+    res.status(500).json({ error: 'Erro interno do servidor' })
+  }
+})
+
+// GET /api/auth/me — retorna usuário atual
+app.get('/api/auth/me', authenticateToken, async (req, res) => {
+  try {
+    const user = await databaseService.getUserByEmail(req.user!.email)
     if (!user) {
       return res.status(404).json({ error: 'Usuário não encontrado' })
     }
     const { password: _, ...userWithoutPassword } = user
-    res.json(userWithoutPassword)
+    res.json({ user: userWithoutPassword })
   } catch (error) {
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
@@ -400,15 +493,17 @@ app.get('/api/dashboard/monitors', authenticateToken, async (_req, res) => {
       }
     })
     
-    // Carregar configurações de relatório para cada monitor
-    // Em uma aplicação maior, isso seria feito com JOIN no banco
-    const monitorsWithRealTimeStatus = await Promise.all(monitorsWithStatus.map(async (monitor: any) => {
-      const reportConfig = await databaseService.getMonthlyReportConfigByMonitor(monitor.id)
-      return {
-        ...monitor,
-        report_email: reportConfig?.email || '',
-        report_send_day: reportConfig?.send_day || 1
-      }
+    // Carregar configurações de relatório em lote (otimização N+1)
+    const monitorIds = monitorsWithStatus.map((m: any) => m.id)
+    const { data: allConfigs } = await supabase
+      .from('monthly_report_configs')
+      .select('*')
+      .in('monitor_id', monitorIds)
+    const configMap = new Map((allConfigs || []).map((c: any) => [c.monitor_id, c]))
+    const monitorsWithRealTimeStatus = monitorsWithStatus.map((monitor: any) => ({
+      ...monitor,
+      report_email: configMap.get(monitor.id)?.email || '',
+      report_send_day: configMap.get(monitor.id)?.send_day || 1
     }))
     
     res.json(monitorsWithRealTimeStatus)
@@ -712,9 +807,9 @@ app.delete('/api/monitors/:id/history', authenticateToken, async (req, res) => {
         status: 'unknown'
       })
     }
-    
-    console.log(`Histórico limpo para o monitor ${id} pelo usuário ${req.user.email}`)
-    
+
+    apiLogger('info', 'Histórico limpo para o monitor', { monitorId: id, userEmail: req.user?.email, requestId: req.requestId })
+
     res.status(200).json({ message: 'Histórico limpo com sucesso' })
   } catch (error) {
     console.error('Erro ao limpar histórico do monitor:', error)
@@ -985,19 +1080,22 @@ app.post('/api/reports/send-monthly', authenticateToken, async (req, res) => {
   const startTime = Date.now()
   try {
     const { monitor_id, email, year, month, includePdf = true, includeStatusPdf = false, forceDynamic = false } = req.body
-    
-    console.log(`📊 Solicitação de envio de relatório mensal - Monitor: ${monitor_id}, Período: ${month}/${year}${forceDynamic ? ' (Dinâmico)' : ''}`)
-    
+
+    apiLogger('info', 'Solicitação de envio de relatório mensal', {
+      monitorId: monitor_id,
+      period: `${month}/${year}`,
+      forceDynamic,
+      requestId: req.requestId
+    })
+
     if (!monitor_id || !email || !year || !month) {
       const error = 'Todos os campos são obrigatórios'
-      console.error(`❌ Parâmetros inválidos: ${error}`)
+      apiLogger('warn', 'Parâmetros inválidos', { error, requestId: req.requestId })
       return res.status(400).json({ error })
     }
-    
-    console.log(`📧 Enviando para: ${email}`)
-    
+
     let result
-    
+
     if (forceDynamic) {
       // Enviar exatamente como o envio automático (últimos 30 dias)
       try {
@@ -1024,19 +1122,19 @@ app.post('/api/reports/send-monthly', authenticateToken, async (req, res) => {
         includePdf
       )
     }
-    
+
     const duration = Date.now() - startTime
-    
+
     if (result.success) {
-      console.log(`✅ Relatório mensal enviado com sucesso em ${duration}ms`)
+      apiLogger('info', 'Relatório mensal enviado com sucesso', { duration, requestId: req.requestId })
       res.json({ message: 'Relatório enviado com sucesso' })
     } else {
-      console.error(`❌ Falha ao enviar relatório: ${result.message}`)
+      apiLogger('error', 'Falha ao enviar relatório', { message: result.message, requestId: req.requestId })
       res.status(500).json({ error: result.message })
     }
   } catch (error) {
     const duration = Date.now() - startTime
-    console.error(`❌ Erro ao enviar relatório mensal após ${duration}ms:`, error)
+    apiLogger('error', 'Erro ao enviar relatório mensal', { duration, error: error instanceof Error ? error.message : String(error), requestId: req.requestId })
     res.status(500).json({ error: 'Erro interno do servidor' })
   }
 })
@@ -1583,5 +1681,5 @@ if (fs.existsSync(clientDist) || fs.existsSync(clientDistAlt)) {
 }
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`)
+  apiLogger('info', 'Servidor iniciado', { port: PORT })
 })
