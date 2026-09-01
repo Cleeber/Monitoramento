@@ -113,7 +113,7 @@ export class DatabaseService {
   async createMonitor(monitorData: {
     name: string
     url: string
-    type: 'http' | 'ping' | 'tcp'
+    type?: 'http' | 'ping' | 'tcp'
     interval?: number
     timeout?: number
     slug?: string
@@ -126,6 +126,22 @@ export class DatabaseService {
     content_validation_enabled?: boolean
     min_content_length?: number
     min_text_length?: number
+    // Novos campos de validação
+    expected_status_codes?: number[] | null
+    expected_keywords?: string[] | null
+    forbidden_keywords?: string[] | null
+    api_health_enabled?: boolean | null
+    api_health_path?: string | null
+    api_health_expected_status?: number | null
+    api_health_expected_body?: string | null
+    check_ssl?: boolean | null
+    content_pattern_ok?: string | null
+    content_pattern_fail?: string | null
+    require_css?: boolean | null
+    require_js?: boolean | null
+    require_html?: boolean | null
+    response_time_warning_ms?: number | null
+    response_time_critical_ms?: number | null
   }) {
     const { data, error } = await (supabase as any)
       .from('monitors')
@@ -145,6 +161,22 @@ export class DatabaseService {
         content_validation_enabled: monitorData.content_validation_enabled ?? true,
         min_content_length: monitorData.min_content_length ?? 100,
         min_text_length: monitorData.min_text_length ?? 50,
+        // Novos campos de validação
+        expected_status_codes: monitorData.expected_status_codes ?? null,
+        expected_keywords: monitorData.expected_keywords ?? null,
+        forbidden_keywords: monitorData.forbidden_keywords ?? null,
+        api_health_enabled: monitorData.api_health_enabled ?? false,
+        api_health_path: monitorData.api_health_path ?? null,
+        api_health_expected_status: monitorData.api_health_expected_status ?? 200,
+        api_health_expected_body: monitorData.api_health_expected_body ?? null,
+        check_ssl: monitorData.check_ssl ?? false,
+        content_pattern_ok: monitorData.content_pattern_ok ?? null,
+        content_pattern_fail: monitorData.content_pattern_fail ?? null,
+        require_css: monitorData.require_css ?? false,
+        require_js: monitorData.require_js ?? false,
+        require_html: monitorData.require_html ?? true,
+        response_time_warning_ms: monitorData.response_time_warning_ms ?? 5000,
+        response_time_critical_ms: monitorData.response_time_critical_ms ?? 30000,
         status: 'unknown',
         uptime_24h: 0,
         uptime_7d: 0,

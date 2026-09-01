@@ -88,6 +88,22 @@ export type Database = {
           uptime_30d: number | null
           uptime_7d: number | null
           url: string
+          // Novos campos de validação
+          expected_status_codes: number[] | null
+          expected_keywords: string[] | null
+          forbidden_keywords: string[] | null
+          api_health_enabled: boolean | null
+          api_health_path: string | null
+          api_health_expected_status: number | null
+          api_health_expected_body: string | null
+          check_ssl: boolean | null
+          content_pattern_ok: string | null
+          content_pattern_fail: string | null
+          require_css: boolean | null
+          require_js: boolean | null
+          require_html: boolean | null
+          response_time_warning_ms: number | null
+          response_time_critical_ms: number | null
         }
         Insert: {
           content_validation_enabled?: boolean | null
@@ -114,6 +130,22 @@ export type Database = {
           uptime_30d?: number | null
           uptime_7d?: number | null
           url: string
+          // Novos campos de validação
+          expected_status_codes?: number[] | null
+          expected_keywords?: string[] | null
+          forbidden_keywords?: string[] | null
+          api_health_enabled?: boolean | null
+          api_health_path?: string | null
+          api_health_expected_status?: number | null
+          api_health_expected_body?: string | null
+          check_ssl?: boolean | null
+          content_pattern_ok?: string | null
+          content_pattern_fail?: string | null
+          require_css?: boolean | null
+          require_js?: boolean | null
+          require_html?: boolean | null
+          response_time_warning_ms?: number | null
+          response_time_critical_ms?: number | null
         }
         Update: {
           content_validation_enabled?: boolean | null
@@ -140,6 +172,22 @@ export type Database = {
           uptime_30d?: number | null
           uptime_7d?: number | null
           url?: string
+          // Novos campos de validação
+          expected_status_codes?: number[] | null
+          expected_keywords?: string[] | null
+          forbidden_keywords?: string[] | null
+          api_health_enabled?: boolean | null
+          api_health_path?: string | null
+          api_health_expected_status?: number | null
+          api_health_expected_body?: string | null
+          check_ssl?: boolean | null
+          content_pattern_ok?: string | null
+          content_pattern_fail?: string | null
+          require_css?: boolean | null
+          require_js?: boolean | null
+          require_html?: boolean | null
+          response_time_warning_ms?: number | null
+          response_time_critical_ms?: number | null
         }
         Relationships: []
       }

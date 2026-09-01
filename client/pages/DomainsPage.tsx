@@ -56,6 +56,30 @@ interface MonitorFormData {
   report_email: string
   report_send_day: number
   report_send_time: string
+
+  // ── Validação avançada ──────────────────────────────────────────────
+  // Validador: páginas de erro conhecidas (sempre ativo)
+  // Validador: keywords esperadas (configurável)
+  expected_keywords: string[]
+  forbidden_keywords: string[]
+  // Validador: API health endpoint (configurável)
+  api_health_enabled: boolean
+  api_health_path: string
+  api_health_expected_status: number
+  api_health_expected_body: string
+  // Validador: SSL (configurável)
+  check_ssl: boolean
+  // Validador: estrutura HTML (CSS/JS obrigatórios)
+  require_css: boolean
+  require_js: boolean
+  // Validador: conteúdo mínimo
+  min_content_length: number
+  min_text_length: number
+  // Validador: tempo de resposta
+  response_time_warning_ms: number
+  response_time_critical_ms: number
+  // Códigos HTTP esperados (lista customizada)
+  expected_status_codes: number[]
 }
 
 export function DomainsPage() {
@@ -75,7 +99,22 @@ export function DomainsPage() {
     logo_url: null,
     report_email: '',
     report_send_day: 1,
-    report_send_time: '09:00'
+    report_send_time: '09:00',
+    // Validação avançada - defaults
+    expected_keywords: [],
+    forbidden_keywords: [],
+    api_health_enabled: false,
+    api_health_path: '',
+    api_health_expected_status: 200,
+    api_health_expected_body: '',
+    check_ssl: false,
+    require_css: false,
+    require_js: false,
+    min_content_length: 1000,
+    min_text_length: 100,
+    response_time_warning_ms: 5000,
+    response_time_critical_ms: 30000,
+    expected_status_codes: [],
   })
   const [logoFile, setLogoFile] = useState<File | null>(null)
   const [logoPreview, setLogoPreview] = useState<string | null>(null)
@@ -207,7 +246,7 @@ export function DomainsPage() {
     setFormData({
       name: monitor.name,
       url: monitor.url,
-      type: monitor.type,
+      type: 'http', // Apenas HTTP é suportado
       interval: Math.floor(monitor.interval / 1000), // Converter de milissegundos para segundos
       timeout: Math.floor(monitor.timeout / 1000),   // Converter de milissegundos para segundos
       enabled: monitor.enabled,
@@ -215,9 +254,24 @@ export function DomainsPage() {
       logo_url: monitor.logo_url,
       report_email: (monitor as any).report_email || '',
       report_send_day: (monitor as any).report_send_day || 1,
-      report_send_time: (monitor as any).report_send_time || '09:00'
+      report_send_time: (monitor as any).report_send_time || '09:00',
+      // Validação avançada
+      expected_keywords: (monitor as any).expected_keywords || [],
+      forbidden_keywords: (monitor as any).forbidden_keywords || [],
+      api_health_enabled: (monitor as any).api_health_enabled || false,
+      api_health_path: (monitor as any).api_health_path || '',
+      api_health_expected_status: (monitor as any).api_health_expected_status || 200,
+      api_health_expected_body: (monitor as any).api_health_expected_body || '',
+      check_ssl: (monitor as any).check_ssl || false,
+      require_css: (monitor as any).require_css || false,
+      require_js: (monitor as any).require_js || false,
+      min_content_length: (monitor as any).min_content_length || 1000,
+      min_text_length: (monitor as any).min_text_length || 100,
+      response_time_warning_ms: (monitor as any).response_time_warning_ms || 5000,
+      response_time_critical_ms: (monitor as any).response_time_critical_ms || 30000,
+      expected_status_codes: (monitor as any).expected_status_codes || [],
     })
-    
+
     // Se o monitor tem logo, definir como preview
     if (monitor.logo_url) {
       setLogoPreview(monitor.logo_url)
@@ -225,7 +279,7 @@ export function DomainsPage() {
       setLogoPreview(null)
     }
     setLogoFile(null)
-    
+
     setIsDialogOpen(true)
   }
 
@@ -241,7 +295,22 @@ export function DomainsPage() {
       logo_url: null,
       report_email: '',
       report_send_day: 1,
-      report_send_time: '09:00'
+      report_send_time: '09:00',
+      // Defaults de validação avançada
+      expected_keywords: [],
+      forbidden_keywords: [],
+      api_health_enabled: false,
+      api_health_path: '',
+      api_health_expected_status: 200,
+      api_health_expected_body: '',
+      check_ssl: false,
+      require_css: false,
+      require_js: false,
+      min_content_length: 1000,
+      min_text_length: 100,
+      response_time_warning_ms: 5000,
+      response_time_critical_ms: 30000,
+      expected_status_codes: [],
     })
     setLogoFile(null)
     setLogoPreview(null)
@@ -408,16 +477,17 @@ export function DomainsPage() {
                   
                   <div className="space-y-2">
                     <Label htmlFor="type" className="text-white">Tipo de Monitor</Label>
-                    <Select value={formData.type} onValueChange={(value: 'http' | 'ping' | 'tcp') => setFormData({ ...formData, type: value })}>
+                    <Select value={formData.type} onValueChange={(value: 'http') => setFormData({ ...formData, type: value })}>
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="http">HTTP/HTTPS</SelectItem>
-                        <SelectItem value="ping">Ping (ICMP)</SelectItem>
-                        <SelectItem value="tcp">TCP Socket</SelectItem>
                       </SelectContent>
                     </Select>
+                    <p className="text-xs text-gray-400">
+                      O sistema valida automaticamente: páginas em branco, páginas de erro padrão (Apache/Nginx/Cloudflare/AWS), tempo de resposta e estrutura HTML.
+                    </p>
                   </div>
                   
                   <div className="grid grid-cols-2 gap-4">
@@ -443,7 +513,206 @@ export function DomainsPage() {
                       />
                     </div>
                   </div>
-                  
+
+                  {/* ── Validação Avançada (sempre ativa a detecção automática) ───────────── */}
+                  <div className="border border-gray-700 rounded-lg p-4 space-y-4">
+                    <div>
+                      <h3 className="text-sm font-medium text-white">Validação Avançada</h3>
+                      <p className="text-xs text-gray-400 mt-1">
+                        ✓ Sempre ativo: detecção de páginas de erro (Apache/Nginx/Cloudflare/AWS), páginas em branco e tempo de resposta.
+                        Configure abaixo validações adicionais específicas do seu site.
+                      </p>
+                    </div>
+
+                    {/* Keywords esperadas (DEVEM estar no HTML) */}
+                    <div className="space-y-2">
+                      <Label htmlFor="expected_keywords" className="text-white">Keywords Esperadas</Label>
+                      <Input
+                        id="expected_keywords"
+                        value={formData.expected_keywords.join(', ')}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          expected_keywords: e.target.value.split(',').map(k => k.trim()).filter(Boolean)
+                        })}
+                        placeholder="Ex: Login, Dashboard, Menu"
+                      />
+                      <p className="text-xs text-gray-400">
+                        Palavras separadas por vírgula que DEVEM aparecer na página. Se faltar, é "error".
+                      </p>
+                    </div>
+
+                    {/* Keywords proibidas (NÃO DEVEM estar) */}
+                    <div className="space-y-2">
+                      <Label htmlFor="forbidden_keywords" className="text-white">Keywords Proibidas</Label>
+                      <Input
+                        id="forbidden_keywords"
+                        value={formData.forbidden_keywords.join(', ')}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          forbidden_keywords: e.target.value.split(',').map(k => k.trim()).filter(Boolean)
+                        })}
+                        placeholder="Ex: Error, Exception, 404"
+                      />
+                      <p className="text-xs text-gray-400">
+                        Palavras separadas por vírgula que NÃO DEVEM aparecer. Se aparecer, é "error".
+                      </p>
+                    </div>
+
+                    {/* Códigos HTTP esperados */}
+                    <div className="space-y-2">
+                      <Label htmlFor="expected_status_codes" className="text-white">Códigos HTTP Esperados</Label>
+                      <Input
+                        id="expected_status_codes"
+                        value={formData.expected_status_codes.join(', ')}
+                        onChange={(e) => setFormData({
+                          ...formData,
+                          expected_status_codes: e.target.value.split(',').map(c => parseInt(c.trim())).filter(n => !isNaN(n))
+                        })}
+                        placeholder="Ex: 200, 201"
+                      />
+                      <p className="text-xs text-gray-400">
+                        Códigos separados por vírgula. Vazio = qualquer 2xx/3xx. ATENÇÃO: 404 e 500 serão "error".
+                      </p>
+                    </div>
+
+                    {/* Toggle: SSL */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="check_ssl" className="text-white">Verificar Certificado SSL</Label>
+                        <p className="text-xs text-gray-400">
+                          Alerta se o certificado estiver expirado ou expirar em ≤7 dias.
+                        </p>
+                      </div>
+                      <Switch
+                        id="check_ssl"
+                        checked={formData.check_ssl}
+                        onCheckedChange={(checked) => setFormData({ ...formData, check_ssl: checked })}
+                      />
+                    </div>
+
+                    {/* Toggle: API Health */}
+                    <div className="space-y-2 border-t border-gray-700 pt-3">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="api_health_enabled" className="text-white">Health Check de API (avançado)</Label>
+                          <p className="text-xs text-gray-400">
+                            Faz uma segunda chamada para um endpoint de health da API.
+                          </p>
+                        </div>
+                        <Switch
+                          id="api_health_enabled"
+                          checked={formData.api_health_enabled}
+                          onCheckedChange={(checked) => setFormData({ ...formData, api_health_enabled: checked })}
+                        />
+                      </div>
+                      {formData.api_health_enabled && (
+                        <div className="grid grid-cols-2 gap-2 mt-2">
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-300">Path</Label>
+                            <Input
+                              value={formData.api_health_path}
+                              onChange={(e) => setFormData({ ...formData, api_health_path: e.target.value })}
+                              placeholder="/api/health"
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1">
+                            <Label className="text-xs text-gray-300">Status esperado</Label>
+                            <Input
+                              type="number"
+                              value={formData.api_health_expected_status}
+                              onChange={(e) => setFormData({ ...formData, api_health_expected_status: parseInt(e.target.value) || 200 })}
+                              placeholder="200"
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="space-y-1 col-span-2">
+                            <Label className="text-xs text-gray-300">Body esperado (opcional)</Label>
+                            <Input
+                              value={formData.api_health_expected_body}
+                              onChange={(e) => setFormData({ ...formData, api_health_expected_body: e.target.value })}
+                              placeholder="Ex: ok"
+                              className="text-sm"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Toggles: Estrutura HTML */}
+                    <div className="border-t border-gray-700 pt-3 space-y-2">
+                      <Label className="text-white text-sm">Estrutura HTML esperada</Label>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="require_css" className="text-sm text-gray-300 font-normal">
+                          Exigir CSS na página
+                        </Label>
+                        <Switch
+                          id="require_css"
+                          checked={formData.require_css}
+                          onCheckedChange={(checked) => setFormData({ ...formData, require_css: checked })}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="require_js" className="text-sm text-gray-300 font-normal">
+                          Exigir JavaScript na página
+                        </Label>
+                        <Switch
+                          id="require_js"
+                          checked={formData.require_js}
+                          onCheckedChange={(checked) => setFormData({ ...formData, require_js: checked })}
+                        />
+                      </div>
+                    </div>
+
+                    {/* Tamanho mínimo de conteúdo */}
+                    <div className="grid grid-cols-2 gap-3 border-t border-gray-700 pt-3">
+                      <div className="space-y-1">
+                        <Label className="text-white text-sm">Conteúdo mínimo (chars)</Label>
+                        <Input
+                          type="number"
+                          value={formData.min_content_length}
+                          onChange={(e) => setFormData({ ...formData, min_content_length: parseInt(e.target.value) || 1000 })}
+                          min="100"
+                          className="text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-white text-sm">Texto mínimo (chars)</Label>
+                        <Input
+                          type="number"
+                          value={formData.min_text_length}
+                          onChange={(e) => setFormData({ ...formData, min_text_length: parseInt(e.target.value) || 100 })}
+                          min="50"
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    {/* Thresholds de tempo de resposta */}
+                    <div className="grid grid-cols-2 gap-3 border-t border-gray-700 pt-3">
+                      <div className="space-y-1">
+                        <Label className="text-white text-sm">Tempo warning (ms)</Label>
+                        <Input
+                          type="number"
+                          value={formData.response_time_warning_ms}
+                          onChange={(e) => setFormData({ ...formData, response_time_warning_ms: parseInt(e.target.value) || 5000 })}
+                          step="1000"
+                          className="text-sm"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-white text-sm">Tempo crítico (ms)</Label>
+                        <Input
+                          type="number"
+                          value={formData.response_time_critical_ms}
+                          onChange={(e) => setFormData({ ...formData, response_time_critical_ms: parseInt(e.target.value) || 30000 })}
+                          step="1000"
+                          className="text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
                   <div className="space-y-2">
                     <Label htmlFor="slug" className="text-white">Slug para Página de Status</Label>
                     <Input

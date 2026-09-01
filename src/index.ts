@@ -607,18 +607,28 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
 
 app.post('/api/monitors', authenticateToken, async (req, res) => {
   try {
-    const { name, url, type, interval, timeout, enabled = true, slug, logo_url, report_email, report_send_day, report_send_time, ignore_http_403, content_validation_enabled, min_content_length, min_text_length } = req.body
-    
-    if (!name || !url || !type) {
-      return res.status(400).json({ error: 'Campos obrigatórios: name, url, type' })
+    const {
+      name, url, type, interval, timeout, enabled = true, slug, logo_url,
+      report_email, report_send_day, report_send_time,
+      ignore_http_403, content_validation_enabled, min_content_length, min_text_length,
+      // Novos campos de validação
+      expected_status_codes, expected_keywords, forbidden_keywords,
+      api_health_enabled, api_health_path, api_health_expected_status, api_health_expected_body,
+      check_ssl, content_pattern_ok, content_pattern_fail,
+      require_css, require_js, require_html,
+      response_time_warning_ms, response_time_critical_ms,
+    } = req.body
+
+    if (!name || !url) {
+      return res.status(400).json({ error: 'Campos obrigatórios: name, url' })
     }
-    
+
     const newMonitor = await databaseService.createMonitor({
       name,
       url,
-      type,
-      interval: interval || 60000, // Valor já em milissegundos do frontend
-      timeout: timeout || 30000,   // Valor já em milissegundos do frontend
+      type: type || 'http',
+      interval: interval || 60000,
+      timeout: timeout || 30000,
       is_active: enabled,
       slug,
       logo_url,
@@ -628,9 +638,25 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
       ignore_http_403,
       content_validation_enabled,
       min_content_length,
-      min_text_length
+      min_text_length,
+      // Campos de validação
+      expected_status_codes,
+      expected_keywords,
+      forbidden_keywords,
+      api_health_enabled,
+      api_health_path,
+      api_health_expected_status,
+      api_health_expected_body,
+      check_ssl,
+      content_pattern_ok,
+      content_pattern_fail,
+      require_css,
+      require_js,
+      require_html,
+      response_time_warning_ms,
+      response_time_critical_ms,
     })
-    
+
     // Se houver configuração de relatório, salvar
     if (report_email && report_send_day) {
       await databaseService.createMonthlyReportConfig({
@@ -640,18 +666,18 @@ app.post('/api/monitors', authenticateToken, async (req, res) => {
         is_active: true
       })
     }
-    
+
     // Adicionar ao serviço de monitoramento
     monitoringService.addMonitor({
       ...newMonitor,
       enabled: newMonitor.is_active
     })
-    
+
     // Agendar relatório mensal se configurado
     if (report_email && report_send_day) {
       await schedulerService.scheduleMonitorReport(newMonitor)
     }
-    
+
     res.status(201).json(newMonitor)
   } catch (error) {
     console.error('Erro ao criar monitor:', error)
@@ -690,19 +716,29 @@ app.get('/api/monitors/:id', authenticateToken, async (req, res) => {
 app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
   try {
     const { id } = req.params
-    const { name, url, type, interval, timeout, enabled, slug, logo_url, report_email, report_send_day, report_send_time, ignore_http_403, content_validation_enabled, min_content_length, min_text_length } = req.body
-    
+    const {
+      name, url, type, interval, timeout, enabled, slug, logo_url,
+      report_email, report_send_day, report_send_time,
+      ignore_http_403, content_validation_enabled, min_content_length, min_text_length,
+      // Novos campos de validação
+      expected_status_codes, expected_keywords, forbidden_keywords,
+      api_health_enabled, api_health_path, api_health_expected_status, api_health_expected_body,
+      check_ssl, content_pattern_ok, content_pattern_fail,
+      require_css, require_js, require_html,
+      response_time_warning_ms, response_time_critical_ms,
+    } = req.body
+
     const monitor = await databaseService.getMonitorById(id)
     if (!monitor) {
       return res.status(404).json({ error: 'Monitor não encontrado' })
     }
-    
+
     const updatedMonitor = await databaseService.updateMonitor(id, {
       name,
       url,
-      type,
-      interval: interval || 60000, // Valor já em milissegundos do frontend
-      timeout: timeout || 30000,   // Valor já em milissegundos do frontend
+      type: type || 'http',
+      interval: interval || 60000,
+      timeout: timeout || 30000,
       is_active: enabled,
       slug,
       logo_url,
@@ -712,7 +748,23 @@ app.put('/api/monitors/:id', authenticateToken, async (req, res) => {
       ignore_http_403,
       content_validation_enabled,
       min_content_length,
-      min_text_length
+      min_text_length,
+      // Campos de validação
+      expected_status_codes,
+      expected_keywords,
+      forbidden_keywords,
+      api_health_enabled,
+      api_health_path,
+      api_health_expected_status,
+      api_health_expected_body,
+      check_ssl,
+      content_pattern_ok,
+      content_pattern_fail,
+      require_css,
+      require_js,
+      require_html,
+      response_time_warning_ms,
+      response_time_critical_ms,
     })
     
     // Atualizar configuração de relatório mensal
