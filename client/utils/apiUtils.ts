@@ -1,186 +1,218 @@
 /**
- * Utilitários para requisições à API
+ * Utilitários para requisições à API.
+ *
+ * O token JWT é armazenado em cookie HttpOnly (enviado automaticamente pelo browser).
+ * Este módulo NÃO precisa adicionar header Authorization.
+ *
+ * Se uma requisição receber 401, o interceptor tenta silent refresh automaticamente.
+ * Se o refresh falhar, redireciona para /login.
  */
 
 export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  status?: number;
+  success: boolean
+  data?: T
+  error?: string
+  status?: number
 }
 
-/**
- * Função para fazer requisições à API com tratamento consistente de erros
- */
+let logoutCallback: (() => void) | null = null
+
+/** Registra a função de logout para ser chamada quando o token expirar. */
+export function onAuthFailure(callback: () => void): void {
+  logoutCallback = callback
+}
+
+// ─── Interceptor de 401 — silent refresh ────────────────────────────────────
+
+let isRefreshing = false
+let refreshQueue: Array<{
+  resolve: (token: string) => void
+  reject: (err: unknown) => void
+}> = []
+
+async function trySilentRefresh(): Promise<string | null> {
+  if (isRefreshing) {
+    // Já há um refresh em andamento — espera na fila
+    return new Promise((resolve, reject) => {
+      refreshQueue.push({ resolve, reject })
+    })
+  }
+
+  isRefreshing = true
+
+  try {
+    // Chama o endpoint de refresh (o cookie é enviado automaticamente)
+    // Não adiciona Authorization header — usa só o cookie HttpOnly
+    const response = await fetch('/api/auth/me', {
+      method: 'GET',
+      credentials: 'same-origin', // ← envia cookies para mesma origem
+    })
+
+    if (response.ok) {
+      const data = await response.json()
+      isRefreshing = false
+
+      // Notifica todos os requests que estavam na fila
+      refreshQueue.forEach(({ resolve }) => resolve(data.token || ''))
+      refreshQueue = []
+
+      return data.token || null
+    }
+
+    // Refresh falhou
+    isRefreshing = false
+    refreshQueue.forEach(({ reject }) => reject(new Error('Refresh failed')))
+    refreshQueue = []
+    return null
+  } catch {
+    isRefreshing = false
+    refreshQueue.forEach(({ reject }) => reject(new Error('Refresh failed')))
+    refreshQueue = []
+    return null
+  }
+}
+
+// ─── Fetch principal ─────────────────────────────────────────────────────────
+
 export async function apiRequest<T = any>(
   url: string,
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> {
-  try {
-    const token = localStorage.getItem('auth_token');
-    
-    // Adicionar prefixo /api se não estiver presente
-    const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
-    
-    const defaultHeaders: HeadersInit = {
-      'Content-Type': 'application/json',
-      ...(token && { Authorization: `Bearer ${token}` }),
-    };
+  // Normaliza URL
+  const apiUrl = url.startsWith('/api') ? url : `/api${url}`
 
-    const response = await fetch(apiUrl, {
+  const doFetch = async (): Promise<Response> => {
+    return fetch(apiUrl, {
       ...options,
+      credentials: 'same-origin', // ← CRÍTICO: envia cookies HttpOnly
       headers: {
-        ...defaultHeaders,
-        ...options.headers,
+        'Content-Type': 'application/json',
         'Cache-Control': 'no-cache',
-        'Pragma': 'no-cache'
+        'Pragma': 'no-cache',
+        ...options.headers,
       },
-      cache: 'no-store'
-    });
+      cache: 'no-store',
+    })
+  }
 
-    // Verificar se a resposta é JSON válido
-    const contentType = response.headers.get('content-type');
-    const isJson = contentType && contentType.includes('application/json');
+  try {
+    let response = await doFetch()
+
+    // ── 401: tenta silent refresh e retry ─────────────────────────────────
+    if (response.status === 401) {
+      const newToken = await trySilentRefresh()
+
+      if (newToken) {
+        // Retry com novo token (via cookie — o browser já vai enviar automaticamente)
+        response = await doFetch()
+      } else {
+        // Refresh falhou — deslogar
+        logoutCallback?.()
+        return { success: false, error: 'Sessão expirada. Faça login novamente.', status: 401 }
+      }
+    }
+
+    // ── Parse da resposta ────────────────────────────────────────────────
+    const contentType = response.headers.get('content-type')
+    const isJson = contentType?.includes('application/json')
 
     if (!response.ok) {
-      let errorMessage = `Erro ${response.status}`;
-      
+      let errorMessage = `Erro ${response.status}`
+
       if (isJson) {
         try {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
+          const errorData = await response.clone().json()
+          errorMessage = errorData.message || errorData.error || errorMessage
         } catch {
-          // Se não conseguir fazer parse do JSON, usar mensagem padrão
+          // ignora
         }
       } else {
-        // Se a resposta não é JSON, pode ser uma página de erro HTML
-        const textResponse = await response.text();
-        if (textResponse.includes('<!DOCTYPE') || textResponse.includes('<html')) {
-          errorMessage = 'Erro de conexão com o servidor. Verifique se o backend está rodando.';
-        } else {
-          errorMessage = textResponse || errorMessage;
+        const text = await response.clone().text()
+        if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+          errorMessage = 'Erro de conexão com o servidor.'
         }
       }
 
-      return {
-        success: false,
-        error: errorMessage,
-        status: response.status,
-      };
+      return { success: false, error: errorMessage, status: response.status }
     }
 
-    // Resposta bem-sucedida
     if (isJson) {
-      try {
-        const data = await response.json();
-        return {
-          success: true,
-          data,
-          status: response.status,
-        };
-      } catch (error) {
-        return {
-          success: false,
-          error: 'Erro ao processar resposta do servidor',
-          status: response.status,
-        };
-      }
-    } else {
-      // Resposta não-JSON (ex: texto simples, arquivo, etc.)
-      const text = await response.text();
-      return {
-        success: true,
-        data: text as T,
-        status: response.status,
-      };
+      const data = await response.json()
+      return { success: true, data, status: response.status }
     }
+
+    const text = await response.text()
+    return { success: true, data: text as T, status: response.status }
+
   } catch (error) {
-    console.error('Erro na requisição:', error);
+    console.error('Erro na requisição:', error)
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Erro de conexão',
-    };
+    }
   }
 }
 
-/**
- * Função específica para requisições GET
- */
+// ─── Helpers ─────────────────────────────────────────────────────────────────
+
 export async function apiGet<T = any>(url: string): Promise<ApiResponse<T>> {
-  return apiRequest<T>(url, { method: 'GET' });
+  return apiRequest<T>(url, { method: 'GET' })
 }
 
-/**
- * Função específica para requisições POST
- */
 export async function apiPost<T = any>(
   url: string,
-  data?: any
+  data?: unknown
 ): Promise<ApiResponse<T>> {
   return apiRequest<T>(url, {
     method: 'POST',
     body: data ? JSON.stringify(data) : undefined,
-  });
+  })
 }
 
-/**
- * Função específica para requisições PUT
- */
 export async function apiPut<T = any>(
   url: string,
-  data?: any
+  data?: unknown
 ): Promise<ApiResponse<T>> {
   return apiRequest<T>(url, {
     method: 'PUT',
     body: data ? JSON.stringify(data) : undefined,
-  });
+  })
 }
 
-/**
- * Função específica para requisições DELETE
- */
 export async function apiDelete<T = any>(url: string): Promise<ApiResponse<T>> {
-  return apiRequest<T>(url, { method: 'DELETE' });
+  return apiRequest<T>(url, { method: 'DELETE' })
 }
 
-/**
- * Função específica para upload de arquivos
- */
-export async function apiUpload<T = any>(url: string, formData: FormData): Promise<ApiResponse<T>> {
-  const token = localStorage.getItem('auth_token');
-  
-  // Adicionar prefixo /api se não estiver presente
-  const apiUrl = url.startsWith('/api') ? url : `/api${url}`;
-  
+export async function apiUpload<T = any>(
+  url: string,
+  formData: FormData
+): Promise<ApiResponse<T>> {
   try {
-    const response = await fetch(apiUrl, {
+    const response = await fetch(url.startsWith('/api') ? url : `/api${url}`, {
       method: 'POST',
-      headers: {
-        ...(token && { Authorization: `Bearer ${token}` })
-      },
-      body: formData
-    });
+      credentials: 'same-origin',
+      body: formData,
+    })
 
     if (response.ok) {
-      const data = await response.json();
-      return { success: true, data };
-    } else {
-      const errorText = await response.text();
-      let error = 'Erro na requisição';
-      
-      try {
-        const errorData = JSON.parse(errorText);
-        error = errorData.error || errorData.message || error;
-      } catch {
-        error = errorText || error;
-      }
-      
-      return { success: false, error };
+      const data = await response.json()
+      return { success: true, data }
     }
+
+    const text = await response.text()
+    let error = 'Erro na requisição'
+    try {
+      const parsed = JSON.parse(text)
+      error = parsed.error || parsed.message || error
+    } catch {
+      error = text || error
+    }
+
+    return { success: false, error }
   } catch (error) {
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Erro de conexão' 
-    };
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Erro de conexão',
+    }
   }
 }
