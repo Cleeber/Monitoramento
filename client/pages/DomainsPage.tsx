@@ -20,7 +20,8 @@ import {
   X,
   Activity,
   AlertTriangle,
-  Eraser
+  Eraser,
+  Info
 } from 'lucide-react'
 import { useToast } from '../contexts/ToastContext'
 import { apiGet, apiPost, apiPut, apiDelete, apiUpload } from '../utils/apiUtils'
@@ -121,6 +122,10 @@ export function DomainsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false)
   const [isClearHistoryDialogOpen, setIsClearHistoryDialogOpen] = useState(false)
   const [monitorToClearHistory, setMonitorToClearHistory] = useState<Monitor | null>(null)
+  const [isDetailsDialogOpen, setIsDetailsDialogOpen] = useState(false)
+  const [detailsMonitor, setDetailsMonitor] = useState<Monitor | null>(null)
+  const [detailsChecks, setDetailsChecks] = useState<any[]>([])
+  const [loadingDetails, setLoadingDetails] = useState(false)
   const { addToast } = useToast()
 
   useEffect(() => {
@@ -238,6 +243,26 @@ export function DomainsPage() {
     } finally {
       setIsClearHistoryDialogOpen(false)
       setMonitorToClearHistory(null)
+    }
+  }
+
+  // Abre o modal de detalhes do monitor com últimos checks
+  const showMonitorDetails = async (monitor: Monitor) => {
+    setDetailsMonitor(monitor)
+    setDetailsChecks([])
+    setIsDetailsDialogOpen(true)
+    setLoadingDetails(true)
+
+    try {
+      // Buscar últimos 50 checks, priorizando os que falharam
+      const result = await apiGet<any[]>(`/monitors/${monitor.id}/checks?limit=50&failed_only=true`)
+      if (result.success) {
+        setDetailsChecks(result.data || [])
+      }
+    } catch (error) {
+      console.error('Erro ao buscar detalhes:', error)
+    } finally {
+      setLoadingDetails(false)
     }
   }
 
@@ -702,6 +727,141 @@ export function DomainsPage() {
             </div>
           </DialogContent>
         </Dialog>
+
+        {/* Dialog de Detalhes do Monitor */}
+        <Dialog open={isDetailsDialogOpen} onOpenChange={setIsDetailsDialogOpen}>
+          <DialogContent className="sm:max-w-[900px] max-h-[90vh] overflow-y-auto" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
+            <DialogHeader>
+              <DialogTitle className="text-white flex items-center gap-3">
+                {detailsMonitor && getStatusIcon(detailsMonitor.status, detailsMonitor.id)}
+                {detailsMonitor?.name}
+              </DialogTitle>
+              <DialogDescription className="text-gray-400">
+                Últimas verificações — status atual e histórico de falhas
+              </DialogDescription>
+            </DialogHeader>
+
+            {detailsMonitor && (
+              <div className="space-y-4">
+                {/* Resumo atual */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="bg-gray-800/50 border border-gray-700 rounded p-3">
+                    <p className="text-xs text-gray-400">Status Atual</p>
+                    <p className={`text-sm font-bold mt-1 ${
+                      detailsMonitor.status === 'online' ? 'text-green-400' :
+                      detailsMonitor.status === 'warning' ? 'text-yellow-400' :
+                      detailsMonitor.status === 'offline' ? 'text-red-400' : 'text-gray-400'
+                    }`}>
+                      {detailsMonitor.status.toUpperCase()}
+                    </p>
+                  </div>
+                  <div className="bg-gray-800/50 border border-gray-700 rounded p-3">
+                    <p className="text-xs text-gray-400">Uptime 24h</p>
+                    <p className="text-sm font-bold text-white mt-1">
+                      {detailsMonitor.uptime_24h?.toFixed(1) || '0'}%
+                    </p>
+                  </div>
+                  <div className="bg-gray-800/50 border border-gray-700 rounded p-3">
+                    <p className="text-xs text-gray-400">Resposta</p>
+                    <p className="text-sm font-bold text-white mt-1">
+                      {detailsMonitor.response_time ? `${detailsMonitor.response_time}ms` : '-'}
+                    </p>
+                  </div>
+                  <div className="bg-gray-800/50 border border-gray-700 rounded p-3">
+                    <p className="text-xs text-gray-400">Última Verif.</p>
+                    <p className="text-xs text-white mt-1">
+                      {detailsMonitor.last_check
+                        ? new Date(detailsMonitor.last_check).toLocaleString('pt-BR')
+                        : 'Nunca'}
+                    </p>
+                  </div>
+                </div>
+
+                {/* URL monitorada */}
+                <div className="bg-gray-800/50 border border-gray-700 rounded p-3">
+                  <p className="text-xs text-gray-400 mb-1">URL Monitorada</p>
+                  <code className="text-sm text-cyan-400">{detailsMonitor.url}</code>
+                </div>
+
+                {/* Histórico de falhas */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-sm font-medium text-white">
+                      Histórico de Falhas
+                    </h4>
+                    <span className="text-xs text-gray-400">
+                      {loadingDetails ? 'Carregando...' :
+                        detailsChecks.length === 0 ? 'Nenhuma falha registrada' :
+                        `${detailsChecks.length} falha(s) encontrada(s)`}
+                    </span>
+                  </div>
+
+                  {loadingDetails ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Activity className="h-6 w-6 text-gray-400 animate-spin" />
+                    </div>
+                  ) : detailsChecks.length === 0 ? (
+                    <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-6 text-center">
+                      <CheckCircle className="h-8 w-8 text-green-400 mx-auto mb-2" />
+                      <p className="text-green-400 font-medium">
+                        Sem falhas recentes! Site respondendo normalmente.
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Verificações com erro aparecerão aqui.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                      {detailsChecks.map((check: any) => (
+                        <div
+                          key={check.id}
+                          className={`border rounded-lg p-3 ${
+                            check.status === 'offline'
+                              ? 'bg-red-500/5 border-red-500/30'
+                              : 'bg-yellow-500/5 border-yellow-500/30'
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge
+                                  variant="outline"
+                                  className={
+                                    check.status === 'offline'
+                                      ? 'text-red-400 border-red-500/50'
+                                      : 'text-yellow-400 border-yellow-500/50'
+                                  }
+                                >
+                                  {check.status.toUpperCase()}
+                                </Badge>
+                                {check.status_code && (
+                                  <Badge variant="outline" className="text-gray-400">
+                                    HTTP {check.status_code}
+                                  </Badge>
+                                )}
+                                {check.response_time && (
+                                  <span className="text-xs text-gray-400">
+                                    {check.response_time}ms
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-sm text-white mb-1">
+                                {check.error_message || 'Sem mensagem de erro'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                {new Date(check.checked_at).toLocaleString('pt-BR')}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Filters */}
@@ -752,9 +912,8 @@ export function DomainsPage() {
                   <TableHead className="text-gray-300">Status</TableHead>
                   <TableHead className="text-gray-300">Nome</TableHead>
                   <TableHead className="text-gray-300">URL</TableHead>
-                  <TableHead className="text-gray-300">Tipo</TableHead>
-                  <TableHead className="text-gray-300">Intervalo</TableHead>
                   <TableHead className="text-gray-300">Resposta</TableHead>
+                  <TableHead className="text-gray-300">Última Verificação</TableHead>
                   <TableHead className="text-gray-300">Ações</TableHead>
                 </TableRow>
               </TableHeader>
@@ -782,12 +941,6 @@ export function DomainsPage() {
                       <span className="text-gray-300 text-sm">{monitor.url}</span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-gray-400 text-sm">{monitor.type.toUpperCase()}</span>
-                    </TableCell>
-                    <TableCell>
-                      <span className="text-gray-400 text-sm">{Math.floor(monitor.interval / 1000)}s</span>
-                    </TableCell>
-                    <TableCell>
                       {monitor.response_time ? (
                         <span className="text-white text-sm font-medium">
                           {monitor.response_time}ms
@@ -798,6 +951,31 @@ export function DomainsPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center space-x-2">
+                        {monitor.last_check ? (
+                          <span className="text-gray-400 text-sm">
+                            {new Date(monitor.last_check).toLocaleString('pt-BR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                        ) : (
+                          <span className="text-gray-500 text-sm">Nunca</span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => showMonitorDetails(monitor)}
+                          className="bg-gray-700 border-gray-600 text-cyan-400 hover:bg-cyan-600 hover:text-white hover:border-cyan-500"
+                          title="Ver Detalhes"
+                        >
+                          <Info className="h-4 w-4" />
+                        </Button>
                         <Button
                           variant="outline"
                           size="sm"

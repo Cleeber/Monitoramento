@@ -317,13 +317,14 @@ class MonitoringService extends EventEmitter {
     }
   }
 
-  // Realizar verificação de um monitor
+    // Realizar verificação de um monitor
   private async performCheck(monitor: Monitor) {
     // Ajuste intencional: iniciar como 'warning' para evitar falso 'offline' antes do resultado real
     let status: 'online' | 'offline' | 'warning' = 'warning'
     let responseTime: number | null = null
     let errorMessage: string | null = null
     let statusCode: number | null = null
+    let lastValidationErrors: Array<{ validator: string; verdict: string; message: string }> | null = null
 
     try {
       switch (monitor.type) {
@@ -333,6 +334,10 @@ class MonitoringService extends EventEmitter {
           responseTime = result.responseTime
           errorMessage = result.error
           statusCode = result.statusCode ?? null
+          // Armazenar detalhes dos validadores que falharam
+          if (result.validations) {
+            lastValidationErrors = result.validations
+          }
           break
           
         case 'ping':
@@ -488,6 +493,7 @@ class MonitoringService extends EventEmitter {
     responseTime: number | null
     error: string | null
     statusCode?: number
+    validations?: Array<{ validator: string; verdict: string; message: string }>
   }> {
     const startTime = Date.now()
 
@@ -685,22 +691,41 @@ class MonitoringService extends EventEmitter {
   }
 
   // Traduz Verdict dos validadores para o formato antigo do MonitoringService
-  private translateVerdict(outcome: { verdict: Verdict; responseTime: number | null; error: string | null; statusCode: number | null }): {
+  private translateVerdict(outcome: {
+    verdict: Verdict
+    responseTime: number | null
+    error: string | null
+    statusCode: number | null
+    validations?: Array<{ validator: string; verdict: string; weight: number; message: string }>
+  }): {
     status: 'online' | 'offline' | 'warning'
     responseTime: number | null
     error: string | null
     statusCode?: number
+    validations?: Array<{ validator: string; verdict: string; message: string }>
   } {
+    const failedValidations = (outcome.validations || [])
+      .filter(v => v.weight === 0 || v.weight === 1)
+      .map(v => ({
+        validator: v.validator,
+        verdict: v.verdict,
+        message: v.message,
+      }))
+
+    const errorMsg = failedValidations.length > 0
+      ? failedValidations.map(v => `[${v.validator}] ${v.message}`).join(' | ')
+      : outcome.error
+
     switch (outcome.verdict) {
       case 'online':
         return { status: 'online', responseTime: outcome.responseTime, error: null, statusCode: outcome.statusCode ?? undefined }
       case 'degraded':
-        return { status: 'warning', responseTime: outcome.responseTime, error: outcome.error, statusCode: outcome.statusCode ?? undefined }
+        return { status: 'warning', responseTime: outcome.responseTime, error: errorMsg, statusCode: outcome.statusCode ?? undefined, validations: failedValidations.length > 0 ? failedValidations : undefined }
       case 'error':
       case 'offline':
-        return { status: 'offline', responseTime: outcome.responseTime, error: outcome.error, statusCode: outcome.statusCode ?? undefined }
+        return { status: 'offline', responseTime: outcome.responseTime, error: errorMsg, statusCode: outcome.statusCode ?? undefined, validations: failedValidations.length > 0 ? failedValidations : undefined }
       default:
-        return { status: 'offline', responseTime: outcome.responseTime, error: outcome.error, statusCode: outcome.statusCode ?? undefined }
+        return { status: 'offline', responseTime: outcome.responseTime, error: errorMsg, statusCode: outcome.statusCode ?? undefined, validations: failedValidations.length > 0 ? failedValidations : undefined }
     }
   }
 

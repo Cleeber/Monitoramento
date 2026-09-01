@@ -869,18 +869,24 @@ app.delete('/api/monitors/:id/history', authenticateToken, async (req, res) => {
   }
 })
 
-// Rota para obter histórico de checks
-app.get('/api/monitors/:id/checks', authenticateToken, (req, res) => {
+// Rota para obter histórico de checks (persistente no banco)
+app.get('/api/monitors/:id/checks', authenticateToken, async (req, res) => {
   const { id } = req.params
-  const { limit = 100 } = req.query
-  
-  const monitor = monitoringService.getMonitor(id)
-  if (!monitor) {
-    return res.status(404).json({ error: 'Monitor não encontrado' })
+  const { limit = 100, failed_only } = req.query
+
+  try {
+    let checks = await databaseService.getMonitorChecks(id, Number(limit))
+
+    // Filtrar apenas os que falharam, se solicitado
+    if (failed_only === 'true' || failed_only === '1') {
+      checks = checks.filter((c: any) => c.status !== 'online')
+    }
+
+    res.json(checks)
+  } catch (error) {
+    console.error('Erro ao buscar checks:', error)
+    res.status(500).json({ error: 'Erro interno do servidor' })
   }
-  
-  const checks = monitoringService.getMonitorChecks(id, Number(limit))
-  res.json(checks)
 })
 
 // Executar uma verificação manual imediata de um monitor
