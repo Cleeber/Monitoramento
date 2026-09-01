@@ -9,12 +9,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": false,
-    "declaration": true,
-    "outDir": "./dist",
+    "declaration": false,
+    "outDir": "./dist/server",
     "rootDir": "./src",
     "strict": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
@@ -25,6 +25,7 @@
   ],
   "exclude": [
     "node_modules",
-    "dist"
+    "dist",
+    "client"
   ]
 }

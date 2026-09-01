@@ -67,9 +67,14 @@ Certifique-se de que o projeto esteja estruturado assim na VPS:
 ```
 /caminho/do/projeto/
 ├── docker-compose.yml
+├── Dockerfile
 ├── .env
-├── frontend/
-├── backend/
+├── src/             # backend
+├── client/          # frontend (SPA)
+├── database/
+├── scripts/
+├── uploads/         # volume Docker
+├── reports/         # volume Docker
 └── .git/
 ```
 

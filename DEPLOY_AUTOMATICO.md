@@ -14,8 +14,8 @@ O sistema está configurado para fazer deploy automático sempre que houver um p
 - **Etapas**:
   - Checkout do código
   - Setup do Node.js 18
-  - Instalação de dependências (frontend e backend)
-  - Build do frontend
+  - Instalação de dependências (única na raiz)
+  - Build completo (backend + frontend em uma imagem)
   - Deploy via SSH para a VPS
 
 ### 2. Script de Deploy na VPS (`deploy.sh`)
@@ -52,7 +52,7 @@ graph TD
     B --> C[Checkout Code]
     C --> D[Setup Node.js]
     D --> E[Install Dependencies]
-    E --> F[Build Frontend]
+    E --> F[Build Backend + Frontend]
     F --> G[SSH para VPS]
     G --> H[Executar deploy.sh]
     H --> I[Backup .env]
@@ -75,9 +75,8 @@ O script `deploy.sh` gera logs detalhados com timestamp para facilitar o debuggi
 
 ### Verificação de Saúde
 O script automaticamente verifica:
-- Status dos containers Docker
-- Conectividade do frontend (porta 3000)
-- Conectividade do backend (porta 8081)
+- Status do container Docker
+- Conectividade do app unificado (porta 8081)
 
 ## 🛠️ Manutenção
 
@@ -103,12 +102,11 @@ O script automaticamente verifica:
 ### Containers não Iniciam
 1. Verifique se há conflitos de porta:
    ```bash
-   netstat -tulpn | grep -E "(3000|8081)"
+   netstat -tulpn | grep 8081
    ```
-2. Verifique os logs dos containers:
+2. Verifique os logs do container:
    ```bash
-   docker compose logs backend
-   docker compose logs frontend
+   docker compose logs -f app
    ```
 
 ### Problemas de Conectividade
@@ -118,8 +116,7 @@ O script automaticamente verifica:
    ```
 2. Teste a conectividade local:
    ```bash
-   curl http://localhost:3000
-   curl http://localhost:8081/health
+   curl http://localhost:8081/api/health
    ```
 
 ## 📝 Próximos Passos

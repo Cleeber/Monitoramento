@@ -1,18 +1,18 @@
 import dotenv from 'dotenv'
 import path from 'path'
 import fs from 'fs'
+import { fileURLToPath } from 'url'
 
 // Carregar variáveis de ambiente PRIMEIRO
+// Ordem de precedência:
+//   1) .env (dev local)
+//   2) .env.production (deploy sem docker)
+// No Docker, o `docker-compose.yml` já passa as envs via `environment:`, então
+// este bloco é um no-op (todas as vars já estão em process.env).
 const envPath = path.join(process.cwd(), '.env')
-console.log('DEBUG - Current working directory:', process.cwd())
-console.log('DEBUG - Looking for .env at:', envPath)
-console.log('DEBUG - .env file exists:', fs.existsSync(envPath))
-
-dotenv.config({ path: envPath })
-
-// Debug das variáveis de ambiente
-console.log('DEBUG - SUPABASE_URL:', process.env.SUPABASE_URL)
-console.log('DEBUG - SUPABASE_SERVICE_ROLE_KEY:', process.env.SUPABASE_SERVICE_ROLE_KEY ? 'SET' : 'NOT SET')
+const envProductionPath = path.join(process.cwd(), '.env.production')
+const envFile = fs.existsSync(envPath) ? envPath : envProductionPath
+dotenv.config({ path: envFile })
 
 import express from 'express'
 import cors from 'cors'
@@ -39,6 +39,8 @@ declare global {
   }
 }
 
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
 const app = express()
 const PORT = process.env.PORT || 8081
 const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
@@ -54,7 +56,17 @@ app.set('trust proxy', 1)
 app.use(helmet())
 app.use(compression())
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://127.0.0.1:3001', 'http://localhost:3002', 'http://127.0.0.1:3002', 'http://85.31.62.181:3000', 'http://85.31.62.181:3001', 'http://monitor.pagina1digital.com.br', 'https://monitor.pagina1digital.com.br'],
+  origin: [
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'http://localhost:3002',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:3001',
+    'http://127.0.0.1:3002',
+    'http://85.31.62.181:3001',
+    'http://monitor.pagina1digital.com.br',
+    'https://monitor.pagina1digital.com.br',
+  ],
   credentials: true
 }))
 app.use(express.json({ limit: '10mb' }))
@@ -1551,6 +1563,23 @@ app.get('/api/public/monitor-stats/:id', async (req, res) => {
   }
 })
 
+
+// Servir a SPA React construida (apenas quando o build existir)
+// Em dev, o Vite roda separado em :3001 e faz proxy de /api para o Express
+const clientDist = path.resolve(__dirname, '..', '..', 'client-dist')
+const clientDistAlt = path.resolve(process.cwd(), 'client-dist')
+
+if (fs.existsSync(clientDist) || fs.existsSync(clientDistAlt)) {
+  const staticDir = fs.existsSync(clientDist) ? clientDist : clientDistAlt
+  app.use(express.static(staticDir))
+
+  // Fallback SPA: qualquer rota que não seja /api retorna index.html
+  app.get(/^(?!\/api).*/, (_req, res) => {
+    res.sendFile(path.join(staticDir, 'index.html'))
+  })
+
+  console.log(`📦 SPA servida de: ${staticDir}`)
+}
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`)

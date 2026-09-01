@@ -78,9 +78,9 @@ Este documento consolida padrões para manter consistência em todo o sistema (b
 - Padrão público: retornar apenas campos necessários (ex.: sem `id` interno, sem mensagens sensíveis).
 
 ## Logs e Observabilidade
-- Healthcheck: `GET /api/health` (usado pelos containers).
+- Healthcheck: `GET /api/health` (usado pelo container).
 - Operações:
-  - Ver logs: `docker compose logs backend --tail=20`, `docker compose logs frontend --tail=20`.
+  - Ver logs: `docker compose logs app --tail=20`.
   - Nginx: `nginx -t`, `systemctl status nginx`.
 - Evitar vazamento de dados sensíveis nos logs; mensagens amigáveis em erros.
 
@@ -93,13 +93,19 @@ Este documento consolida padrões para manter consistência em todo o sistema (b
 - Referências: `.windsurfrules`, `DEPLOY_SETUP.md`, `DEPLOY_AUTOMATICO.md`.
 
 ## Variáveis de Ambiente
-- Backend:
+
+O app é um monorepo unificado: API e SPA rodam no mesmo processo. As variáveis abaixo são lidas pelo backend (e pelo bundle do Vite em build-time, se começarem com `VITE_`).
+
+- Comuns (servidor):
   - `PORT`, `NODE_ENV`, `JWT_SECRET`
   - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
   - SMTP: `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM_EMAIL`, `SMTP_FROM_NAME`, `SMTP_SECURE`
-- Frontend:
-  - `VITE_API_URL` (ex.: `http://backend:8081/api` em Docker)
-  - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (opcional)
+  - `FRONTEND_BASE_URL` (ex.: `https://monitor.pagina1digital.com.br`)
+- Cliente (injetadas no build, prefixo `VITE_`):
+  - `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` (opcionais; usados se o frontend precisar contatar o Supabase diretamente)
+  - `VITE_API_URL` opcional (só para builds em hosts separados; em produção unificada pode ser omitido)
+
+Em produção, o Docker (`docker-compose.yml`) é a fonte de verdade das variáveis; o `.env` é lido apenas em dev local.
 
 ## Banco de Dados
 - Supabase como camada de dados; tabelas principais:

@@ -100,9 +100,10 @@ Páginas de Status (Públicas)
 - RNF‑O1 Observabilidade: logs estruturados de inicialização e erros.
 
 ## 9. Integrações e Stack
-- Backend: Node.js + Express + TypeScript; agendamento (cron); envio de e‑mails (Nodemailer).
-- Frontend: React + Vite + TypeScript + Tailwind; gráficos (Recharts/Chart.js).
+- App unificado: Node.js + Express + TypeScript serve a API e a SPA React estática em um único processo (mesma porta `:8081`).
+- Frontend (SPA): React + Vite + TypeScript + Tailwind; gráficos (Recharts/Chart.js).
 - Persistência: Supabase (Postgres) e armazenamento de arquivos (relatórios).
+- Deploy: Docker único, com proxy reverso (Nginx/Caddy) na frente, mesmo domínio (sem subdomínio de API).
 
 ## 10. API (resumo)
 Autenticação & Sistema

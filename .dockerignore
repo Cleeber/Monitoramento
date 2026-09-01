@@ -7,8 +7,9 @@ yarn-error.log*
 # Production builds
 dist
 build
+client-dist
 
-# Environment files
+# Environment files (configuradas via docker-compose env, nunca dentro da imagem)
 .env
 .env.local
 .env.development.local
@@ -57,7 +58,6 @@ coverage/
 tmp/
 temp/
 
-# Docker files
-Dockerfile
-docker-compose.yml
-.dockerignore
+# Configs de editor e CI que nao precisam ir na imagem
+.windsurfrules
+.trae/

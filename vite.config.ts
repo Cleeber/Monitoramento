@@ -4,35 +4,36 @@ import path from 'path'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  root: '.',
   plugins: [react()],
+  // Forçar mode via config evita conflito com NODE_ENV do .env.production
+  mode: process.env.NODE_ENV === 'development' ? 'development' : 'production',
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
+      "@": path.resolve(__dirname, "./client"),
     },
   },
   server: {
-    port: 3001, // Alterado de 3000 para 3001 para alinhar com o ambiente de testes
-    strictPort: true, // Garante falha caso a porta 3001 esteja ocupada, evitando mudança automática para 3002/3003
+    port: 3001,
+    strictPort: true,
     host: true,
     allowedHosts: [
       'localhost',
       '127.0.0.1',
       '85.31.62.181',
       'monitor.pagina1digital.com.br',
-      'frontend'
     ],
     proxy: {
       '/api': {
-        // Aponta para o backend dentro da rede Docker;
-        // usa variável de ambiente quando definida e cai para http://backend:8081
-        target: process.env.VITE_API_URL || 'http://backend:8081',
+        target: 'http://localhost:8081',
         changeOrigin: true,
         secure: false,
       },
     },
   },
   build: {
-    outDir: 'dist',
+    outDir: 'client-dist',
+    emptyOutDir: true,
     sourcemap: true,
   },
   define: {

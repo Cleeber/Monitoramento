@@ -12,46 +12,71 @@ Um sistema completo de monitoramento de uptime para websites e serviços, desenv
 - 👥 **Gerenciamento de grupos** para organizar monitores
 - 🔐 **Autenticação segura** com JWT
 - 📱 **Interface responsiva** e moderna
+- 🐳 **Deploy em container único** (API + SPA servidos pelo mesmo processo)
 
 ## Tecnologias Utilizadas
 
-### Backend
-- Node.js
+### Backend (servidor Node)
+- Node.js 18
 - TypeScript
 - Express.js
-- SQLite
+- Supabase (Postgres)
 - JWT para autenticação
 - bcrypt para criptografia
+- node-cron para agendamentos
+- nodemailer para envio de e-mails
+- pdfkit para relatórios PDF
 
-### Frontend
-- React
+### Frontend (SPA React)
+- React 18
 - TypeScript
 - Vite
-- Tailwind CSS
+- Tailwind CSS + componentes shadcn/ui
 - Lucide React (ícones)
 - Recharts (gráficos)
 
 ## Estrutura do Projeto
 
+Monorepo unificado: API e SPA convivem no mesmo repositório e são servidas pelo mesmo processo Express.
+
 ```
 uptime-monitor/
-├── backend/                 # API e serviços backend
-│   ├── src/
-│   │   ├── index.ts        # Ponto de entrada
-│   │   ├── lib/            # Utilitários e configurações
-│   │   ├── monitoring/     # Serviços de monitoramento
-│   │   └── services/       # Serviços de dados
-│   ├── database/           # Schema e configuração do banco
-│   └── package.json
-├── frontend/               # Interface do usuário
-│   ├── src/
-│   │   ├── components/     # Componentes reutilizáveis
-│   │   ├── pages/          # Páginas da aplicação
-│   │   ├── contexts/       # Contextos React
-│   │   └── lib/            # Utilitários
-│   └── package.json
-└── README.md
+├── src/                      # Backend (Express)
+│   ├── index.ts              # Ponto de entrada: serve /api/* + arquivos estáticos
+│   ├── lib/                  # Cliente Supabase e tipos compartilhados
+│   ├── monitoring/           # Engine de checks (HTTP/PING/TCP)
+│   └── services/             # DatabaseService, EmailService, PDFService, etc.
+├── client/                   # Frontend (SPA React/Vite)
+│   ├── App.tsx
+│   ├── main.tsx
+│   ├── components/           # Componentes reutilizáveis
+│   ├── pages/                # Páginas da aplicação
+│   ├── contexts/             # Contextos React
+│   └── lib/utils.ts
+├── database/                 # Schema e migrations do Supabase
+├── scripts/                  # Scripts auxiliares
+├── uploads/                  # Uploads de logos (volume Docker)
+├── reports/                  # Relatórios gerados (volume Docker)
+├── public/                   # Assets públicos do Vite
+├── index.html                # Entrada do Vite
+├── vite.config.ts            # Config do Vite (root, alias @ → ./client)
+├── tailwind.config.js
+├── tsconfig.json             # Project references
+├── tsconfig.server.json      # Build do backend → dist/server
+├── tsconfig.client.json      # IDE/Vite do frontend
+├── Dockerfile                # Multi-stage único
+├── docker-compose.yml        # Serviço único (sem nginx, sem dois domínios)
+└── package.json              # Único manifest com todas as deps
 ```
+
+### Como API e SPA convivem no mesmo processo
+
+- Em **dev**: `npm run dev` sobe Vite (`:3001`) e Express (`:8081`) em paralelo via `concurrently`. Vite faz proxy de `/api` para o Express. Você acessa `http://localhost:3001` no navegador.
+- Em **produção** (Docker): o Express compila para `dist/server/index.js` e serve, na porta `8081`:
+  - `GET /api/*` — rotas JSON
+  - `GET /*` (que não seja `/api`) — fallback para `client-dist/index.html` (a SPA)
+
+Como ambos servem do mesmo domínio em produção, **não há CORS a configurar** (browsers só bloqueiam cross-origin).
 
 ## Padrões e Convenções
 
@@ -63,7 +88,7 @@ Para garantir consistência em todo o sistema, consulte o documento de padrões:
 
 ### Pré-requisitos
 - Node.js (versão 18 ou superior)
-- npm ou yarn
+- npm
 
 ### 1. Clone o repositório
 ```bash
@@ -71,69 +96,57 @@ git clone https://github.com/Cleeber/Monitoramento.git
 cd Monitoramento
 ```
 
-### 2. Configuração do Backend
+### 2. Instale as dependências (raiz única)
 ```bash
-cd backend
 npm install
 ```
 
-Crie um arquivo `.env` baseado no `.env.example`:
+### 3. Configure as variáveis de ambiente
+
+Copie `.env.example` para `.env` na raiz e preencha:
 ```env
-PORT=8080
-JWT_SECRET=seu_jwt_secret_aqui
-DATABASE_PATH=./database/uptime_monitor.db
-```
-
-### 3. Configuração do Frontend
-```bash
-cd ../frontend
-npm install
-```
-
-Crie um arquivo `.env` baseado no `.env.example`:
-```env
-VITE_API_URL=http://localhost:8080/api
-```
-
-### 4. Inicialização do Banco de Dados
-```bash
-cd ../backend
-npm run init-db
+JWT_SECRET=seu_jwt_secret_seguro
+SUPABASE_URL=https://seu-projeto.supabase.co
+SUPABASE_ANON_KEY=sua_anon_key
+SUPABASE_SERVICE_ROLE_KEY=sua_service_role_key
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=...
+SMTP_PASS=...
+PORT=8081
+NODE_ENV=development
 ```
 
 ## Execução
 
-### Desenvolvimento
-
-1. **Backend** (Terminal 1):
+### Desenvolvimento — um único comando
 ```bash
-cd backend
 npm run dev
 ```
 
-2. **Frontend** (Terminal 2):
+Isso sobe simultaneamente:
+- Servidor backend: `http://localhost:8081` (com `tsx watch` para hot reload)
+- Servidor Vite (frontend + proxy /api): `http://localhost:3001`
+
+Abra `http://localhost:3001` no navegador.
+
+### Produção com Docker
 ```bash
-cd frontend
-npm run dev
+docker compose up -d --build
 ```
 
-A aplicação estará disponível em:
-- Frontend: http://localhost:3000
-- Backend API: http://localhost:8080
+O único container expõe a porta `8081`. Acesse:
+- Aplicação: `http://localhost:8081`
+- API: `http://localhost:8081/api/health`
+- Status pages públicas (via slug): `http://localhost:8081/status-page/<slug>`
 
-### Produção
+### Deploy em VPS
 
-1. **Build do Frontend**:
-```bash
-cd frontend
-npm run build
-```
+Veja `DEPLOY_SETUP.md` e `DEPLOY_AUTOMATICO.md` para o pipeline GitHub Actions → VPS via SSH.
 
-2. **Execução do Backend**:
-```bash
-cd backend
-npm start
-```
+Após unificação:
+- Apenas **um bloco de proxy reverso** para `monitor.pagina1digital.com.br` (nginx/Caddy) apontando para `localhost:8081`.
+- O subdomínio `api.pagina1digital.com.br` deixa de existir (mesma origem).
 
 ## Funcionalidades
 
@@ -159,6 +172,8 @@ npm start
 - Tempo de resposta médio
 - Histórico de verificações
 - Detalhes de falhas
+- Envio mensal automático por e-mail
+- Geração de PDF
 
 ## API Endpoints
 
@@ -175,12 +190,6 @@ npm start
 ### Dashboard
 - `GET /api/dashboard/stats` - Estatísticas gerais
 - `GET /api/dashboard/monitors` - Monitores com status
-
-### Grupos
-- `GET /api/groups` - Listar grupos
-- `POST /api/groups` - Criar grupo
-- `PUT /api/groups/:id` - Atualizar grupo
-- `DELETE /api/groups/:id` - Remover grupo
 
 ### Checks
 
