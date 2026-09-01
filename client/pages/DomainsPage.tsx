@@ -93,7 +93,7 @@ export function DomainsPage() {
     name: '',
     url: '',
     type: 'http',
-    interval: 60,
+    interval: 300,
     timeout: 30,
     enabled: true,
     slug: '',
@@ -322,7 +322,7 @@ export function DomainsPage() {
       name: '',
       url: '',
       type: 'http',
-      interval: 60,
+      interval: 300,
       timeout: 30,
       enabled: true,
       slug: '',
@@ -530,10 +530,11 @@ export function DomainsPage() {
                       <Input
                         id="interval"
                         type="number"
-                        min="30"
+                        min="60"
                         value={formData.interval}
                         onChange={(e) => setFormData({ ...formData, interval: parseInt(e.target.value) })}
                       />
+                      <p className="text-xs text-gray-400">Recomendado: 300 (5min) para evitar rate limits de WAF.</p>
                     </div>
                     
                     <div className="space-y-2">
