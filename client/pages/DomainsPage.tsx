@@ -128,8 +128,17 @@ export function DomainsPage() {
   const [loadingDetails, setLoadingDetails] = useState(false)
   const { addToast } = useToast()
 
+  // Carregar dados iniciais
   useEffect(() => {
     fetchData()
+  }, [])
+
+  // Polling: atualizar lista de monitores a cada 30s para refletir status em tempo real
+  useEffect(() => {
+    const interval = setInterval(() => {
+      fetchData()
+    }, 30000)
+    return () => clearInterval(interval)
   }, [])
 
   const fetchData = async () => {
