@@ -1437,7 +1437,7 @@ app.get('/api/public/monitors/:id/checks', async (req, res) => {
     const { limit = 50 } = req.query
     
     // Verificar se o monitor existe e está ativo
-    const monitor = await databaseService.getMonitorById(id)
+    const monitor = await findActivePublicMonitor(databaseService, id)
     if (!monitor || !monitor.is_active) {
       return res.status(404).json({ error: 'Monitor não encontrado' })
     }
@@ -1458,7 +1458,7 @@ app.get('/api/public/monitors/:id/incidents', async (req, res) => {
     const { limit = 10 } = req.query
     
     // Verificar se o monitor existe e está ativo
-    const monitor = await databaseService.getMonitorById(id)
+    const monitor = await findActivePublicMonitor(databaseService, id)
     if (!monitor || !monitor.is_active) {
       return res.status(404).json({ error: 'Monitor não encontrado' })
     }
@@ -1586,7 +1586,7 @@ app.get('/api/public/status/monitor/:id', async (req, res) => {
     let monitor
     
     if (isUuid) {
-      monitor = await databaseService.getMonitorById(id)
+      monitor = await findActivePublicMonitor(databaseService, id)
     } else {
       // Tentar buscar por slug
       monitor = await databaseService.getMonitorBySlug(id)
