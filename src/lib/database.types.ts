@@ -428,7 +428,6 @@ export type Database = {
           columns: Json
         }[]
       }
-      unaccent: { Args: { "": string }; Returns: string }
     }
     Enums: {
       [_ in never]: never

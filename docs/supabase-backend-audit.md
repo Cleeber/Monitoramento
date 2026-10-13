@@ -43,15 +43,21 @@ A migration inicial instala o job pausado para permitir a desativação da limpe
 
 O histórico do Cron registra sucesso ou falha. Uma chamada manual da função retorna as quantidades removidas. O próprio histórico do Cron precisa de retenção, porque não é limpo automaticamente. A rotina remove somente registros concluídos do seu próprio job. [Supabase Cron](https://supabase.com/docs/guides/cron), [limpeza do histórico](https://supabase.com/docs/guides/cron/quickstart).
 
-## Segurança a corrigir em seguida
+## Segurança corrigida em produção
 
-O [Security Advisor](https://supabase.com/dashboard/project/zhywrrzzezexlvtpqacl/advisors/security) confirmou 1 erro e 13 avisos. O [Performance Advisor](https://supabase.com/dashboard/project/zhywrrzzezexlvtpqacl/advisors/performance) apresentou 0 erros, 1 aviso de índice duplicado e 8 sugestões de índices não utilizados. Os alertas de segurança a seguir já existiam no banco; a função de manutenção nova não apresentou alertas nessas categorias.
+O [Security Advisor](https://supabase.com/dashboard/project/zhywrrzzezexlvtpqacl/advisors/security) passou de **1 erro e 13 avisos para zero erros e zero avisos** após as correções de 13 de outubro de 2026. As verificações do Advisor abrangem as categorias do banco analisadas pelo Supabase; os testes da API complementam essa análise.
 
-- `monthly_report_configs` e `monthly_report_history` possuem políticas `FOR ALL TO PUBLIC USING (true)`. Elas permitem operações amplas aos papéis que também tenham os privilégios SQL correspondentes. Conferir e restringir os grants e as policies ao acesso efetivamente necessário.
-- `refresh_tokens` está sem RLS. A exposição depende dos grants e da configuração da Data API; restringir o acesso ao backend e habilitar RLS.
-- `cleanup_expired_refresh_tokens()` usa `SECURITY DEFINER`, está em `public` e tem execução pública pelo ACL observado. Revogar acesso público e fixar `search_path`; a rotina nova não depende dessa função.
-- As políticas anônimas permitem ler monitores ativos e suas verificações. Políticas RLS filtram linhas, não colunas; conferir quais campos do monitor podem ser públicos.
-- `exec_sql(text)` é uma função administrativa poderosa, mas seu ACL está restrito a `postgres` e `service_role`. Preservar essa restrição e jamais expor a chave de serviço ao cliente.
+- As políticas irrestritas de `monthly_report_configs` e `monthly_report_history` foram removidas. O acesso direto às oito tabelas da aplicação foi revogado de `PUBLIC`, `anon` e `authenticated`, incluindo `TRUNCATE`, que não é restringido por RLS. O backend mantém suas permissões de leitura e escrita.
+- `refresh_tokens` recebeu RLS e política exclusiva para `service_role`. Os testes confirmaram criação, leitura, atualização e exclusão de um token temporário pelo backend, seguida da remoção da fixture.
+- `cleanup_expired_refresh_tokens()` passou a executar com `SECURITY INVOKER`. As funções da aplicação, incluindo `exec_sql(text)`, ficaram restritas ao backend e receberam `search_path` fixo. Chamadas anônimas aos RPCs administrativos foram negadas.
+- As tabelas de monitores e verificações deixaram de ter políticas anônimas. O frontend acessa os dados públicos pela API do backend. A listagem pública usa uma seleção explícita de campos, protegendo e-mails de relatório, regras de validação e configurações internas.
+- As rotas públicas de incidentes, disponibilidade e estatísticas agora verificam se o monitor está ativo. Monitores inativos, inexistentes ou IDs inválidos recebem 404; as rotas privadas continuam exigindo autenticação.
+- Os oito avisos de `search_path` das funções foram corrigidos. A extensão `unaccent` foi reinstalada no schema `extensions` pelo painel do Supabase, após confirmar a ausência de dependências personalizadas e o uso do dicionário padrão. A geração de slugs com acentos foi validada novamente. [Orientação do Advisor](https://supabase.com/docs/guides/observability/advisors?queryGroups=lint&lint=0014_extension_in_public).
+- A criação automática de uma conta administrativa com senha padrão foi removida do backend em produção. O bootstrap exige credenciais explícitas e preserva um administrador existente.
+
+A troca da senha administrativa padrão **permanece pendente de ação do proprietário no painel**, conforme a escolha expressa durante a correção. As permissões do banco e o bootstrap foram corrigidos sem alterar essa senha.
+
+O Performance Advisor continua sendo uma análise separada: os índices duplicados e não utilizados descritos no diagnóstico são próximos ajustes de desempenho.
 
 ## Operação e validação
 
@@ -60,7 +66,11 @@ As consultas de status, comandos de ativação e pausa e execução manual estã
 ```powershell
 node scripts/supabase-sql.mjs supabase/migrations/20261013200630_monitoring_retention_180_days.sql
 node scripts/supabase-sql.mjs supabase/migrations/20261013202220_monitoring_retention_daily.sql
+node scripts/supabase-sql.mjs supabase/migrations/20261013202617_backend_security_hardening.sql
+node scripts/supabase-sql.mjs supabase/migrations/20261013204643_unaccent_private_schema.sql
 node scripts/supabase-sql.mjs database/tests/monitoring_retention.sql --rollback-test
+node scripts/supabase-sql.mjs database/tests/backend_security.sql --rollback-test
+node scripts/verify-backend-security.mjs
 npm run check
 ```
 
@@ -75,3 +85,7 @@ O job de retenção foi ativado depois dessa verificação. As migrations també
 A primeira execução automática terminou com sucesso em 13 de outubro de 2026 às **17:17, horário de São Paulo**, em aproximadamente **22 ms**. Os 35 tokens expirados há mais de 7 dias foram removidos; não havia verificações acima de 180 dias para excluir. Os testes SQL foram executados com rollback integral, os testes de concorrência passaram, e `npm run check` concluiu lint, checagem de tipos, 7 testes e build.
 
 A frequência foi alterada no mesmo dia para uma execução diária às 02:17, conforme solicitado. A consulta de validação confirmou um único job ativo com `17 5 * * *` no fuso GMT. O comando diário com dois lotes foi executado para validação com rollback integral, sem exclusões persistentes durante esse teste.
+
+A correção de segurança foi implantada no backend existente e validada pelo endereço público. Os 10 testes automatizados, lint, checagem de tipos e build passaram. Os testes SQL de segurança e retenção passaram com rollback integral. A validação da API confirmou bloqueio anônimo de SELECT, INSERT, UPDATE e DELETE nas oito tabelas, bloqueio dos RPCs administrativos, preservação do acesso autenticado aos relatórios e das páginas públicas, além de 404 para históricos de monitores inativos e inexistentes.
+
+A imagem anterior à correção de segurança foi preservada na VPS como `uptime-monitor-backend:before-security-20261013203912`. Reverter apenas a imagem não reverte as permissões do banco. A rotina de retenção de 180 dias permanece ativa com o cron diário `17 5 * * *`, às 02:17 de São Paulo.
