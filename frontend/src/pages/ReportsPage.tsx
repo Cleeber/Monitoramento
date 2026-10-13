@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { PageHeader } from '@/components/shared/PageHeader'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
@@ -8,7 +9,7 @@ import { PeriodFilter, DEFAULT_TIME_RANGE } from '@/components/shared/PeriodFilt
 import { calculatePeriodRange, getPeriodLabel } from '@/utils/periodUtils'
 import { toast } from 'sonner'
 import { apiGet, apiPost } from '@/utils/apiUtils'
-// import html2pdf from 'html2pdf.js'
+// Geração de PDF é feita no backend (pdfkit); nada de html2pdf no frontend.
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -39,7 +40,6 @@ ChartJS.register(
 )
 
 import { StatusPageTemplate } from '@/components/templates/StatusPageTemplate'
-import { fetchUptimeHistory, fetchMonitorStats } from '@/utils/statusApi'
 
 interface Monitor {
   id: string
@@ -97,10 +97,10 @@ function ReportsPage() {
   const [exporting, setExporting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
   const reportRef = useRef<HTMLDivElement>(null)
-  const [pdfData, setPdfData] = useState<any>(null)
+  const [pdfData] = useState<any>(null)
   const pdfTemplateRef = useRef<HTMLDivElement>(null)
 
-  const fetchReports = async () => {
+  const fetchReports = useCallback(async () => {
     try {
       setLoading(true)
       const periodRange = calculatePeriodRange(selectedTimeRange)
@@ -127,9 +127,9 @@ function ReportsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedMonitor, selectedTimeRange])
 
-  const fetchMonitors = async () => {
+  const fetchMonitors = useCallback(async () => {
     try {
       const result = await apiGet('/monitors')
       if (!result.success) {
@@ -139,16 +139,16 @@ function ReportsPage() {
       setMonitors(result.data)
       
       // Se houver monitores, selecionar o primeiro por padrão
-      if (result.data.length > 0 && selectedMonitor === 'all') {
-        setSelectedMonitor(result.data[0].id)
+      if (result.data.length > 0) {
+        setSelectedMonitor(current => current === 'all' ? result.data[0].id : current)
       }
     } catch (error) {
       console.error('Erro ao carregar monitores:', error)
       toast.error('Erro ao carregar monitores')
     }
-  }
+  }, [])
 
-  const fetchMonitorChecks = async () => {
+  const fetchMonitorChecks = useCallback(async () => {
     if (selectedMonitor === 'all') {
       setMonitorChecks([])
       return
@@ -175,18 +175,16 @@ function ReportsPage() {
       console.error('Erro ao carregar verificações do monitor:', error)
       toast.error('Erro ao carregar verificações do monitor')
     }
-  }
+  }, [selectedMonitor, selectedTimeRange])
 
   useEffect(() => {
-    fetchMonitors()
-    // Carregar relatórios iniciais com configuração padrão
-    fetchReports()
-  }, [])
+    void fetchMonitors()
+  }, [fetchMonitors])
 
   useEffect(() => {
-    fetchReports()
-    fetchMonitorChecks()
-  }, [selectedTimeRange, selectedMonitor])
+    void fetchReports()
+    void fetchMonitorChecks()
+  }, [fetchReports, fetchMonitorChecks])
 
   const handleExport = async () => {
     if (selectedMonitor === 'all') {
@@ -511,17 +509,12 @@ function ReportsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: '#ffffff' }}>Relatórios</h1>
-          <p style={{ color: '#9ca3af' }}>Análise detalhada do desempenho dos monitores</p>
-        </div>
-        <div className="flex items-center space-x-4">
+      <PageHeader title="Relatórios" description="Análise detalhada do desempenho dos monitores" actions={<>
           <Button 
             onClick={handleSendEmail}
             disabled={sendingEmail || selectedMonitor === 'all'}
             variant="outline"
-            className="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white border-blue-500 hover:border-blue-600 shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="border-blue-500/40 bg-blue-600/10 text-blue-300 hover:bg-blue-600/20"
           >
             {sendingEmail ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
@@ -541,10 +534,9 @@ function ReportsPage() {
             )}
             {exporting ? 'Exportando...' : 'Exportar PDF'}
           </Button>
-        </div>
-      </div>
+      </>} />
 
-      <div className="flex flex-col sm:flex-row gap-4">
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-end">
         <PeriodFilter 
           selectedTimeRange={selectedTimeRange} 
           onTimeRangeChange={(value) => setSelectedTimeRange(value as TimeRange)}
@@ -552,7 +544,7 @@ function ReportsPage() {
         />
         
         <Select value={selectedMonitor} onValueChange={setSelectedMonitor}>
-          <SelectTrigger className="w-full sm:w-[200px]">
+          <SelectTrigger className="w-full gap-2 sm:w-[280px]" aria-label="Monitor do relatório">
             <Activity className="h-4 w-4" />
             <SelectValue placeholder="Monitor" />
           </SelectTrigger>
@@ -567,9 +559,9 @@ function ReportsPage() {
         </Select>
       </div>
       
-      <div ref={reportRef} className="space-y-6 p-4 rounded-lg" style={{ backgroundColor: exporting ? '#0d1117' : 'transparent' }}>
+      <div ref={reportRef} className="space-y-5 rounded-lg" style={{ backgroundColor: exporting ? '#0d1117' : 'transparent' }}>
       {overallStatsCalculated && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium" style={{ color: '#ffffff' }}>Uptime Médio</CardTitle>
@@ -627,8 +619,8 @@ function ReportsPage() {
       )}
 
       {(reports.length > 0 || monitorChecks.length > 0) && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="lg:col-span-1 space-y-6">
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }} id="uptime-chart">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
@@ -637,7 +629,7 @@ function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-64">
+                <div className="h-64 min-w-0 2xl:h-72">
                   {selectedMonitor === 'all' ? (
                     <Bar data={generateUptimeChartData()} options={{
                       responsive: true,
@@ -650,8 +642,10 @@ function ReportsPage() {
                       scales: {
                         y: {
                           beginAtZero: true,
+                          grid: { color: "rgba(156, 163, 175, 0.08)" },
                           max: 100,
                           ticks: {
+                            color: "#9ca3af",
                             callback: function(value) {
                               return value + '%'
                             }
@@ -659,7 +653,9 @@ function ReportsPage() {
                         },
                         x: {
                           ticks: {
+                            color: "#9ca3af",
                             maxRotation: 45,
+                            maxTicksLimit: 8,
                           }
                         }
                       },
@@ -676,8 +672,10 @@ function ReportsPage() {
                       scales: {
                         y: {
                           beginAtZero: true,
+                          grid: { color: "rgba(156, 163, 175, 0.08)" },
                           max: 100,
                           ticks: {
+                            color: "#9ca3af",
                             callback: function(value) {
                               return value + '%'
                             }
@@ -685,7 +683,9 @@ function ReportsPage() {
                         },
                         x: {
                           ticks: {
+                            color: "#9ca3af",
                             maxRotation: 45,
+                            maxTicksLimit: 8,
                           }
                         }
                       },
@@ -703,7 +703,7 @@ function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-64">
+                <div className="h-64 min-w-0 2xl:h-72">
                   {selectedMonitor === 'all' ? (
                     <Bar data={generateResponseTimeChartData()} options={{
                       responsive: true,
@@ -711,12 +711,15 @@ function ReportsPage() {
                       plugins: {
                         legend: {
                           position: 'top',
+                          labels: { color: '#9ca3af', boxWidth: 12, boxHeight: 8, padding: 16 },
                         },
                       },
                       scales: {
                         y: {
                           beginAtZero: true,
+                          grid: { color: "rgba(156, 163, 175, 0.08)" },
                           ticks: {
+                            color: "#9ca3af",
                             callback: function(value) {
                               return value + 'ms'
                             }
@@ -724,7 +727,9 @@ function ReportsPage() {
                         },
                         x: {
                           ticks: {
+                            color: "#9ca3af",
                             maxRotation: 45,
+                            maxTicksLimit: 8,
                           }
                         }
                       },
@@ -741,7 +746,9 @@ function ReportsPage() {
                       scales: {
                         y: {
                           beginAtZero: true,
+                          grid: { color: "rgba(156, 163, 175, 0.08)" },
                           ticks: {
+                            color: "#9ca3af",
                             callback: function(value) {
                               return value + 'ms'
                             }
@@ -762,13 +769,14 @@ function ReportsPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-64">
+                <div className="h-64 min-w-0 2xl:h-72">
                   <Doughnut data={generateStatusDistributionData()} options={{
                     responsive: true,
                     maintainAspectRatio: false,
                     plugins: {
                       legend: {
                         position: 'bottom',
+                        labels: { color: '#9ca3af', boxWidth: 12, boxHeight: 8, padding: 16 },
                       },
                     },
                   }} />
@@ -778,12 +786,12 @@ function ReportsPage() {
           </div>
 
           {selectedMonitor !== 'all' && (
-            <div className="lg:col-span-1">
+            <div className="min-w-0">
               <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2" style={{ color: '#ffffff' }}>
                     <Activity className="h-5 w-5" />
-                    Informações Detalhadas do Monitor
+                    Detalhes do Monitor
                   </CardTitle>
                   <CardDescription style={{ color: '#9ca3af' }}>
                     Todas as informações relevantes do monitor selecionado
@@ -820,137 +828,41 @@ function ReportsPage() {
                     }
                     
                     return (
-                      <div className="space-y-6">
-                        <div>
-                          <h3 className="text-lg font-semibold mb-3" style={{ color: '#ffffff' }}>Informações Básicas</h3>
-                          <div className="overflow-x-auto">
-                            <table className="w-full border-collapse">
-                              <tbody>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Nome do Monitor</td>
-                                  <td className="py-3 px-4" style={{ color: '#ffffff' }}>{monitor.name}</td>
-                                </tr>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>URL Monitorada</td>
-                                  <td className="py-3 px-4">
-                                    <a href={monitor.url} target="_blank" rel="noopener noreferrer" 
-                                       className="text-blue-400 hover:text-blue-300 break-all">
-                                      {monitor.url}
-                                    </a>
-                                  </td>
-                                </tr>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Status Atual</td>
-                                  <td className="py-3 px-4">{getStatusBadge(monitor.status)}</td>
-                                </tr>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>ID do Monitor</td>
-                                  <td className="py-3 px-4" style={{ color: '#9ca3af', fontFamily: 'monospace' }}>{monitor.id}</td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <h3 className="text-lg font-semibold mb-3" style={{ color: '#ffffff' }}>Estatísticas de Performance</h3>
-                          <div className="overflow-x-auto">
-                            <table className="w-full border-collapse">
-                              <tbody>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Uptime Geral</td>
-                                  <td className="py-3 px-4">
-                                    <span className={`text-xl font-bold ${getUptimeColor(report.uptime_percentage)}`}>
-                                      {report.uptime_percentage.toFixed(2)}%
-                                    </span>
-                                  </td>
-                                </tr>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Total de Verificações</td>
-                                  <td className="py-3 px-4" style={{ color: '#ffffff' }}>
-                                    {report.total_checks.toLocaleString()}
-                                  </td>
-                                </tr>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Verificações Bem-sucedidas</td>
-                                  <td className="py-3 px-4" style={{ color: '#10b981' }}>
-                                    {report.successful_checks.toLocaleString()}
-                                  </td>
-                                </tr>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Verificações Falhadas</td>
-                                  <td className="py-3 px-4" style={{ color: '#ef4444' }}>
-                                    {report.failed_checks.toLocaleString()}
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <h3 className="text-lg font-semibold mb-3" style={{ color: '#ffffff' }}>Tempos de Resposta</h3>
-                          <div className="overflow-x-auto">
-                            <table className="w-full border-collapse">
-                              <tbody>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Tempo Médio</td>
-                                  <td className="py-3 px-4" style={{ color: '#ffffff' }}>
-                                    <span className="text-xl font-bold">{report.avg_response_time.toFixed(0)}ms</span>
-                                  </td>
-                                </tr>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Tempo Mínimo</td>
-                                  <td className="py-3 px-4" style={{ color: '#10b981' }}>
-                                    {report.min_response_time.toFixed(0)}ms
-                                  </td>
-                                </tr>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Tempo Máximo</td>
-                                  <td className="py-3 px-4" style={{ color: '#ef4444' }}>
-                                    {report.max_response_time.toFixed(0)}ms
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <h3 className="text-lg font-semibold mb-3" style={{ color: '#ffffff' }}>Incidentes e Problemas</h3>
-                          <div className="overflow-x-auto">
-                            <table className="w-full border-collapse">
-                              <tbody>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Total de Incidentes</td>
-                                  <td className="py-3 px-4">
-                                    <span className={`text-xl font-bold ${report.incidents > 0 ? 'text-red-400' : 'text-green-400'}`}>
-                                      {report.incidents}
-                                    </span>
-                                  </td>
-                                </tr>
-                                <tr className="border-b" style={{ borderColor: '#2c313a' }}>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Último Incidente</td>
-                                  <td className="py-3 px-4" style={{ color: '#ffffff' }}>
-                                    {report.last_incident 
-                                      ? new Date(report.last_incident).toLocaleString('pt-BR')
-                                      : 'Nenhum incidente registrado'
-                                    }
-                                  </td>
-                                </tr>
-                                <tr>
-                                  <td className="py-3 px-4 font-medium" style={{ color: '#9ca3af' }}>Taxa de Sucesso</td>
-                                  <td className="py-3 px-4">
-                                    <span className={`font-bold ${getUptimeColor((report.successful_checks / report.total_checks) * 100)}`}>
-                                      {((report.successful_checks / report.total_checks) * 100).toFixed(2)}%
-                                    </span>
-                                    <span style={{ color: '#9ca3af' }}> ({report.successful_checks}/{report.total_checks})</span>
-                                  </td>
-                                </tr>
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
+                      <div className="report-details grid grid-cols-1 gap-6 md:grid-cols-2 2xl:grid-cols-4">
+                        <section>
+                          <h3 className="mb-1 font-semibold">Informações Básicas</h3>
+                          <dl>
+                            <div><dt>Nome</dt><dd className="font-medium">{monitor.name}</dd></div>
+                            <div><dt>URL</dt><dd><a href={monitor.url} target="_blank" rel="noopener noreferrer" className="break-all text-blue-400 hover:underline">{monitor.url}</a></dd></div>
+                            <div><dt>Status Atual</dt><dd>{getStatusBadge(monitor.status)}</dd></div>
+                            <div><dt>ID</dt><dd className="break-all font-mono text-xs text-muted-foreground">{monitor.id}</dd></div>
+                          </dl>
+                        </section>
+                        <section>
+                          <h3 className="mb-1 font-semibold">Estatísticas de Performance</h3>
+                          <dl>
+                            <div><dt>Uptime Geral</dt><dd className={getUptimeColor(report.uptime_percentage)}>{report.uptime_percentage.toFixed(2)}%</dd></div>
+                            <div><dt>Total de Verificações</dt><dd>{report.total_checks.toLocaleString()}</dd></div>
+                            <div><dt>Bem-sucedidas</dt><dd className="text-green-400">{report.successful_checks.toLocaleString()}</dd></div>
+                            <div><dt>Falhadas</dt><dd className="text-red-400">{report.failed_checks.toLocaleString()}</dd></div>
+                          </dl>
+                        </section>
+                        <section>
+                          <h3 className="mb-1 font-semibold">Tempos de Resposta</h3>
+                          <dl>
+                            <div><dt>Tempo Médio</dt><dd className="font-semibold">{report.avg_response_time.toFixed(0)}ms</dd></div>
+                            <div><dt>Tempo Mínimo</dt><dd className="text-green-400">{report.min_response_time.toFixed(0)}ms</dd></div>
+                            <div><dt>Tempo Máximo</dt><dd className="text-red-400">{report.max_response_time.toFixed(0)}ms</dd></div>
+                          </dl>
+                        </section>
+                        <section>
+                          <h3 className="mb-1 font-semibold">Incidentes e Problemas</h3>
+                          <dl>
+                            <div><dt>Total de Incidentes</dt><dd className={report.incidents > 0 ? 'text-red-400' : 'text-green-400'}>{report.incidents}</dd></div>
+                            <div><dt>Último Incidente</dt><dd>{report.last_incident ? new Date(report.last_incident).toLocaleString('pt-BR') : 'Nenhum incidente registrado'}</dd></div>
+                            <div><dt>Taxa de Sucesso</dt><dd className={getUptimeColor(report.total_checks ? (report.successful_checks / report.total_checks) * 100 : 0)}>{report.total_checks ? ((report.successful_checks / report.total_checks) * 100).toFixed(2) : '0.00'}%<span className="block text-xs text-muted-foreground">{report.successful_checks}/{report.total_checks} verificações</span></dd></div>
+                          </dl>
+                        </section>
                       </div>
                     )
                   })()} 
@@ -959,6 +871,13 @@ function ReportsPage() {
             </div>
           )}
         </div>
+      )}
+      {reports.length === 0 && monitorChecks.length === 0 && (
+        <Card className="p-8 text-center">
+          <Activity className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
+          <h2 className="font-medium">Nenhum dado neste período</h2>
+          <p className="mt-1 text-sm text-muted-foreground">Selecione outro período ou monitor para visualizar o relatório.</p>
+        </Card>
       )}
       </div>
       

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { PageHeader } from '../components/shared/PageHeader'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -48,11 +49,7 @@ export function SmtpConfigPage() {
   const [testEmail, setTestEmail] = useState('')
   const { addToast } = useToast()
 
-  useEffect(() => {
-    fetchConfig()
-  }, [])
-
-  const fetchConfig = async () => {
+  const fetchConfig = useCallback(async () => {
     try {
       const result = await apiGet('/smtp/config')
 
@@ -79,7 +76,11 @@ export function SmtpConfigPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [addToast])
+
+  useEffect(() => {
+    void fetchConfig()
+  }, [fetchConfig])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -164,14 +165,11 @@ export function SmtpConfigPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold" style={{ color: '#ffffff' }}>Configuração SMTP</h1>
-        <p style={{ color: '#9ca3af' }}>Configure o servidor de e-mail para notificações</p>
-      </div>
+      <PageHeader title="Configurações SMTP" description="Configure o servidor de e-mail para notificações" />
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-3">
         {/* Main Configuration */}
-        <div className="lg:col-span-2">
+        <div className="min-w-0 xl:col-span-2">
           <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2" style={{ color: '#ffffff' }}>
@@ -183,7 +181,7 @@ export function SmtpConfigPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleSave} className="space-y-4">
+              <form onSubmit={handleSave} className="space-y-5">
                 {/* Enable/Disable */}
                 <div className="flex items-center space-x-2">
                   <Switch
@@ -301,7 +299,7 @@ export function SmtpConfigPage() {
                 {/* Security Settings */}
                 <div className="space-y-4">
                   <h4 className="font-medium" style={{ color: '#ffffff' }}>Configurações de Segurança</h4>
-                  <div className="flex flex-col space-y-2">
+                  <div className="grid grid-cols-1 gap-3 2xl:grid-cols-2">
                     <div className="flex items-center space-x-2">
                       <Switch
                         id="use_tls"
@@ -322,7 +320,7 @@ export function SmtpConfigPage() {
                   </div>
                 </div>
 
-                <Button type="submit" disabled={saving} className="w-full">
+                <Button type="submit" disabled={saving} className="w-full sm:w-auto">
                   {saving ? (
                     <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
                   ) : (
@@ -336,7 +334,7 @@ export function SmtpConfigPage() {
         </div>
 
         {/* Test Panel */}
-        <div>
+        <div className="grid min-w-0 gap-5 md:grid-cols-2 xl:grid-cols-1">
           <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2" style={{ color: '#ffffff' }}>
@@ -386,7 +384,7 @@ export function SmtpConfigPage() {
           </Card>
 
           {/* Status Card */}
-          <Card className="mt-6" style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
+          <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
             <CardHeader>
               <CardTitle className="text-sm" style={{ color: '#ffffff' }}>Status da Configuração</CardTitle>
             </CardHeader>

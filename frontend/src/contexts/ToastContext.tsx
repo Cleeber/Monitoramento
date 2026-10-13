@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState } from 'react'
+import React, { createContext, useContext, useState, useCallback } from 'react'
 
 interface Toast {
   id: string
@@ -33,7 +33,11 @@ interface ToastProviderProps {
 export function ToastProvider({ children }: ToastProviderProps) {
   const [toasts, setToasts] = useState<Toast[]>([])
 
-  const addToast = (toast: Omit<Toast, 'id'>) => {
+  const removeToast = useCallback((id: string) => {
+    setToasts(prev => prev.filter(toast => toast.id !== id))
+  }, [])
+
+  const addToast = useCallback((toast: Omit<Toast, 'id'>) => {
     const id = Math.random().toString(36).substr(2, 9)
     const newToast = { ...toast, id }
     
@@ -43,23 +47,19 @@ export function ToastProvider({ children }: ToastProviderProps) {
     setTimeout(() => {
       removeToast(id)
     }, 5000)
-  }
+  }, [removeToast])
 
-  const removeToast = (id: string) => {
-    setToasts(prev => prev.filter(toast => toast.id !== id))
-  }
-
-  const success = (title: string, description?: string) => {
+  const success = useCallback((title: string, description?: string) => {
     addToast({ title, description, variant: 'success' })
-  }
+  }, [addToast])
 
-  const error = (title: string, description?: string) => {
+  const error = useCallback((title: string, description?: string) => {
     addToast({ title, description, variant: 'destructive' })
-  }
+  }, [addToast])
 
-  const info = (title: string, description?: string) => {
+  const info = useCallback((title: string, description?: string) => {
     addToast({ title, description, variant: 'default' })
-  }
+  }, [addToast])
 
   const value: ToastContextType = {
     toasts,

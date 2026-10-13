@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
+import { PageHeader } from '../components/shared/PageHeader'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -84,11 +85,7 @@ export function DomainsPage() {
   const [monitorToClearHistory, setMonitorToClearHistory] = useState<Monitor | null>(null)
   const { addToast } = useToast()
 
-  useEffect(() => {
-    fetchData()
-  }, [])
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       const monitorsResult = await apiGet('/dashboard/monitors')
 
@@ -103,7 +100,11 @@ export function DomainsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [addToast])
+
+  useEffect(() => {
+    void fetchData()
+  }, [fetchData])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -353,11 +354,7 @@ export function DomainsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-white">Domínios</h1>
-          <p className="text-gray-400">Gerencie os domínios monitorados</p>
-        </div>
+      <PageHeader title="Domínios" description="Gerencie os domínios e serviços monitorados" actions={<>
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openCreateDialog}>
@@ -365,7 +362,7 @@ export function DomainsPage() {
               Adicionar Monitor
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
+          <DialogContent className="admin-theme sm:max-w-[800px] max-h-[90vh] overflow-y-auto" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <DialogHeader>
               <DialogTitle className="text-white">
                 {editingMonitor ? 'Editar Monitor' : 'Novo Monitor'}
@@ -592,7 +589,7 @@ export function DomainsPage() {
           </DialogContent>
         </Dialog>
         <Dialog open={isClearHistoryDialogOpen} onOpenChange={setIsClearHistoryDialogOpen}>
-          <DialogContent style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
+          <DialogContent className="admin-theme max-h-[90vh] overflow-y-auto" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <DialogHeader>
               <DialogTitle className="text-white">Limpar Histórico</DialogTitle>
               <DialogDescription className="text-gray-400">
@@ -611,19 +608,21 @@ export function DomainsPage() {
             </div>
           </DialogContent>
         </Dialog>
-      </div>
+      </>} />
 
       {/* Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3 rounded-lg border border-border bg-card p-4 sm:flex-row sm:items-center">
+        <div className="relative w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
           <Input
+            aria-label="Buscar monitores"
             placeholder="Buscar por nome ou URL..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-10"
           />
         </div>
+        <p className="text-xs text-muted-foreground sm:ml-auto">{filteredMonitors.length} de {monitors.length} monitores</p>
       </div>
 
       {/* Monitors List */}
@@ -688,7 +687,7 @@ export function DomainsPage() {
                       <span className="font-medium text-white">{monitor.name}</span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-gray-300 text-sm">{monitor.url}</span>
+                      <span className="block max-w-[360px] truncate text-gray-300 text-sm" title={monitor.url}>{monitor.url}</span>
                     </TableCell>
                     <TableCell>
                       <span className="text-gray-400 text-sm">{monitor.type.toUpperCase()}</span>

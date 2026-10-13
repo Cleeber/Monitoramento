@@ -3,7 +3,6 @@ import { Badge } from '@/components/ui/badge'
 import { 
   CheckCircle, 
   AlertTriangle, 
-  Clock, 
   Activity,
   Globe,
   Calendar,
@@ -67,7 +66,7 @@ interface StatusPageTemplateProps {
   isPdf?: boolean
 }
 
-function getStatusIcon(status: string, id?: string) {
+function getStatusIcon(status: string) {
   switch (status) {
     case 'online':
       return <CheckCircle className="h-5 w-5 text-green-500" />
@@ -295,7 +294,7 @@ export function StatusPageTemplate({
                     }}
                   >
                     <div className="flex items-center space-x-4">
-                      {getStatusIcon(monitor.status, monitor.id)}
+                      {getStatusIcon(monitor.status)}
                       <div>
                         <h4 className="font-medium" style={{ color: '#1f2937', fontSize: isPdf ? '0.85rem' : '1rem' }}>{monitor.name}</h4>
                         <p className="text-sm" style={{ color: '#6b7280' }}>{monitor.url}</p>

@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react'
+import { PageHeader } from '../components/shared/PageHeader'
+import { Button } from '../components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card'
 import { Badge } from '../components/ui/badge'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table'
@@ -9,6 +11,7 @@ import {
   XCircle,
   Monitor,
   TrendingUp,
+  Clock,
   ArrowUpDown
 } from 'lucide-react'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
@@ -129,10 +132,11 @@ export function DashboardPage() {
       case 'alphabetical':
         sorted = monitorsCopy.sort((a, b) => a.name.localeCompare(b.name))
         break
-      case 'status':
+      case 'status': {
         const statusOrder: { [key: string]: number } = { 'offline': 0, 'warning': 1, 'online': 2, 'unknown': 3 }
         sorted = monitorsCopy.sort((a, b) => (statusOrder[a.status] || 3) - (statusOrder[b.status] || 3))
         break
+      }
       case 'recent':
       default:
         sorted = monitorsCopy.sort((a, b) => {
@@ -156,11 +160,12 @@ export function DashboardPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
+      <PageHeader title="Dashboard" description="Visão geral da disponibilidade e do desempenho dos seus serviços" />
 
       {/* Stats Cards */}
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-400">Total de Sites</CardTitle>
@@ -210,8 +215,18 @@ export function DashboardPage() {
             <CardContent>
               <div className="text-2xl font-bold text-white">{stats.avg_uptime?.toFixed(1) || '0.0'}%</div>
               <p className="text-xs text-gray-400">
-                {stats.avg_response_time ? `Tempo médio: ${stats.avg_response_time.toFixed(0)}ms` : 'Sem dados de resposta'}
+                Disponibilidade média dos serviços
               </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">Tempo de Resposta</CardTitle>
+              <Clock className="h-4 w-4 text-gray-400" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{stats.avg_response_time ? `${stats.avg_response_time.toFixed(0)}ms` : '—'}</div>
+              <p className="text-xs text-muted-foreground">Tempo médio dos serviços</p>
             </CardContent>
           </Card>
         </div>
@@ -220,18 +235,21 @@ export function DashboardPage() {
       {/* Sites Monitorados Section */}
       <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
         <CardHeader>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="text-white">Sites Monitorados</CardTitle>
             <div className="flex items-center gap-2">
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
-                className="p-1 rounded hover:bg-gray-700 transition-colors"
+                className="shrink-0"
+                aria-label="Inverter ordem dos monitores"
                 title={`Ordenação ${sortOrder === 'asc' ? 'crescente' : 'decrescente'}`}
               >
                 <ArrowUpDown className={`h-4 w-4 text-gray-400 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
-              </button>
+              </Button>
               <Select value={sortBy} onValueChange={(value) => setSortBy(value as 'recent' | 'alphabetical' | 'status')}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[180px]" aria-label="Ordenar monitores">
                   <SelectValue placeholder="Ordenar por" />
                 </SelectTrigger>
                 <SelectContent>

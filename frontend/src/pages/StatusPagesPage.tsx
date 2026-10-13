@@ -1,4 +1,6 @@
 import React, { useState, useMemo } from 'react';
+import { PageHeader } from '../components/shared/PageHeader';
+import { Card, CardContent, CardHeader, CardTitle } from '../components/ui/card';
 import { ExternalLink, Globe, Monitor, Filter, ArrowUpDown } from 'lucide-react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Button } from '../components/ui/button';
@@ -15,7 +17,7 @@ const StatusPagesPage: React.FC = () => {
   const [monitorsSortReverse, setMonitorsSortReverse] = useState(false);
 
   const handleOpenStatusPage = (url: string) => {
-    window.open(url, '_blank');
+    window.open(url, '_blank', 'noopener,noreferrer');
   };
 
   // Função para ordenar monitores
@@ -32,7 +34,7 @@ const StatusPagesPage: React.FC = () => {
       case 'recent':
         sorted = monitorsCopy.sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
         break;
-      case 'status':
+      case 'status': {
         // Ordenar por status: online > warning > offline > unknown
         const statusOrder = { 'online': 0, 'warning': 1, 'offline': 2, 'unknown': 3 };
         sorted = monitorsCopy.sort((a, b) => {
@@ -41,6 +43,7 @@ const StatusPagesPage: React.FC = () => {
           return statusA - statusB;
         });
         break;
+      }
       default:
         sorted = monitorsCopy;
     }
@@ -59,7 +62,7 @@ const StatusPagesPage: React.FC = () => {
     <div className="flex items-center space-x-2">
       <Filter className="h-4 w-4 text-gray-400" />
       <Select value={value} onValueChange={onChange}>
-        <SelectTrigger className="w-[180px] bg-gray-800 border-gray-600 text-white">
+        <SelectTrigger className="w-[180px]" aria-label="Ordenar monitores">
           <SelectValue />
         </SelectTrigger>
         <SelectContent className="bg-gray-800 border-gray-600">
@@ -76,6 +79,7 @@ const StatusPagesPage: React.FC = () => {
         onClick={() => onReverseChange(!reverse)}
         className="transition-all duration-200 bg-gray-800 border-gray-600 text-gray-400 hover:bg-gray-700 hover:border-gray-500 hover:text-white"
         title={reverse ? 'Ordem Decrescente' : 'Ordem Crescente'}
+        aria-label="Inverter ordem dos monitores"
       >
         <ArrowUpDown className="h-4 w-4" />
       </Button>
@@ -108,53 +112,48 @@ const StatusPagesPage: React.FC = () => {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-white mb-2">Páginas de Status</h1>
-        <p className="text-gray-400">
-          Acesse as páginas públicas de status para compartilhar
-        </p>
-      </div>
+    <div className="space-y-5">
+      <PageHeader title="Páginas de Status" description="Acesse e compartilhe as páginas públicas dos seus serviços" />
 
-      <div className="grid gap-6">
+      <div className="grid grid-cols-1 items-start gap-5 xl:grid-cols-[300px_minmax(0,1fr)]">
         {/* Página de Status Geral */}
-        <div className="rounded-lg border p-6" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
-          <div className="flex items-start justify-between">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 rounded-lg" style={{backgroundColor: '#1e3a8a'}}>
+        <Card>
+          <CardContent className="pt-5">
+          <div className="flex flex-col gap-4">
+            <div className="flex min-w-0 items-start gap-3">
+              <div className="shrink-0 p-2 rounded-lg" style={{backgroundColor: '#1e3a8a'}}>
                 <Globe className="h-6 w-6 text-white" />
               </div>
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-lg font-semibold text-white">Todas as Páginas</h3>
                 <p className="text-gray-400 text-sm">
                   Página de status geral com todos os serviços monitorados
                 </p>
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="break-all text-xs text-gray-500 mt-1">
                   URL: {getAllStatusPageUrl()}
                 </p>
               </div>
             </div>
-            <button
+            <Button
               onClick={() => handleOpenStatusPage(getAllStatusPageUrl())}
-              className="flex items-center space-x-2 px-4 py-2 text-white rounded-lg transition-colors"
-              style={{backgroundColor: '#1e3a8a'}}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#1e40af'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#1e3a8a'}
+              className="gap-2 bg-[#1e3a8a] hover:bg-blue-800"
             >
               <ExternalLink className="h-4 w-4" />
-              <span>Abrir</span>
-            </button>
+              <span>Abrir status geral</span>
+            </Button>
           </div>
-        </div>
+          </CardContent>
+        </Card>
 
         {/* Monitores Individuais */}
         {monitors.length > 0 && (
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold text-white flex items-center space-x-2">
+          <Card>
+            <CardHeader>
+            <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
+              <CardTitle className="text-white flex items-center gap-2">
                 <Monitor className="h-5 w-5" />
                 <span>Monitores Individuais</span>
-              </h2>
+              </CardTitle>
               <SortFilter 
                 value={monitorsSortBy} 
                 onChange={setMonitorsSortBy}
@@ -163,8 +162,9 @@ const StatusPagesPage: React.FC = () => {
                 showStatus={true} 
               />
             </div>
-            <div className="rounded-lg border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
-              <Table>
+            </CardHeader>
+            <CardContent>
+              <Table className="min-w-[760px]">
                 <TableHeader>
                   <TableRow style={{borderColor: '#2c313a'}}>
                     <TableHead className="text-gray-300">Monitor</TableHead>
@@ -176,19 +176,19 @@ const StatusPagesPage: React.FC = () => {
                 <TableBody>
                   {sortedMonitors.map((monitor) => (
                     <TableRow key={monitor.id} style={{borderColor: '#2c313a'}} className="hover:bg-gray-800/50">
-                      <TableCell className="text-white">
+                      <TableCell className="min-w-[180px] text-white">
                         <div className="flex items-center space-x-2">
-                          <Monitor className="h-4 w-4 text-green-500" />
+                          <Monitor aria-label={monitor.status} className={`h-4 w-4 shrink-0 ${monitor.status === 'online' ? 'text-green-500' : monitor.status === 'offline' ? 'text-red-500' : monitor.status === 'warning' ? 'text-yellow-500' : 'text-gray-500'}`} />
                           <span className="font-medium">{monitor.name}</span>
                         </div>
                       </TableCell>
                       <TableCell className="text-gray-300">
-                        <code className="text-xs bg-gray-800 px-2 py-1 rounded">
+                        <code className="block max-w-[220px] truncate text-xs" title={monitor.url}>
                           {monitor.url}
                         </code>
                       </TableCell>
                       <TableCell className="text-gray-300">
-                        <code className="text-xs bg-gray-800 px-2 py-1 rounded">
+                        <code className="block max-w-[240px] truncate text-xs" title={getStatusPageUrl(monitor.slug)}>
                           {getStatusPageUrl(monitor.slug)}
                         </code>
                       </TableCell>
@@ -206,22 +206,22 @@ const StatusPagesPage: React.FC = () => {
                   ))}
                 </TableBody>
               </Table>
-            </div>
-          </div>
+            </CardContent>
+          </Card>
         )}
 
         {monitors.length === 0 && !loading && (
-          <div className="border rounded-lg p-6 text-center" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
+          <Card className="p-6 text-center">
             <Monitor className="h-12 w-12 text-gray-400 mx-auto mb-3" />
             <h3 className="text-lg font-medium text-white mb-2">Nenhuma página de status encontrada</h3>
             <p className="text-gray-400">
               Crie monitores para gerar páginas de status personalizadas
             </p>
-          </div>
+          </Card>
         )}
       </div>
 
-      <div className="mt-8 p-4 border rounded-lg" style={{backgroundColor: '#1e3a8a', borderColor: '#3b82f6'}}>
+      <div className="p-4 border border-blue-500/30 bg-blue-600/10 rounded-lg">
         <h3 className="text-sm font-medium text-blue-200 mb-2">💡 Dica</h3>
         <p className="text-sm text-blue-100">
           Compartilhe estes links para que possam acompanhar o status dos serviços em tempo real.

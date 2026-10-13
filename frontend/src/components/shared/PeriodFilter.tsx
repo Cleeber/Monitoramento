@@ -24,7 +24,7 @@ export function PeriodFilter({ selectedTimeRange, onTimeRangeChange, className }
   return (
     <div className={className || ''}>
       <Select value={selectedTimeRange} onValueChange={onTimeRangeChange}>
-        <SelectTrigger className="w-[250px]">
+        <SelectTrigger className="w-full sm:w-[220px]" aria-label="Período do relatório">
           <SelectValue placeholder="Selecione o período" />
         </SelectTrigger>
         <SelectContent>
