@@ -46,6 +46,7 @@ import {
 } from './lib/auth.js'
 import { apiLogger } from './lib/logger.js'
 import { requestIdMiddleware } from './middleware/requestId.middleware.js'
+import { bootstrapAdmin } from './lib/bootstrapAdmin.js'
 
 // Estender o tipo Request do Express para incluir o usuário e requestId
 declare global {
@@ -256,20 +257,15 @@ async function createRequiredTables() {
 // Função para inicializar dados padrão se necessário
 async function initializeDefaultData() {
   try {
-    // Verificar se já existe um usuário admin
-    const adminUser = await databaseService.getUserByEmail('admin@agencia.com')
-
-    if (!adminUser) {
-      apiLogger('info', 'Criando usuário administrador padrão')
-      await databaseService.createUser({
-        email: 'admin@agencia.com',
-        password: 'admin123',
-        name: 'Administrador',
-        role: 'admin'
-      })
-      apiLogger('info', 'Usuário administrador criado com sucesso')
+    const adminStatus = await bootstrapAdmin(databaseService)
+    if (adminStatus === 'created') {
+      apiLogger('info', 'Primeiro administrador criado com as credenciais configuradas')
     }
+  } catch (error) {
+    apiLogger('error', 'Erro ao configurar administrador inicial', { error: error instanceof Error ? error.message : String(error) })
+  }
 
+  try {
     // Definir referência ao database service
     monitoringService.setDatabaseService(databaseService)
 
@@ -328,7 +324,7 @@ app.post('/api/auth/login', loginLimiter, async (req, res) => {
 
     // Usa bcrypt para validar senha. Todas as senhas no banco DEVEM ser hashadas.
     const storedPassword = user.password
-    if (!storedPassword.startsWith('$2a$') && !storedPassword.startsWith('$2b$')) {
+    if (typeof storedPassword !== 'string' || (!storedPassword.startsWith('$2a$') && !storedPassword.startsWith('$2b$'))) {
       apiLogger('error', 'Senha não-hashada no banco', { userId: user.id })
       return res.status(401).json({ error: 'Credenciais inválidas' })
     }

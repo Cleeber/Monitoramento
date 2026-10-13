@@ -36,15 +36,27 @@ export class DatabaseService {
     return data
   }
 
+  async getAdminUser() {
+    const { data, error } = await supabase
+      .from('users')
+      .select('id')
+      .eq('role', 'admin')
+      .limit(1)
+      .maybeSingle()
+
+    if (error) throw error
+    return data
+  }
+
   async createUser(userData: { email: string; password: string; name: string; role?: 'admin' | 'user' }) {
     const passwordHash = await bcrypt.hash(userData.password, 10)
     
-    const { data, error } = await (supabase as any)
+    const { data, error } = await supabase
       .from('users')
       .insert({
         id: uuidv4(),
         email: userData.email,
-        password_hash: passwordHash,
+        password: passwordHash,
         name: userData.name,
         role: userData.role || 'user',
         created_at: new Date().toISOString(),

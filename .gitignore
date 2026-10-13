@@ -11,6 +11,9 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Local Supabase CLI project link and cached connection metadata
+supabase/.temp/
+
 # Build outputs
 dist/
 build/

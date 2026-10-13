@@ -133,15 +133,8 @@ CREATE POLICY "Enable all operations for authenticated users" ON public.smtp_con
 CREATE POLICY "Enable all operations for authenticated users" ON public.reports
     FOR ALL USING (auth.role() = 'authenticated');
 
--- Inserir usuário administrador padrão (senha: admin123)
-INSERT INTO public.users (email, password, name, role)
-VALUES (
-    'admin@agencia.com',
-    '$2a$10$.YgNGvh7ZQ7FqSHlyv.Ra.kgPwCz1vXWXAPySIhrzcaAKz59askIe',
-    'Administrador',
-    'admin'
-)
-ON CONFLICT (email) DO NOTHING;
+-- O primeiro administrador é criado pelo backend com ADMIN_EMAIL e ADMIN_PASSWORD.
+-- Não inclua credenciais ou hashes de usuários neste schema.
 
 -- Inserir grupo de exemplo
 INSERT INTO public.groups (name, description)

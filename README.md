@@ -117,6 +117,13 @@ PORT=8081
 NODE_ENV=development
 ```
 
+Não há credenciais padrão de administrador. Para um banco novo, configure
+`ADMIN_EMAIL` e `ADMIN_PASSWORD` no ambiente privado do backend antes da primeira
+inicialização. O cadastro só ocorre quando não existe nenhum admin e não altera
+senhas de contas existentes. Remova essas variáveis após criar o primeiro admin.
+O login usa a tabela `public.users`, com senha armazenada como hash bcrypt;
+a conta do Dashboard e os usuários do Supabase Auth são independentes desse login.
+
 ## Execução
 
 ### Desenvolvimento — um único comando

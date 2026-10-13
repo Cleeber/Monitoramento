@@ -32,10 +32,19 @@ SUPABASE_ANON_KEY=sua_chave_anonima
 SUPABASE_SERVICE_ROLE_KEY=sua_chave_de_servico
 ```
 
-### 5. Dados Padrão
-O script já inclui:
-- Usuário administrador: `admin@agencia.com` / `admin123`
-- Grupo de exemplo: "Grupo Exemplo"
+### 5. Primeiro Administrador
+Não há login ou senha padrão. Em um banco novo, configure `ADMIN_EMAIL` e
+`ADMIN_PASSWORD` no ambiente privado do backend e inicie a aplicação. Opcionalmente,
+configure `ADMIN_NAME`. O backend grava a senha com bcrypt na coluna `public.users.password`.
+
+O cadastro inicial só ocorre se ainda não existir um usuário com perfil `admin`.
+Credenciais de administradores existentes não são alteradas no startup. Após o primeiro
+cadastro, remova `ADMIN_EMAIL` e `ADMIN_PASSWORD` do ambiente.
+
+O login da aplicação consulta `public.users` pela API do backend. Alterar a senha
+da conta do Dashboard Supabase ou de um usuário do Supabase Auth não muda essa senha.
+
+O schema inclui um grupo de exemplo: "Grupo Exemplo".
 
 ## Funcionalidades Implementadas
 
@@ -61,8 +70,8 @@ O script já inclui:
 ## Testando a Funcionalidade
 
 1. **Teste de Login**:
-   - Acesse `http://localhost:3000/login`
-   - Use: `admin@agencia.com` / `admin123`
+   - Acesse `http://localhost:3001/login` no desenvolvimento ou `/login` no site publicado.
+   - Use as credenciais atuais do administrador cadastrado em `public.users`.
 
 2. **Teste de Cadastro de Grupo**:
    - Vá para a página de Grupos
