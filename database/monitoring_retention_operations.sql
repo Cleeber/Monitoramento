@@ -1,4 +1,6 @@
 -- Administrative SQL Editor only. This schema is not exposed through the API.
+-- Current schedule: 17 5 * * * (05:17 UTC = 02:17 America/Sao_Paulo), once/day.
+-- The single daily job processes up to two 5,000-check batches.
 -- Configuration and status (read-only).
 SELECT jobid, jobname, schedule, active, username FROM cron.job
 WHERE jobname = 'monitoring-retention-180-days';
