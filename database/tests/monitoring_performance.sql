@@ -57,6 +57,16 @@ BEGIN
     OR has_function_privilege('authenticated','public.get_monitoring_bootstrap(uuid[],timestamptz)','EXECUTE') THEN
     RAISE EXCEPTION 'New RPC is accessible to client roles';
   END IF;
+  IF NOT (SELECT reloptions @> ARRAY['autovacuum_vacuum_scale_factor=0.05','autovacuum_analyze_scale_factor=0.02']
+    FROM pg_class WHERE oid='public.monitor_checks'::regclass) THEN
+    RAISE EXCEPTION 'Autovacuum thresholds were not installed';
+  END IF;
+  IF to_regclass('public.idx_monthly_report_configs_is_active') IS NOT NULL
+    OR to_regclass('public.idx_users_email') IS NOT NULL OR to_regclass('public.idx_monitors_slug') IS NOT NULL
+    OR to_regclass('public.users_email_key') IS NULL OR to_regclass('public.idx_monitors_slug_unique') IS NULL
+    OR to_regclass('public.idx_monthly_report_configs_active') IS NULL THEN
+    RAISE EXCEPTION 'Redundant indexes remain or equivalent indexes were removed';
+  END IF;
   RAISE EXCEPTION 'PERFORMANCE_TEST_PASSED_ROLLED_BACK';
 END;
 $test$;

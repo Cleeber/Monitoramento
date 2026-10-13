@@ -23,7 +23,9 @@ for (const table of tables) {
     assert.equal(error?.code, '42501', `${table}: anonymous ${operation} should be denied`)
   }
 }
-for (const [name, args] of [['exec_sql', { sql: 'SELECT 1' }], ['cleanup_expired_refresh_tokens', {}]]) {
+for (const [name, args] of [['exec_sql', { sql: 'SELECT 1' }], ['cleanup_expired_refresh_tokens', {}],
+  ['get_monitoring_bootstrap', { p_monitor_ids: [missingId], p_as_of: new Date().toISOString() }],
+  ['get_monitor_report_metrics', { p_monitor_id: missingId, p_start: '2026-10-01', p_end: '2026-10-02' }]]) {
   const { error } = await anon.rpc(name, args)
   assert.equal(error?.code, '42501', `${name}: anonymous execution should be denied`)
 }
