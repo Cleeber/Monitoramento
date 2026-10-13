@@ -287,7 +287,7 @@ export class DatabaseService {
         error_message: checkData.error_message ?? null,
         status_code: checkData.status_code ?? null
       })
-    } catch {}
+    } catch { /* Uma falha de log não deve impedir a gravação da verificação. */ }
     const { data, error } = await (supabase as any)
       .from('monitor_checks')
       .insert({
@@ -537,7 +537,7 @@ export class DatabaseService {
 
   // ===== REPORTS =====
   async getReports(_filters?: { period?: string }) {
-    let query = (supabase as any)
+    const query = (supabase as any)
       .from('reports')
       .select('*')
       .order('year', { ascending: false })

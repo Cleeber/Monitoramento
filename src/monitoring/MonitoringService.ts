@@ -330,36 +330,34 @@ class MonitoringService extends EventEmitter {
     let responseTime: number | null = null
     let errorMessage: string | null = null
     let statusCode: number | null = null
-    let lastValidationErrors: Array<{ validator: string; verdict: string; message: string }> | null = null
 
     try {
       switch (monitor.type) {
-        case 'http':
+        case 'http': {
           const result = await this.checkHttpFromConfig(monitor)
           status = result.status
           responseTime = result.responseTime
           errorMessage = result.error
           statusCode = result.statusCode ?? null
-          // Armazenar detalhes dos validadores que falharam
-          if (result.validations) {
-            lastValidationErrors = result.validations
-          }
           break
+        }
           
-        case 'ping':
+        case 'ping': {
           const pingResult = await this.checkPing(monitor.url, monitor.timeout)
           status = pingResult.status
           responseTime = pingResult.responseTime
           errorMessage = pingResult.error
           break
+        }
           
-        case 'tcp':
+        case 'tcp': {
           // Implementação básica para TCP (pode ser expandida)
           const tcpResult = await this.checkTcp(monitor.url, monitor.timeout)
           status = tcpResult.status
           responseTime = tcpResult.responseTime
           errorMessage = tcpResult.error
           break
+        }
       }
     } catch (error) {
       status = 'offline'
@@ -502,17 +500,13 @@ class MonitoringService extends EventEmitter {
       }
       
       // Se foi erro de rede (DNS, Timeout, Reset), tentar forçar IPv4
-      try {
-        return await axios({
-          method,
-          url,
-          ...config,
-          httpAgent: ipv4HttpAgent,
-          httpsAgent: ipv4HttpsAgent
-        })
-      } catch (retryError) {
-        throw retryError
-      }
+      return await axios({
+        method,
+        url,
+        ...config,
+        httpAgent: ipv4HttpAgent,
+        httpsAgent: ipv4HttpsAgent
+      })
     }
   }
 
@@ -524,8 +518,6 @@ class MonitoringService extends EventEmitter {
     statusCode?: number
     validations?: Array<{ validator: string; verdict: string; message: string }>
   }> {
-    const startTime = Date.now()
-
     // Derivar origem para headers
     let refererOrigin: string | undefined
     try {
@@ -537,10 +529,10 @@ class MonitoringService extends EventEmitter {
     let lastResponseTime: number | null = null
     let responseBody: string | null = null
     let responseHeaders: Record<string, string> = {}
-    let isTimeout = false
-    let isDnsFail = false
-    let isConnectionRefused = false
-    let isSslError = false
+    const isTimeout = false
+    const isDnsFail = false
+    const isConnectionRefused = false
+    const isSslError = false
 
     try {
       // 1) Primeiro tenta HEAD
@@ -782,7 +774,7 @@ class MonitoringService extends EventEmitter {
       try {
         const u = new URL(host)
         port = u.protocol === 'http:' ? 80 : 443
-      } catch {}
+      } catch { /* Endereços sem esquema usam a porta padrão 443. */ }
 
       // 1) Primeiro tenta o ping do sistema (busybox/iputils) via exec para evitar incompatibilidades da lib
       const timeoutSec = Math.max(1, Math.floor(timeout / 1000))
@@ -846,7 +838,7 @@ class MonitoringService extends EventEmitter {
         const done = (ok: boolean) => {
           if (settled) return
           settled = true
-          try { socket.destroy() } catch {}
+          try { socket.destroy() } catch { /* A conexão já pode estar encerrada. */ }
           resolve(ok)
         }
         socket.setTimeout(timeout)

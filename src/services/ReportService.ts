@@ -585,7 +585,7 @@ ${this.generateAnalysis(stats)}
       const stats = await this.collectMonitorStats(monitorId, new Date(year, month - 1, 1), new Date(year, month, 0, 23, 59, 59))
       const reportContent = this.generateTextContent(monitor, stats, `${this.getMonthName(month)} ${year}`)
       
-      let attachments: any[] = []
+      const attachments: any[] = []
       
       try {
         // 1. PDF do Monitor

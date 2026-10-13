@@ -20,7 +20,6 @@ import helmet from 'helmet'
 import compression from 'compression'
 import rateLimit from 'express-rate-limit'
 import cookieParser from 'cookie-parser'
-import jwt from 'jsonwebtoken'
 import bcrypt from 'bcryptjs'
 import multer from 'multer'
 import MonitoringService from './monitoring/MonitoringService.js'
@@ -38,7 +37,6 @@ import {
   generateRefreshToken,
   storeRefreshToken,
   revokeAllUserRefreshTokens,
-  revokeRefreshToken,
   verifyToken,
   validateRefreshToken,
   setAccessCookie,
@@ -66,7 +64,6 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const app = express()
 const PORT = process.env.PORT || 8081
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key'
 
 // Inicializar serviço de monitoramento
 const monitoringService = new MonitoringService()
@@ -1101,10 +1098,8 @@ app.get('/api/monthly-reports/history', authenticateToken, async (req, res) => {
 })
 
 // Rotas de PDF
-app.get('/api/pdf/status', authenticateToken, async (req, res) => {
+app.get('/api/pdf/status', authenticateToken, async (_req, res) => {
   try {
-    const { title } = req.query
-    
     const monitors = await databaseService.getMonitors()
     const pdfBuffer = await pdfService.generateOverviewPDF(monitors)
     

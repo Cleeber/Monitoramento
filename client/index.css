@@ -2,6 +2,40 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The admin palette is scoped so public status pages keep their own theme. */
+@layer base {
+  .admin-theme {
+    --background: 220 13% 9%; /* #14161a */
+    --card: 218 14% 11%; /* #181b20 */
+    --popover: 219 14% 20%;
+    --secondary: 219 14% 20%; /* #2c313a */
+    --muted: 219 14% 20%;
+    --accent: 219 14% 20%;
+    --border: 219 14% 20%;
+    --input: 219 14% 20%;
+    --foreground: 0 0% 100%;
+    --card-foreground: 0 0% 100%;
+    --muted-foreground: 218 11% 65%;
+    --radius: 0.75rem;
+    --card-padding: 1.25rem;
+    --card-title-size: 1rem;
+    --card-title-leading: 1.4;
+  }
+}
+
+@layer components {
+  .admin-theme :where([data-slot="card"]) { @apply min-w-0 shadow-none; }
+  .admin-theme table { @apply text-sm; }
+  .admin-theme th { @apply whitespace-nowrap text-xs font-medium; }
+  .admin-theme td { @apply py-3; }
+  .admin-theme input { @apply placeholder:text-muted-foreground; }
+  .report-details > section { @apply min-w-0; }
+  .report-details h3 { @apply text-sm; }
+  .report-details dl > div { @apply flex items-start justify-between gap-4 border-b border-border py-3 text-sm last:border-0; }
+  .report-details dt { @apply text-muted-foreground; }
+  .report-details dd { @apply min-w-0 text-right tabular-nums; }
+}
+
 @layer base {
   :root {
     --background: 222.2 84% 4.9%;

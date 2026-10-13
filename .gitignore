@@ -18,6 +18,7 @@ supabase/.temp/
 dist/
 build/
 client-dist/
+*.tsbuildinfo
 .next/
 out/
 

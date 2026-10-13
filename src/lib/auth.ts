@@ -9,7 +9,6 @@
 
 import jwt from 'jsonwebtoken'
 import crypto from 'crypto'
-import type { Response } from 'express'
 
 // ─── Config ──────────────────────────────────────────────────────────────────
 

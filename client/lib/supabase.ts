@@ -17,12 +17,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 // Estes são os mesmos tipos usados pelo backend, garantindo paridade.
 // O arquivo vive em `src/lib/database.types.ts` (lado do servidor); como é
 // puramente tipos TypeScript, pode ser importado pelo Vite sem custo no bundle.
-export type { Database, Tables, TablesInsert, TablesUpdate, Enums } from '../../src/lib/database.types'
-
-// Aliases de conveniência
-export type Tables<T extends keyof Database['public']['Tables']> =
-  Database['public']['Tables'][T]['Row']
-export type Inserts<T extends keyof Database['public']['Tables']> =
-  Database['public']['Tables'][T]['Insert']
-export type Updates<T extends keyof Database['public']['Tables']> =
-  Database['public']['Tables'][T]['Update']
+export type {
+  Database,
+  Tables,
+  TablesInsert,
+  TablesUpdate,
+  Enums,
+  TablesInsert as Inserts,
+  TablesUpdate as Updates,
+} from '../../src/lib/database.types'

@@ -117,7 +117,6 @@ export class SchedulerService {
       const today = new Date()
       const reportMonth = today.getMonth() + 1
       const reportYear = today.getFullYear()
-      const todayStr = today.toISOString().split('T')[0] // YYYY-MM-DD
       
       console.log(`📧 Processando relatório para monitor ${monitor.name} (${monitor.id})`)
       

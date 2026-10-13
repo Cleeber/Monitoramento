@@ -203,7 +203,7 @@ export class PDFService {
 
     let currentY = startY + 30
     
-    incidents.forEach((incident, index) => {
+    incidents.forEach((incident) => {
       // Verificar se precisa de nova página
       if (currentY > 700) {
         doc.addPage()

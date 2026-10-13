@@ -6,7 +6,7 @@ import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
-import { Eye, EyeOff } from 'lucide-react'
+import { Eye, EyeOff, Activity, Globe, BarChart3 } from 'lucide-react'
 
 export function LoginPage() {
   const { login, isAuthenticated, loading } = useAuth()
@@ -56,8 +56,20 @@ export function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4" style={{backgroundColor: '#14161a'}}>
-      <div className="w-full max-w-md">
+    <div className="admin-theme min-h-screen bg-background p-4 text-foreground sm:p-8 lg:grid lg:grid-cols-2 lg:items-center lg:gap-16 lg:px-16 xl:px-24">
+      <div className="mx-auto hidden w-full max-w-xl space-y-10 lg:block">
+        <img src="/Pag1_Principal.svg" alt="Página 1" className="w-44" />
+        <div className="space-y-4">
+          <p className="text-xs font-medium uppercase tracking-[0.18em] text-blue-400">Monitoramento de serviços</p>
+          <h1 className="text-4xl font-semibold leading-tight tracking-tight xl:text-5xl">Cada serviço.<br />Tudo sob controle.</h1>
+          <p className="max-w-md text-base leading-relaxed text-muted-foreground">Acompanhe a disponibilidade dos seus sites, identifique incidentes e visualize o desempenho em um só lugar.</p>
+        </div>
+        <div className="grid grid-cols-3 gap-4 border-t border-border pt-6">
+          {[{ icon: Activity, text: 'Disponibilidade' }, { icon: Globe, text: 'Domínios' }, { icon: BarChart3, text: 'Relatórios' }].map(item => <div key={item.text} className="space-y-3"><item.icon className="h-5 w-5 text-blue-400" /><p className="text-sm text-muted-foreground">{item.text}</p></div>)}
+        </div>
+      </div>
+      <div className="mx-auto flex min-h-[calc(100vh-2rem)] w-full max-w-md flex-col justify-center lg:min-h-0">
+        <img src="/Pag1_Principal.svg" alt="Página 1" className="mx-auto mb-8 w-32 lg:hidden" />
         {/* Login Card */}
         <Card className="border" style={{backgroundColor: '#181b20', borderColor: '#2c313a'}}>
           <CardHeader className="space-y-1 pb-6">
@@ -107,6 +119,7 @@ export function LoginPage() {
                     size="icon"
                     className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
                     onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? 'Ocultar senha' : 'Mostrar senha'}
                     disabled={isLoading}
                   >
                     {showPassword ? (

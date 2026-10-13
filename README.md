@@ -86,6 +86,26 @@ Para garantir consistência em todo o sistema, consulte o documento de padrões:
 
 ## Instalação e Configuração
 
+### Verificações de qualidade
+
+Depois de instalar as dependências, execute `npm run check` para validar ESLint,
+TypeScript (frontend, backend e configuração do Vite), os testes de autenticação
+e o build de produção. O mesmo comando é executado no CI antes do deploy.
+
+Os checks também podem ser executados separadamente:
+
+```bash
+npm run lint
+npm run typecheck
+npm test
+npm run build
+```
+
+O ESLint verifica o código TypeScript e os hooks React. Diretórios de build,
+dependências e o arquivo de tipos gerado pelo Supabase são ignorados. Os usos
+existentes de `any` em integrações e respostas dinâmicas da API são permitidos;
+as verificações estritas do TypeScript permanecem ativas.
+
 ### Pré-requisitos
 - Node.js (versão 18 ou superior)
 - npm
