@@ -21,8 +21,8 @@ export class SchedulerService {
       // Agendar relatórios individuais para cada monitor
       await this.scheduleIndividualMonitorReports()
       
-      // Agendar limpeza de logs antigos (opcional)
-      this.scheduleLogCleanup()
+      // A retenção é executada no Supabase por maintenance.cleanup_monitoring_data.
+      // Não agendar o DELETE antigo de 30 dias: ele conflita com a retenção de 180 dias.
       
       this.isInitialized = true
       console.log('✅ SchedulerService inicializado com sucesso')
@@ -52,7 +52,7 @@ export class SchedulerService {
         }
       }
       
-      console.log(`📅 Agendados relatórios para ${this.jobs.size - 1} monitores`) // -1 para excluir o job de limpeza
+      console.log(`📅 Agendados relatórios para ${this.jobs.size} monitores`)
     } catch (error) {
       console.error('❌ Erro ao agendar relatórios individuais:', error)
     }
@@ -89,24 +89,6 @@ export class SchedulerService {
     task.start()
     
     console.log(`📅 Relatório agendado para monitor '${monitor.name}' - dia ${day} às ${hour}:${minute}`)
-  }
-
-  /**
-   * Agenda limpeza de logs antigos
-   * Executa todo domingo às 02:00
-   */
-  private scheduleLogCleanup(): void {
-    const task = cron.schedule('0 2 * * 0', async () => {
-      console.log('🧹 Executando limpeza semanal de logs antigos...')
-      console.log('🧹 Executando limpeza de logs antigos...')
-      await this.cleanupOldLogs()
-    }, {
-      scheduled: true,
-      timezone: 'America/Sao_Paulo'
-    })
-
-    this.jobs.set('log-cleanup', task)
-    console.log('📅 Agendamento de limpeza de logs configurado (02:00 aos domingos)')
   }
 
   /**
@@ -173,33 +155,6 @@ export class SchedulerService {
       }
     } catch (error) {
       console.error('❌ Erro ao processar relatório mensal:', error)
-    }
-  }
-
-  /**
-   * Limpa logs antigos (mais de 30 dias)
-   */
-  private async cleanupOldLogs(): Promise<void> {
-    try {
-      const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-      
-      console.log(`🗑️ Iniciando limpeza de logs anteriores a ${thirtyDaysAgo.toLocaleDateString('pt-BR')}...`)
-      
-      // Contar logs antes da limpeza
-      const totalLogsBefore = await databaseService.countMonitoringLogs()
-      console.log(`📊 Total de logs antes da limpeza: ${totalLogsBefore}`)
-      
-      // Limpar logs de monitoramento antigos
-      const deletedCount = await databaseService.deleteOldMonitoringLogs(thirtyDaysAgo)
-      
-      const totalLogsAfter = await databaseService.countMonitoringLogs()
-      console.log(`📊 Total de logs após a limpeza: ${totalLogsAfter}`)
-      console.log(`🗑️ Logs removidos: ${deletedCount}`)
-      
-      console.log('✅ Limpeza de logs concluída com sucesso')
-    } catch (error) {
-      console.error('❌ Erro na limpeza de logs:', error)
     }
   }
 
