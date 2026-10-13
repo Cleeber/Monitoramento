@@ -22,7 +22,7 @@ export class SchedulerService {
       await this.scheduleIndividualMonitorReports()
       
       // Agendar limpeza de logs antigos (opcional)
-      this.scheduleLogCleanup()
+      // Retention runs in Supabase Cron with a 180-day window.
       
       this.isInitialized = true
       console.log('✅ SchedulerService inicializado com sucesso')
@@ -52,7 +52,7 @@ export class SchedulerService {
         }
       }
       
-      console.log(`📅 Agendados relatórios para ${this.jobs.size - 1} monitores`) // -1 para excluir o job de limpeza
+      console.log(`📅 Agendados relatórios para ${this.jobs.size} monitores`) // -1 para excluir o job de limpeza
     } catch (error) {
       console.error('❌ Erro ao agendar relatórios individuais:', error)
     }
