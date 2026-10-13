@@ -59,6 +59,10 @@ BEGIN
   IF public.generate_slug('Segurança') <> 'seguranca' THEN
     RAISE EXCEPTION 'Accent removal failed';
   END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_extension e JOIN pg_namespace n ON n.oid=e.extnamespace
+    WHERE e.extname='unaccent' AND n.nspname='extensions') THEN
+    RAISE EXCEPTION 'unaccent must be outside the exposed public schema';
+  END IF;
   INSERT INTO public.monthly_report_configs(id,monitor_id,email,send_day)
   VALUES (config,monitor,'security-fixture@example.test',1);
   UPDATE public.monthly_report_configs SET send_day=2 WHERE id=config;
