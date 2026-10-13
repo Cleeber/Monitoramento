@@ -120,7 +120,6 @@ class MonitoringService extends EventEmitter {
   removeMonitor(monitorId: string) {
     this.stopMonitoring(monitorId)
     this.monitors.delete(monitorId)
-    this.consecutiveFailures.delete(monitorId)
 
     // Remover checks antigos
     this.history.remove(monitorId)
@@ -259,31 +258,28 @@ class MonitoringService extends EventEmitter {
 
     try {
       switch (monitor.type) {
-        case 'http': {
+        case 'http':
           const result = await this.checkHttpFromConfig(monitor)
           status = result.status
           responseTime = result.responseTime
           errorMessage = result.error
-          statusCode = result.statusCode ?? null
+          statusCode = (result as any).statusCode ?? null
           break
-        }
 
-        case 'ping': {
+        case 'ping':
           const pingResult = await this.checkPing(monitor.url, monitor.timeout)
           status = pingResult.status
           responseTime = pingResult.responseTime
           errorMessage = pingResult.error
           break
-        }
 
-        case 'tcp': {
+        case 'tcp':
           // Implementação básica para TCP (pode ser expandida)
           const tcpResult = await this.checkTcp(monitor.url, monitor.timeout)
           status = tcpResult.status
           responseTime = tcpResult.responseTime
           errorMessage = tcpResult.error
           break
-        }
       }
     } catch (error) {
       status = 'offline'
@@ -318,33 +314,10 @@ class MonitoringService extends EventEmitter {
       }
     }
 
-    // Atualizar dados do monitor com lógica anti-oscilação:
-    // - Falha 1: marca como "warning" (suspeita, não offline ainda)
-    // - Falha 2: continua "warning"
-    // - Falha 3 (ou mais) consecutivas: marca como "offline"
-    // - Sucesso: reset do contador e volta para "online"
+    // Atualizar dados do monitor
     const updatedMonitor = this.monitors.get(monitor.id)
     if (updatedMonitor) {
-      const previousFailures = this.consecutiveFailures.get(monitor.id) || 0
-
-      if (status === 'online') {
-        // Reset contador e marca online
-        this.consecutiveFailures.set(monitor.id, 0)
-        updatedMonitor.status = 'online'
-      } else {
-        // Falha — incrementa contador
-        const newFailures = previousFailures + 1
-        this.consecutiveFailures.set(monitor.id, newFailures)
-
-        if (newFailures >= this.FAILURE_THRESHOLD) {
-          // 3+ falhas consecutivas: realmente offline
-          updatedMonitor.status = 'offline'
-        } else if (newFailures >= 1) {
-          // 1-2 falhas: warning (suspeita, ainda não offline)
-          updatedMonitor.status = 'warning'
-        }
-      }
-
+      updatedMonitor.status = status
       updatedMonitor.last_check = check.checked_at
       updatedMonitor.response_time = responseTime
       updatedMonitor.uptime_24h = this.calculateUptime(monitor.id, 24)
