@@ -43,6 +43,8 @@ O histórico do Cron registra sucesso ou falha. Uma chamada manual da função r
 
 ## Segurança a corrigir em seguida
 
+O [Security Advisor](https://supabase.com/dashboard/project/zhywrrzzezexlvtpqacl/advisors/security) confirmou 1 erro e 13 avisos. O [Performance Advisor](https://supabase.com/dashboard/project/zhywrrzzezexlvtpqacl/advisors/performance) apresentou 0 erros, 1 aviso de índice duplicado e 8 sugestões de índices não utilizados. Os alertas de segurança a seguir já existiam no banco; a função de manutenção nova não apresentou alertas nessas categorias.
+
 - `monthly_report_configs` e `monthly_report_history` possuem políticas `FOR ALL TO PUBLIC USING (true)`. Elas permitem operações amplas aos papéis que também tenham os privilégios SQL correspondentes. Conferir e restringir os grants e as policies ao acesso efetivamente necessário.
 - `refresh_tokens` está sem RLS. A exposição depende dos grants e da configuração da Data API; restringir o acesso ao backend e habilitar RLS.
 - `cleanup_expired_refresh_tokens()` usa `SECURITY DEFINER`, está em `public` e tem execução pública pelo ACL observado. Revogar acesso público e fixar `search_path`; a rotina nova não depende dessa função.
@@ -62,3 +64,9 @@ npm run check
 Os testes SQL verificam limite de lote, prioridade dos registros mais antigos, preservação do limite exato de 180 dias, de linhas sem data, de tokens válidos e de jobs em andamento, além das permissões. Uma exceção intencional ao final reverte todas as inserções e exclusões do teste. A concorrência também foi verificada em duas transações independentes.
 
 O backend em produção utiliza a estrutura anterior em `backend/src`, enquanto esta cópia usa `src`. A alteração de produção deve desativar apenas o agendamento antigo, preservando a arquitetura e o comportamento dos relatórios existentes. O job deve ser ativado somente depois de verificar que o processo em execução já não agenda a limpeza de 30 dias.
+
+A desativação do agendamento antigo foi implantada no backend em 13 de outubro de 2026. A imagem em execução foi derivada da imagem anterior, alterando apenas a chamada ao agendamento no JavaScript compilado; a mesma desativação foi salva no fonte de produção para os próximos builds. O frontend não foi recriado. A imagem de rollback está disponível na VPS como `uptime-monitor-backend:before-retention-20261013201456`. O endpoint público `/api/health` respondeu HTTP 200 após a implantação.
+
+O job de retenção foi ativado depois dessa verificação. A migration também foi registrada em `supabase_migrations.schema_migrations`. Reaplicar o arquivo SQL pausa o job novamente; usar o comando de ativação no arquivo de operações após a validação.
+
+A primeira execução automática terminou com sucesso em 13 de outubro de 2026 às **17:17, horário de São Paulo**, em aproximadamente **22 ms**. Os 35 tokens expirados há mais de 7 dias foram removidos; não havia verificações acima de 180 dias para excluir. Os testes SQL foram executados com rollback integral, os testes de concorrência passaram, e `npm run check` concluiu lint, checagem de tipos, 7 testes e build.
