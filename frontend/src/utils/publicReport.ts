@@ -119,6 +119,9 @@ export async function loadPublicReport(slug: string | undefined, signal: AbortSi
 export function incidentDuration(incident: PublicIncident, now: string): number | null {
   const start = new Date(incident.started_at).getTime()
   const end = new Date(incident.resolved_at ?? now).getTime()
+  // The legacy API sometimes sends the check timestamp as both start and end.
+  // That placeholder is not evidence of a zero-duration, resolved incident.
+  if (incident.resolved_at && end === start) return null
   return Number.isFinite(start) && Number.isFinite(end) && end >= start ? end - start : null
 }
 
