@@ -1,6 +1,7 @@
-import type { DatabaseService } from '../services/DatabaseService.js'
-
-type AdminDatabase = Pick<DatabaseService, 'getAdminUser' | 'createUser'>
+interface AdminDatabase {
+  getAdminUser(): Promise<unknown>
+  createUser(user: { email: string; password: string; name: string; role: 'admin' }): Promise<unknown>
+}
 
 /** Cria apenas o primeiro admin, quando credenciais foram configuradas explicitamente. */
 export async function bootstrapAdmin(

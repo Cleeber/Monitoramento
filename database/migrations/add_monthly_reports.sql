@@ -60,11 +60,14 @@ ALTER TABLE monthly_report_configs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE monthly_report_history ENABLE ROW LEVEL SECURITY;
 
 -- Política para permitir todas as operações (ajustar conforme necessário)
-CREATE POLICY "Allow all operations on monthly_report_configs" ON monthly_report_configs
-    FOR ALL USING (true) WITH CHECK (true);
+REVOKE ALL ON monthly_report_configs, monthly_report_history FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON monthly_report_configs, monthly_report_history TO service_role;
 
-CREATE POLICY "Allow all operations on monthly_report_history" ON monthly_report_history
-    FOR ALL USING (true) WITH CHECK (true);
+CREATE POLICY "service_role all on monthly_report_configs" ON monthly_report_configs
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
+
+CREATE POLICY "service_role all on monthly_report_history" ON monthly_report_history
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- Comentários para documentação
 COMMENT ON TABLE monthly_report_configs IS 'Configurações de relatórios mensais por monitor';

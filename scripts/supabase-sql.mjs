@@ -19,10 +19,10 @@ const client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVI
 const sql = await readFile(filename, 'utf8')
 const { error } = await client.rpc('exec_sql', { sql })
 if (mode === '--rollback-test') {
-  if (error?.code !== 'P0001' || error.message !== 'RETENTION_TEST_PASSED_ROLLED_BACK') {
+  if (error?.code !== 'P0001' || !['RETENTION_TEST_PASSED_ROLLED_BACK', 'SECURITY_TEST_PASSED_ROLLED_BACK'].includes(error.message)) {
     throw new Error(error?.message || 'The test did not roll back as expected')
   }
-  console.log('Retention tests passed. All database changes were rolled back.')
+  console.log('Database tests passed. All database changes were rolled back.')
 } else {
   if (error) throw new Error(error.message)
   console.log('SQL applied successfully.')

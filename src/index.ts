@@ -25,6 +25,7 @@ import multer from 'multer'
 import MonitoringService from './monitoring/MonitoringService.js'
 import { databaseService } from './services/DatabaseService.js'
 import { supabase } from './lib/supabase.js'
+import { publicMonitor, findActivePublicMonitor } from './lib/publicMonitor.js'
 import { storageService } from './services/StorageService.js'
 import { pdfService } from './services/PDFService.js'
 import { reportService } from './services/ReportService.js'
@@ -207,6 +208,9 @@ async function createRequiredTables() {
 
           CREATE INDEX IF NOT EXISTS idx_monthly_report_configs_monitor_id ON public.monthly_report_configs(monitor_id);
           CREATE INDEX IF NOT EXISTS idx_monthly_report_configs_active ON public.monthly_report_configs(is_active);
+          ALTER TABLE public.monthly_report_configs ENABLE ROW LEVEL SECURITY;
+          REVOKE ALL ON public.monthly_report_configs FROM PUBLIC, anon, authenticated;
+          GRANT SELECT, INSERT, UPDATE, DELETE ON public.monthly_report_configs TO service_role;
         `
       })
 
@@ -235,6 +239,9 @@ async function createRequiredTables() {
 
           CREATE INDEX IF NOT EXISTS idx_monthly_report_history_monitor_id ON public.monthly_report_history(monitor_id);
           CREATE INDEX IF NOT EXISTS idx_monthly_report_history_sent_at ON public.monthly_report_history(sent_at);
+          ALTER TABLE public.monthly_report_history ENABLE ROW LEVEL SECURITY;
+          REVOKE ALL ON public.monthly_report_history FROM PUBLIC, anon, authenticated;
+          GRANT SELECT, INSERT, UPDATE, DELETE ON public.monthly_report_history TO service_role;
         `
       })
 
@@ -1511,15 +1518,7 @@ app.get('/api/public/monitors', async (_req, res) => {
     // Adicionar status em tempo real
     const monitorsWithStatus = activeMonitors.map((monitor: any) => {
       const realTimeStatus = monitoringService.getMonitor(monitor.id)
-      return {
-        ...monitor,
-        status: realTimeStatus?.status || monitor.status || 'unknown',
-        last_check: realTimeStatus?.last_check || monitor.last_check,
-        response_time: realTimeStatus?.response_time || monitor.response_time,
-        uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
-        uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
-        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0
-      }
+      return publicMonitor(monitor, realTimeStatus)
     })
     
     res.json(monitorsWithStatus)
@@ -1636,6 +1635,10 @@ app.get('/api/public/incidents', async (req, res) => {
       return res.json([])
     }
 
+    if (!await findActivePublicMonitor(databaseService, monitor_id)) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
+    }
+
     // Buscar histórico de checks para identificar incidentes
     const checks = await databaseService.getMonitorChecks(monitor_id as string, Number(limit) * 20)
     
@@ -1685,6 +1688,10 @@ app.get('/api/public/uptime-history', async (req, res) => {
     if (!monitor_id) {
       return res.json([])
     }
+
+    if (!await findActivePublicMonitor(databaseService, monitor_id)) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
+    }
     
     // Calcular período
     const endDate = new Date()
@@ -1732,6 +1739,10 @@ app.get('/api/public/uptime-history', async (req, res) => {
 app.get('/api/public/monitor-stats/:id', async (req, res) => {
   try {
     const { id } = req.params
+
+    if (!await findActivePublicMonitor(databaseService, id)) {
+      return res.status(404).json({ error: 'Monitor não encontrado' })
+    }
     
     // Calcular estatísticas reais dos últimos 30 dias
     const endDate = new Date()
