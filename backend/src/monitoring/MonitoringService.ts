@@ -1,3 +1,4 @@
+import { CheckHistory } from './CheckHistory.js'
 import axios from 'axios'
 import * as ping from 'ping'
 import * as cron from 'node-cron'
@@ -51,7 +52,6 @@ interface ContentValidationConfig {
 
 class MonitoringService extends EventEmitter {
   private monitors: Map<string, Monitor> = new Map()
-  private checks: MonitorCheck[] = []
   private intervals: Map<string, NodeJS.Timeout> = new Map()
   private isRunning = false
   private databaseService: any = null
@@ -86,7 +86,7 @@ class MonitoringService extends EventEmitter {
     if (this.isRunning) return
     this.isRunning = true
     console.log('🔍 Serviço de monitoramento iniciado')
-    
+
     // Iniciar monitoramento para todos os monitores ativos
     this.monitors.forEach(monitor => {
       if (monitor.is_active) {
@@ -99,18 +99,18 @@ class MonitoringService extends EventEmitter {
   stop() {
     if (!this.isRunning) return
     this.isRunning = false
-    
+
     // Parar todos os intervalos
     this.intervals.forEach(interval => clearInterval(interval))
     this.intervals.clear()
-    
+
     console.log('⏹️ Serviço de monitoramento parado')
   }
 
   // Adicionar um monitor
   addMonitor(monitor: Monitor) {
     this.monitors.set(monitor.id, monitor)
-    
+
     if (this.isRunning && monitor.is_active) {
       this.startMonitoring(monitor)
     }
@@ -120,16 +120,17 @@ class MonitoringService extends EventEmitter {
   removeMonitor(monitorId: string) {
     this.stopMonitoring(monitorId)
     this.monitors.delete(monitorId)
-    
+    this.consecutiveFailures.delete(monitorId)
+
     // Remover checks antigos
-    this.checks = this.checks.filter(check => check.monitor_id !== monitorId)
+    this.history.remove(monitorId)
   }
 
   // Atualizar um monitor
   updateMonitor(monitor: Monitor) {
     const oldMonitor = this.monitors.get(monitor.id)
     this.monitors.set(monitor.id, monitor)
-    
+
     // Se o intervalo mudou ou o monitor foi ativado/desativado, reiniciar
     if (oldMonitor && (
       oldMonitor.interval !== monitor.interval ||
@@ -156,10 +157,7 @@ class MonitoringService extends EventEmitter {
 
   // Obter checks de um monitor
   getMonitorChecks(monitorId: string, limit = 100): MonitorCheck[] {
-    return this.checks
-      .filter(check => check.monitor_id === monitorId)
-      .sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())
-      .slice(0, limit)
+    return this.history.recent(monitorId, limit)
   }
 
   // Executar verificação manual de um monitor e retornar o último check
@@ -175,77 +173,30 @@ class MonitoringService extends EventEmitter {
 
   // Carregar verificações recentes do banco de dados
   async loadRecentChecks(databaseService: any) {
-    try {
-      const monitors = Array.from(this.monitors.keys())
-      
-      for (const monitorId of monitors) {
-        // Carregar verificações das últimas 24 horas para cada monitor
-        const checks = await databaseService.getMonitorChecks(monitorId, 500000)
-        
-        // Converter para o formato interno e adicionar ao array
-        const recentChecks: MonitorCheck[] = (checks.map((check: any) => ({
-          id: check.id,
-          monitor_id: check.monitor_id,
-          status: check.status,
-          response_time: check.response_time,
-          error_message: check.error_message,
-          status_code: check.status_code ?? null,
-          checked_at: check.checked_at
-        })) as MonitorCheck[])
-        
-        this.checks.push(...recentChecks)
-        
-        // Ajuste: usar a última verificação dentro de 24h; fallback para 'unknown'
-        if (recentChecks.length > 0) {
-          const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
-          const latestIn24h = recentChecks
-            .filter((c: MonitorCheck) => new Date(c.checked_at) >= cutoff24h)
-            .sort((a: MonitorCheck, b: MonitorCheck) => 
-              new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
-            )[0];
-
-          const monitor = this.monitors.get(monitorId);
-          if (monitor) {
-            if (latestIn24h) {
-              monitor.status = latestIn24h.status;
-              monitor.last_check = latestIn24h.checked_at;
-              monitor.response_time = latestIn24h.response_time;
-            } else {
-              monitor.status = 'unknown';
-              monitor.last_check = null;
-              monitor.response_time = null;
-            }
-            this.monitors.set(monitorId, monitor);
-          }
-        }
+    const asOf = new Date()
+    const ids = Array.from(this.monitors.keys())
+    for (let offset = 0; offset < ids.length; offset += 32) {
+      const rows = await databaseService.getMonitoringBootstrap(ids.slice(offset, offset + 32), asOf)
+      for (const row of rows) {
+        this.history.seed(row.monitor_id, row.samples, row.latest_checks, asOf.getTime())
+        const monitor = this.monitors.get(row.monitor_id)
+        if (!monitor) continue
+        const latest = this.history.recent(row.monitor_id, 1)[0]
+        const fresh = latest && Date.parse(latest.checked_at) >= asOf.getTime() - 86400000
+        monitor.status = fresh ? latest.status : 'unknown'
+        monitor.last_check = fresh ? latest.checked_at : null
+        monitor.response_time = fresh ? latest.response_time : null
+        monitor.uptime_24h = this.history.uptime(row.monitor_id, 24, asOf.getTime())
+        monitor.uptime_7d = this.history.uptime(row.monitor_id, 168, asOf.getTime())
+        monitor.uptime_30d = this.history.uptime(row.monitor_id, 720, asOf.getTime())
       }
-      
-      // Recalcular uptime para todos os monitores
-      this.monitors.forEach((monitor, id) => {
-        monitor.uptime_24h = this.calculateUptime(id, 24)
-        monitor.uptime_7d = this.calculateUptime(id, 24 * 7)
-        monitor.uptime_30d = this.calculateUptime(id, 24 * 30)
-        this.monitors.set(id, monitor)
-      })
-      
-      console.log(`📊 Carregadas ${this.checks.length} verificações do banco de dados`)
-    } catch (error) {
-      console.error('❌ Erro ao carregar verificações do banco de dados:', error)
     }
+    console.log(`📊 Histórico compacto: ${this.history.sampleCount} amostras, ${this.history.fullRecordCount} registros completos`)
   }
 
   // Calcular estatísticas de uptime
   calculateUptime(monitorId: string, hours: number): number {
-    const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000)
-    const recentChecks = this.checks.filter(check => 
-      check.monitor_id === monitorId && 
-      new Date(check.checked_at) >= cutoffTime
-    )
-    
-    if (recentChecks.length === 0) return 0
-    
-    const successfulChecks = recentChecks.filter(check => check.status === 'online').length
-    return (successfulChecks / recentChecks.length) * 100
+    return this.history.uptime(monitorId, hours)
   }
 
   // Obter estatísticas do monitoramento
@@ -257,7 +208,7 @@ class MonitoringService extends EventEmitter {
     const online = monitors.filter(m => m.status === 'online').length
     const offline = monitors.filter(m => m.status === 'offline').length
     const warning = monitors.filter(m => m.status === 'warning').length
-    
+
     return {
       total,
       active,
@@ -276,15 +227,15 @@ class MonitoringService extends EventEmitter {
     }
 
     console.log(`🔍 Iniciando monitoramento: ${monitor.name} (${monitor.url})`)
-    
+
     // Fazer primeira verificação imediatamente
     this.performCheck(monitor)
-    
+
     // Configurar verificações periódicas
     const interval = setInterval(() => {
       this.performCheck(monitor)
     }, monitor.interval)
-    
+
     this.intervals.set(monitor.id, interval)
   }
 
@@ -308,28 +259,31 @@ class MonitoringService extends EventEmitter {
 
     try {
       switch (monitor.type) {
-        case 'http':
+        case 'http': {
           const result = await this.checkHttpFromConfig(monitor)
           status = result.status
           responseTime = result.responseTime
           errorMessage = result.error
-          statusCode = (result as any).statusCode ?? null
+          statusCode = result.statusCode ?? null
           break
-          
-        case 'ping':
+        }
+
+        case 'ping': {
           const pingResult = await this.checkPing(monitor.url, monitor.timeout)
           status = pingResult.status
           responseTime = pingResult.responseTime
           errorMessage = pingResult.error
           break
-          
-        case 'tcp':
+        }
+
+        case 'tcp': {
           // Implementação básica para TCP (pode ser expandida)
           const tcpResult = await this.checkTcp(monitor.url, monitor.timeout)
           status = tcpResult.status
           responseTime = tcpResult.responseTime
           errorMessage = tcpResult.error
           break
+        }
       }
     } catch (error) {
       status = 'offline'
@@ -347,7 +301,7 @@ class MonitoringService extends EventEmitter {
       checked_at: new Date().toISOString()
     }
 
-    this.checks.push(check)
+    this.history.record(check)
 
     // Salvar verificação no banco de dados
     if (this.databaseService) {
@@ -364,16 +318,39 @@ class MonitoringService extends EventEmitter {
       }
     }
 
-    // Atualizar dados do monitor
+    // Atualizar dados do monitor com lógica anti-oscilação:
+    // - Falha 1: marca como "warning" (suspeita, não offline ainda)
+    // - Falha 2: continua "warning"
+    // - Falha 3 (ou mais) consecutivas: marca como "offline"
+    // - Sucesso: reset do contador e volta para "online"
     const updatedMonitor = this.monitors.get(monitor.id)
     if (updatedMonitor) {
-      updatedMonitor.status = status
+      const previousFailures = this.consecutiveFailures.get(monitor.id) || 0
+
+      if (status === 'online') {
+        // Reset contador e marca online
+        this.consecutiveFailures.set(monitor.id, 0)
+        updatedMonitor.status = 'online'
+      } else {
+        // Falha — incrementa contador
+        const newFailures = previousFailures + 1
+        this.consecutiveFailures.set(monitor.id, newFailures)
+
+        if (newFailures >= this.FAILURE_THRESHOLD) {
+          // 3+ falhas consecutivas: realmente offline
+          updatedMonitor.status = 'offline'
+        } else if (newFailures >= 1) {
+          // 1-2 falhas: warning (suspeita, ainda não offline)
+          updatedMonitor.status = 'warning'
+        }
+      }
+
       updatedMonitor.last_check = check.checked_at
       updatedMonitor.response_time = responseTime
       updatedMonitor.uptime_24h = this.calculateUptime(monitor.id, 24)
       updatedMonitor.uptime_7d = this.calculateUptime(monitor.id, 24 * 7)
       updatedMonitor.uptime_30d = this.calculateUptime(monitor.id, 24 * 30)
-      
+
       this.monitors.set(monitor.id, updatedMonitor)
     }
 
@@ -398,33 +375,33 @@ class MonitoringService extends EventEmitter {
 
   // Helper para realizar requisição com fallback para IPv4
   private async requestWithFallback(
-    method: 'head' | 'get', 
-    url: string, 
-    config: any, 
+    method: 'head' | 'get',
+    url: string,
+    config: any,
     monitor: Pick<Monitor, 'ignore_ssl_errors'>
   ): Promise<any> {
     // Agentes forçando IPv4
-    const ipv4HttpsAgent = new https.Agent({ 
-      keepAlive: true, 
+    const ipv4HttpsAgent = new https.Agent({
+      keepAlive: true,
       family: 4,
-      rejectUnauthorized: !monitor.ignore_ssl_errors 
+      rejectUnauthorized: !monitor.ignore_ssl_errors
     })
-    const ipv4HttpAgent = new http.Agent({ 
-      keepAlive: true, 
-      family: 4 
+    const ipv4HttpAgent = new http.Agent({
+      keepAlive: true,
+      family: 4
     })
 
     // Configuração para a tentativa padrão
     // Se precisarmos ignorar SSL, temos que passar um agente customizado.
-    // Caso contrário, deixamos undefined para usar o globalAgent do Node/Axios, 
+    // Caso contrário, deixamos undefined para usar o globalAgent do Node/Axios,
     // que provou ser mais robusto em alguns ambientes.
     let defaultHttpsAgent: https.Agent | undefined = undefined
     let defaultHttpAgent: http.Agent | undefined = undefined
 
     if (monitor.ignore_ssl_errors) {
-      defaultHttpsAgent = new https.Agent({ 
-        keepAlive: true, 
-        rejectUnauthorized: false 
+      defaultHttpsAgent = new https.Agent({
+        keepAlive: true,
+        rejectUnauthorized: false
       })
       defaultHttpAgent = new http.Agent({ keepAlive: true })
     } else {
@@ -447,7 +424,7 @@ class MonitoringService extends EventEmitter {
       if (error.response) {
         throw error
       }
-      
+
       // Se foi erro de rede (DNS, Timeout, Reset), tentar forçar IPv4
       try {
         return await axios({
@@ -479,7 +456,7 @@ class MonitoringService extends EventEmitter {
     } catch {
       refererOrigin = undefined
     }
-    
+
     try {
       // 1) Primeiro tenta HEAD com headers mínimos para evitar bloqueios/WAF
       let headStatusCode: number | null = null
@@ -556,7 +533,7 @@ class MonitoringService extends EventEmitter {
           ...(refererOrigin ? { 'Referer': refererOrigin } : {})
         }
       }, monitor)
-      
+
       const responseTime = Date.now() - startTime
       const statusCode = response.status
 
@@ -565,35 +542,35 @@ class MonitoringService extends EventEmitter {
         if (validationEnabled) {
           const content = response.data || ''
           const contentLength = typeof content === 'string' ? content.length : JSON.stringify(content).length
-          
+
           // Considerar página vazia ou com menos caracteres que o mínimo como warning
           if (contentLength < minContentLength) {
-            return { 
-              status: 'warning', 
-              responseTime, 
+            return {
+              status: 'warning',
+              responseTime,
               error: `Página com conteúdo insuficiente (${contentLength} caracteres, mínimo: ${minContentLength})`,
               statusCode
             }
           }
-          
+
           // Verificar se é apenas HTML vazio ou com tags básicas
           if (typeof content === 'string') {
             const cleanContent = content
               .replace(/<[^>]*>/g, '') // Remove tags HTML
               .replace(/\s+/g, ' ')    // Normaliza espaços
               .trim()
-            
+
             if (cleanContent.length < minTextLength) {
-              return { 
-                status: 'warning', 
-                responseTime, 
+              return {
+                status: 'warning',
+                responseTime,
                 error: `Página com conteúdo textual insuficiente (${cleanContent.length} caracteres de texto, mínimo: ${minTextLength})`,
                 statusCode
               }
             }
           }
         }
-        
+
         return { status: 'online', responseTime, error: null, statusCode }
       } else if (statusCode >= 400 && statusCode < 500) {
         // 403 Forbidden: Servidor está online e respondendo, apenas bloqueando o acesso (WAF, ACL, etc)
@@ -601,10 +578,10 @@ class MonitoringService extends EventEmitter {
         if (statusCode === 403) {
           return { status: 'online', responseTime, error: null, statusCode }
         }
-        
-        return { 
-          status: 'warning', 
-          responseTime, 
+
+        return {
+          status: 'warning',
+          responseTime,
           error: `HTTP ${statusCode}: ${response.statusText}`,
           statusCode
         }
@@ -612,16 +589,16 @@ class MonitoringService extends EventEmitter {
         // Para 5xx, validar via ping antes de classificar como offline
         const pingResult = await this.checkPing(monitor.url, monitor.timeout)
         if (pingResult.status === 'online') {
-          return { 
-            status: 'online', 
-            responseTime: pingResult.responseTime, 
+          return {
+            status: 'online',
+            responseTime: pingResult.responseTime,
             error: `HTTP ${statusCode}: ${response.statusText}`,
             statusCode
           }
         }
-        return { 
-          status: 'offline', 
-          responseTime, 
+        return {
+          status: 'offline',
+          responseTime,
           error: `HTTP ${statusCode}: ${response.statusText}`,
           statusCode
         }
@@ -665,7 +642,7 @@ class MonitoringService extends EventEmitter {
             if (statusCode === 403) {
                return { status: 'online', responseTime, error: null, statusCode }
             }
-            
+
             if (statusCode >= 200 && statusCode < 400) {
               return { status: 'online', responseTime, error: null, statusCode }
             } else if (statusCode >= 400 && statusCode < 500) {
@@ -696,16 +673,16 @@ class MonitoringService extends EventEmitter {
           return { status: 'offline', responseTime: null, error: `HTTP ${statusCode}: ${error.response?.statusText || 'Erro'}`, statusCode }
         }
       }
-      
+
       // Erro não classificado: checar ping para decidir
       const pingResult = await this.checkPing(monitor.url, monitor.timeout)
       if (pingResult.status === 'online') {
         return { status: 'online', responseTime: pingResult.responseTime, error: error instanceof Error ? error.message : 'Erro desconhecido' }
       }
-      return { 
-        status: 'offline', 
-        responseTime: null, 
-        error: error instanceof Error ? error.message : 'Erro desconhecido' 
+      return {
+        status: 'offline',
+        responseTime: null,
+        error: error instanceof Error ? error.message : 'Erro desconhecido'
       }
     }
   }
@@ -805,11 +782,11 @@ class MonitoringService extends EventEmitter {
       // Nenhum método respondeu
       return { status: 'offline', responseTime: null, error: 'Host não responde a ICMP/TCP' }
     } catch (error) {
-      return { 
-        status: 'offline', 
-        responseTime: null, 
+      return {
+        status: 'offline',
+        responseTime: null,
         // Mantemos a mensagem, mas indicamos que tentativas ICMP/TCP foram realizadas
-        error: error instanceof Error ? error.message : 'Erro em ping/TCP' 
+        error: error instanceof Error ? error.message : 'Erro em ping/TCP'
       }
     }
   }
@@ -836,18 +813,10 @@ class MonitoringService extends EventEmitter {
 
   // Limpar checks antigos (manter apenas 30 dias)
   private cleanupOldChecks() {
-    const cutoffTime = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 dias
-    const initialCount = this.checks.length
-    
-    this.checks = this.checks.filter(check => 
-      new Date(check.checked_at) >= cutoffTime
-    )
-    
-    const removedCount = initialCount - this.checks.length
-    if (removedCount > 0) {
-      console.log(`🧹 Limpeza concluída: ${removedCount} checks antigos removidos`)
-    }
+    this.history.pruneAll()
   }
+private history = new CheckHistory()
+
 }
 
 export default MonitoringService

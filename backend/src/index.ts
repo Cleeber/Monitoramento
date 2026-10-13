@@ -215,24 +215,12 @@ async function createRequiredTables() {
 // Função para inicializar dados padrão se necessário
 async function initializeDefaultData() {
   try {
-    await bootstrapAdmin({
-      getAdminUser: async () => {
-        const { data, error } = await supabase.from('users').select('id').eq('role', 'admin').limit(1).maybeSingle()
-        if (error) throw error
-        return data
-      },
-      createUser: (data) => databaseService.createUser(data)
-    })
-
-    // Definir referência ao database service
-    monitoringService.setDatabaseService(databaseService)
-
-    // Iniciar o monitoramento
-    console.log('🚀 Iniciando serviço de monitoramento...')
-    await monitoringService.start()
-    console.log('✅ Serviço de monitoramento iniciado')
+    const adminStatus = await bootstrapAdmin(databaseService)
+    if (adminStatus === 'created') {
+      apiLogger('info', 'Primeiro administrador criado com as credenciais configuradas')
+    }
   } catch (error) {
-    console.error('Erro ao inicializar dados padrão:', error)
+    apiLogger('error', 'Erro ao configurar administrador inicial', { error: error instanceof Error ? error.message : String(error) })
   }
 }
 
@@ -1486,44 +1474,19 @@ app.get('/api/public/uptime-history', async (req, res) => {
     if (!monitor_id) {
       return res.json([])
     }
+
     if (!await findActivePublicMonitor(databaseService, monitor_id)) {
       return res.status(404).json({ error: 'Monitor não encontrado' })
     }
 
-    // Calcular período
+    const numberOfDays = Math.min(90, Math.max(1, Number(days) || 30))
     const endDate = new Date()
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - Number(days))
+    const startDate = new Date(endDate.getTime() - numberOfDays * 86_400_000)
 
-    // Buscar todos os checks do período
-    const checks = await databaseService.getMonitorChecksForPeriod(monitor_id as string, startDate, endDate)
-
-    // Agrupar por dia
-    const history = []
-    const today = new Date()
-    today.setHours(23, 59, 59, 999)
-
-    for (let i = Number(days); i >= 0; i--) {
-      const date = new Date(today)
-      date.setDate(date.getDate() - i)
-      const dateStr = date.toISOString().split('T')[0]
-
-      // Filtrar checks deste dia
-      const dayChecks = checks.filter((check: any) =>
-        check.checked_at.startsWith(dateStr)
-      )
-
-      let uptime = 100
-      if (dayChecks.length > 0) {
-        const upChecks = dayChecks.filter((c: any) => c.status === 'online').length
-        uptime = (upChecks / dayChecks.length) * 100
-      }
-
-      history.push({
-        date: dateStr,
-        uptime: Number(uptime.toFixed(2))
-      })
-    }
+    const metrics = await databaseService.getMonitorReportMetrics(monitor_id as string, startDate, endDate)
+    const history = metrics.daily.map((day: { date: string; uptime: number }) => ({
+      date: day.date, uptime: Number(day.uptime),
+    }))
 
     res.json(history)
   } catch (error) {

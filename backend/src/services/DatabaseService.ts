@@ -9,7 +9,7 @@ export class DatabaseService {
       .from('users')
       .select('*')
       .order('created_at', { ascending: false })
-    
+
     if (error) throw error
     return data || []
   }
@@ -20,7 +20,7 @@ export class DatabaseService {
       .select('*')
       .eq('email', email)
       .single()
-    
+
     if (error && error.code !== 'PGRST116') throw error
     return data
   }
@@ -31,14 +31,14 @@ export class DatabaseService {
       .select('*')
       .eq('id', id)
       .single()
-    
+
     if (error && error.code !== 'PGRST116') throw error
     return data
   }
 
   async createUser(userData: { email: string; password: string; name: string; role?: 'admin' | 'user' }) {
     const passwordHash = await bcrypt.hash(userData.password, 10)
-    
+
     const { data, error } = await (supabase as any)
       .from('users')
       .insert({
@@ -52,7 +52,7 @@ export class DatabaseService {
       })
       .select()
       .single()
-    
+
     if (error) throw error
     return data
   }
@@ -67,7 +67,7 @@ export class DatabaseService {
       .eq('id', id)
       .select()
       .single()
-    
+
     if (error) throw error
     return data
   }
@@ -77,7 +77,7 @@ export class DatabaseService {
       .from('users')
       .delete()
       .eq('id', id)
-    
+
     if (error) throw error
   }
 
@@ -90,9 +90,9 @@ export class DatabaseService {
       .from('monitors')
       .select('*')
       .order('created_at', { ascending: false })
-    
+
     if (error) throw error
-    
+
     return (data || []).map((monitor: any) => ({
       ...monitor,
       enabled: monitor.is_active
@@ -105,7 +105,7 @@ export class DatabaseService {
       .select('*')
       .eq('id', id)
       .single()
-    
+
     if (error) throw error
     return data
   }
@@ -155,7 +155,7 @@ export class DatabaseService {
       })
       .select()
       .single()
-    
+
     if (error) throw error
     return data
   }
@@ -170,7 +170,7 @@ export class DatabaseService {
       .eq('id', id)
       .select()
       .single()
-    
+
     if (error) throw error
     return data
   }
@@ -186,7 +186,7 @@ export class DatabaseService {
       .from('monitors')
       .delete()
       .eq('id', id)
-    
+
     if (error) throw error
   }
 
@@ -195,7 +195,7 @@ export class DatabaseService {
       .from('monitor_checks')
       .delete()
       .eq('monitor_id', id)
-    
+
     if (error) throw error
   }
 
@@ -207,25 +207,35 @@ export class DatabaseService {
       .eq('monitor_id', monitorId)
       .order('checked_at', { ascending: false })
       .limit(limit)
-    
+
     if (error) throw error
     return data || []
   }
 
   async getMonitorChecksForPeriod(monitorId: string, startDate: Date, endDate: Date) {
-    // Remover limitação padrão de 1000 linhas do Supabase
-    // Definir um limite maior para obter todos os registros do período
-    const { data, error } = await (supabase as any)
-      .from('monitor_checks')
-      .select('*')
-      .eq('monitor_id', monitorId)
-      .gte('checked_at', startDate.toISOString())
-      .lte('checked_at', endDate.toISOString())
-      .order('checked_at', { ascending: true })
-      .limit(100000) // Limite alto para garantir que todos os registros sejam retornados
-    
-    if (error) throw error
-    return data || []
+    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime()) || startDate > endDate) {
+      throw new Error('Período de histórico inválido')
+    }
+    const checks: any[] = []
+    let cursor: { checked_at: string; id: string } | undefined
+    for (;;) {
+      let query = (supabase as any).from('monitor_checks')
+        .select('id,monitor_id,status,response_time,status_code,error_message,checked_at')
+        .eq('monitor_id', monitorId)
+        .gte('checked_at', startDate.toISOString()).lte('checked_at', endDate.toISOString())
+        .order('checked_at', { ascending: true }).order('id', { ascending: true }).limit(1000)
+      if (cursor) {
+        query = query.or(`checked_at.gt.${cursor.checked_at},and(checked_at.eq.${cursor.checked_at},id.gt.${cursor.id})`)
+      }
+      const { data, error } = await query
+      if (error) throw error
+      if (!data?.length) break
+      const last = data[data.length - 1]
+      if (cursor?.id === last.id) throw new Error('Paginação do histórico não avançou')
+      for (const check of data) checks.push(check)
+      cursor = { checked_at: last.checked_at, id: last.id }
+    }
+    return checks
   }
 
   async createMonitorCheck(checkData: {
@@ -257,7 +267,7 @@ export class DatabaseService {
       })
       .select()
       .single()
-    
+
     if (error) throw error
     return data
   }
@@ -268,7 +278,7 @@ export class DatabaseService {
       .from('monthly_report_configs')
       .select('*')
       .order('created_at', { ascending: false })
-    
+
     if (error) throw error
     return data || []
   }
@@ -280,7 +290,7 @@ export class DatabaseService {
       .select('*')
       .eq('id', id)
       .single()
-    
+
     if (error && error.code !== 'PGRST116') throw error
     return data
   }
@@ -291,7 +301,7 @@ export class DatabaseService {
       .select('*')
       .eq('monitor_id', monitorId)
       .single()
-    
+
     if (error && error.code !== 'PGRST116') throw error
     return data
   }
@@ -315,7 +325,7 @@ export class DatabaseService {
       })
       .select()
       .single()
-    
+
     if (error) throw error
     return data
   }
@@ -334,7 +344,7 @@ export class DatabaseService {
       .eq('id', id)
       .select()
       .single()
-    
+
     if (error) throw error
     return data
   }
@@ -344,7 +354,7 @@ export class DatabaseService {
       .from('monthly_report_configs')
       .delete()
       .eq('id', id)
-    
+
     if (error) throw error
     return true
   }
@@ -359,7 +369,7 @@ export class DatabaseService {
       .from('monthly_report_history')
       .select('*')
       .order('sent_at', { ascending: false })
-    
+
     if (filters?.monitor_id) {
       query = query.eq('monitor_id', filters.monitor_id)
     }
@@ -381,9 +391,9 @@ export class DatabaseService {
     if (filters?.limit) {
       query = query.limit(filters.limit)
     }
-    
+
     const { data, error } = await query
-    
+
     if (error) throw error
     return data || []
   }
@@ -401,7 +411,7 @@ export class DatabaseService {
     // Calcular período do relatório
     const startDate = new Date(historyData.year, historyData.month - 1, 1)
     const endDate = new Date(historyData.year, historyData.month, 0)
-    
+
     const { data, error } = await (supabase as any)
       .from('monthly_report_history')
       .insert({
@@ -418,7 +428,7 @@ export class DatabaseService {
       })
       .select()
       .single()
-    
+
     if (error) throw error
     return data
   }
@@ -429,7 +439,7 @@ export class DatabaseService {
       .from('smtp_config')
       .select('*')
       .single()
-    
+
     if (error && error.code !== 'PGRST116') throw error
     return data
   }
@@ -446,7 +456,7 @@ export class DatabaseService {
   }) {
     // Verificar se já existe uma configuração
     const existing = await this.getSmtpConfig()
-    
+
     if (existing) {
       const { data, error } = await (supabase as any)
         .from('smtp_config')
@@ -464,7 +474,7 @@ export class DatabaseService {
         .eq('id', existing.id)
         .select()
         .single()
-      
+
       if (error) throw error
       return data
     } else {
@@ -485,7 +495,7 @@ export class DatabaseService {
         })
         .select()
         .single()
-      
+
       if (error) throw error
       return data
     }
@@ -498,9 +508,9 @@ export class DatabaseService {
       .select('*')
       .order('year', { ascending: false })
       .order('month', { ascending: false })
-    
+
     const { data, error } = await query
-    
+
     if (error) throw error
     return data || []
   }
@@ -523,7 +533,7 @@ export class DatabaseService {
       })
       .select()
       .single()
-    
+
     if (error) throw error
     return data
   }
@@ -533,7 +543,7 @@ export class DatabaseService {
     const { count, error } = await (supabase as any)
       .from('monitor_checks')
       .select('*', { count: 'exact', head: true })
-    
+
     if (error) throw error
     return count || 0
   }
@@ -544,7 +554,7 @@ export class DatabaseService {
       .delete()
       .lt('checked_at', beforeDate.toISOString())
       .select('id')
-    
+
     if (error) throw error
     return data?.length || 0
   }
@@ -559,9 +569,9 @@ export class DatabaseService {
       .select('*')
       .eq('slug', slug)
       .single()
-    
+
     if (error && error.code !== 'PGRST116') throw error
-    
+
     if (data) {
       return {
         ...data,
@@ -570,6 +580,26 @@ export class DatabaseService {
     }
     return null
   }
+async getMonitoringBootstrap(ids: string[], asOf: Date) {
+    const { data, error } = await (supabase as any).rpc('get_monitoring_bootstrap', {
+      p_monitor_ids: ids, p_as_of: asOf.toISOString()
+    })
+    if (error) throw error
+    return data || []
+  }
+async getMonitorReportMetrics(monitorId: string, startDate: Date, endDate: Date) {
+    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime()) || startDate > endDate) {
+      throw new Error('Período de relatório inválido')
+    }
+    const { data, error } = await (supabase as any).rpc('get_monitor_report_metrics', {
+      p_monitor_id: monitorId, p_start: startDate.toISOString(), p_end: endDate.toISOString()
+    })
+    if (error) throw error
+    if (!data) throw new Error('Resumo do relatório não retornado pelo banco')
+    return data
+  }
+
+
 }
 
 export const databaseService = new DatabaseService()
