@@ -37,7 +37,9 @@ A migration `supabase/migrations/20261013200630_monitoring_retention_180_days.sq
 | Execuções concluídas deste job | 30 dias | 1.000 linhas |
 | Relatórios e histórico de envios | Preservados | Não são excluídos pela rotina |
 
-O job `monitoring-retention-180-days` executa a cada hora, no minuto 17, com limite de 20 segundos e espera por bloqueios de até 2 segundos. A capacidade máxima de remoção é de 120 mil verificações por dia, acima da entrada atual de 5.184. A instalação deixa o job pausado para permitir a desativação da limpeza antiga antes da ativação. Sua execução depende do banco estar ativo, mas independe do processo Node da aplicação.
+O job `monitoring-retention-180-days` executa **uma vez por dia, às 02:17 no horário de São Paulo**, com limite de 20 segundos e espera por bloqueios de até 2 segundos. O cron `17 5 * * *` usa o fuso GMT configurado no banco e corresponde a 05:17 UTC. A rodada diária executa até dois lotes de 5 mil verificações, com capacidade máxima de 10 mil exclusões por dia, acima da entrada atual de 5.184. Sua execução depende do banco estar ativo, mas independe do processo Node da aplicação.
+
+A migration inicial instala o job pausado para permitir a desativação da limpeza antiga. A migration `supabase/migrations/20261013202220_monitoring_retention_daily.sql` aplica a frequência diária solicitada e preserva o estado ativo ou pausado existente.
 
 O histórico do Cron registra sucesso ou falha. Uma chamada manual da função retorna as quantidades removidas. O próprio histórico do Cron precisa de retenção, porque não é limpo automaticamente. A rotina remove somente registros concluídos do seu próprio job. [Supabase Cron](https://supabase.com/docs/guides/cron), [limpeza do histórico](https://supabase.com/docs/guides/cron/quickstart).
 
@@ -57,6 +59,7 @@ As consultas de status, comandos de ativação e pausa e execução manual estã
 
 ```powershell
 node scripts/supabase-sql.mjs supabase/migrations/20261013200630_monitoring_retention_180_days.sql
+node scripts/supabase-sql.mjs supabase/migrations/20261013202220_monitoring_retention_daily.sql
 node scripts/supabase-sql.mjs database/tests/monitoring_retention.sql --rollback-test
 npm run check
 ```
@@ -67,6 +70,8 @@ O backend em produção utiliza a estrutura anterior em `backend/src`, enquanto 
 
 A desativação do agendamento antigo foi implantada no backend em 13 de outubro de 2026. A imagem em execução foi derivada da imagem anterior, alterando apenas a chamada ao agendamento no JavaScript compilado; a mesma desativação foi salva no fonte de produção para os próximos builds. O frontend não foi recriado. A imagem de rollback está disponível na VPS como `uptime-monitor-backend:before-retention-20261013201456`. O endpoint público `/api/health` respondeu HTTP 200 após a implantação.
 
-O job de retenção foi ativado depois dessa verificação. A migration também foi registrada em `supabase_migrations.schema_migrations`. Reaplicar o arquivo SQL pausa o job novamente; usar o comando de ativação no arquivo de operações após a validação.
+O job de retenção foi ativado depois dessa verificação. As migrations também são registradas em `supabase_migrations.schema_migrations`. Reaplicar o arquivo inicial restaura o agendamento horário e pausa o job; reaplicar a migration diária e usar o comando de ativação no arquivo de operações após a validação.
 
 A primeira execução automática terminou com sucesso em 13 de outubro de 2026 às **17:17, horário de São Paulo**, em aproximadamente **22 ms**. Os 35 tokens expirados há mais de 7 dias foram removidos; não havia verificações acima de 180 dias para excluir. Os testes SQL foram executados com rollback integral, os testes de concorrência passaram, e `npm run check` concluiu lint, checagem de tipos, 7 testes e build.
+
+A frequência foi alterada no mesmo dia para uma execução diária às 02:17, conforme solicitado. A consulta de validação confirmou um único job ativo com `17 5 * * *` no fuso GMT. O comando diário com dois lotes foi executado para validação com rollback integral, sem exclusões persistentes durante esse teste.
