@@ -26,6 +26,7 @@ function App() {
               <Route path="/login" element={<LoginPage />} />
               
               {/* Rota pública de status */}
+              <Route path="status" element={<StatusPage />} />
               <Route path="status/:slug" element={<StatusPage />} />
               
               {/* Rotas protegidas */}
