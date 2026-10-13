@@ -1,6 +1,6 @@
 # Análise do backend Supabase e retenção de dados
 
-Em 13 de outubro de 2026, o banco do projeto `uptime-monitor` ocupava 68,4 MB. A tabela `monitor_checks` concentrava 55,2 MB, incluindo dados, índices e espaço alocado pelo PostgreSQL. O principal ajuste necessário é substituir a exclusão semanal de dados acima de 30 dias pela retenção de 180 dias definida para as verificações detalhadas.
+Em 13 de outubro de 2026, o banco do projeto `uptime-monitor` ocupava 68,4 MB. A tabela `monitor_checks` concentrava 55,2 MB, incluindo dados, índices e espaço alocado pelo PostgreSQL. Foram implantadas a retenção de 180 dias, a limpeza diária, as correções de segurança e as otimizações de histórico e relatórios descritas neste documento.
 
 ## Volume e armazenamento
 
@@ -18,7 +18,7 @@ Em 13 de outubro de 2026, o banco do projeto `uptime-monitor` ocupava 68,4 MB. A
 
 Com todos os monitores executando continuamente, são 18 × 288 = 5.184 verificações por dia e 933.120 em 180 dias. A projeção proporcional do espaço atual é de aproximadamente **304 MB para a tabela de verificações**, incluindo índices. Ela não representa uma garantia de tamanho: o espaço alocado inclui versões antigas de linhas e os índices não crescem de forma perfeitamente linear.
 
-## Gargalos identificados
+## Gargalos identificados antes das correções
 
 1. **Limpeza em uma única transação.** O agendamento antigo fazia um `DELETE` sem limite e duas contagens exatas de toda a tabela. As contagens apresentavam média histórica de 969 ms; a exclusão antiga, média de 200 ms. Essas estatísticas são acumuladas desde setembro de 2025 e não representam percentis ou um teste de carga atual.
 2. **Carregamento de histórico em memória.** `MonitoringService.loadRecentChecks` solicita até 500 mil registros por monitor, sem filtro de data. Os cálculos de disponibilidade percorrem o array global três vezes por verificação. Com retenção maior, aumentam o tráfego inicial, a memória e o trabalho de CPU. O próximo ajuste deve carregar somente a janela de 30 dias usada no painel e calcular resumos no banco.
@@ -57,7 +57,7 @@ O [Security Advisor](https://supabase.com/dashboard/project/zhywrrzzezexlvtpqacl
 
 A troca da senha administrativa padrão **permanece pendente de ação do proprietário no painel**, conforme a escolha expressa durante a correção. As permissões do banco e o bootstrap foram corrigidos sem alterar essa senha.
 
-O Performance Advisor continua sendo uma análise separada: os índices duplicados e não utilizados descritos no diagnóstico são próximos ajustes de desempenho.
+O Performance Advisor continua sendo uma análise separada. Os índices redundantes foram revisados na etapa de desempenho abaixo; índices apenas marcados como não utilizados não foram removidos automaticamente.
 
 ## Operação e validação
 
@@ -89,3 +89,48 @@ A frequência foi alterada no mesmo dia para uma execução diária às 02:17, c
 A correção de segurança foi implantada no backend existente e validada pelo endereço público. Os 10 testes automatizados, lint, checagem de tipos e build passaram. Os testes SQL de segurança e retenção passaram com rollback integral. A validação da API confirmou bloqueio anônimo de SELECT, INSERT, UPDATE e DELETE nas oito tabelas, bloqueio dos RPCs administrativos, preservação do acesso autenticado aos relatórios e das páginas públicas, além de 404 para históricos de monitores inativos e inexistentes.
 
 A imagem anterior à correção de segurança foi preservada na VPS como `uptime-monitor-backend:before-security-20261013203912`. Reverter apenas a imagem não reverte as permissões do banco. A rotina de retenção de 180 dias permanece ativa com o cron diário `17 5 * * *`, às 02:17 de São Paulo.
+
+## Desempenho corrigido em produção
+
+A migration `supabase/migrations/20261013210135_monitoring_performance.sql` foi aplicada e registrada em `supabase_migrations.schema_migrations`. Os novos RPCs usam `SECURITY INVOKER`, caminho de pesquisa fixo e execução restrita a `service_role`. As agregações permanecem no PostgreSQL, junto aos dados. [Funções de banco do Supabase](https://supabase.com/docs/guides/database/functions).
+
+O carregamento inicial usa `get_monitoring_bootstrap`: lê somente 30 dias por monitor, transfere pares numéricos de timestamp/disponibilidade e no máximo 100 registros completos por monitor. A carga é dividida em grupos de até 32 monitores. A aplicação guarda timestamps e somas acumuladas por monitor; os cálculos de uptime usam busca binária, sem percorrer o array global em cada checagem. O cache é podado por tempo e não cresce com a retenção de 180 dias do banco. A inicialização duplicada foi removida para que as verificações comecem depois da carga do histórico.
+
+`ReportService.collectMonitorStats` usa `get_monitor_report_metrics`, que retorna totais, disponibilidade, tempos de resposta, incidentes e resumos diários. O gráfico público de histórico também usa os resumos SQL. Relatórios não transferem todas as verificações para calcular estatísticas nem fabricam dados quando o banco falha. Tempos de resposta consideram somente verificações `online` com valor positivo; a duração de incidentes vai até a recuperação ou o fim do período solicitado. Dias sem verificações não recebem disponibilidade inventada de 100%.
+
+Quando um consumidor precisa das verificações detalhadas, `getMonitorChecksForPeriod` seleciona apenas os campos necessários e pagina em lotes de até 1.000, usando `checked_at` e `id` como cursor. O ID desempata timestamps iguais. A leitura continua até uma página vazia, inclusive quando o teto do servidor é menor que 1.000. Esse método ainda retorna os detalhes solicitados em um array; o ganho dos relatórios vem de deixar de chamá-lo para agregações.
+
+Foram removidos `idx_monthly_report_configs_is_active`, `idx_users_email` e `idx_monitors_slug`, mantendo os índices equivalentes e as garantias de unicidade. A economia imediata desses três índices pequenos foi 48 KiB. O índice simples `monitor_checks(monitor_id)` foi mantido: um plano real de consulta por período ainda o usa. A busca das últimas 100 verificações usa o índice composto existente e ordenação incremental. Não foram criados novos índices na tabela principal.
+
+`monitor_checks` passou a usar `autovacuum_vacuum_scale_factor=0.05` e `autovacuum_analyze_scale_factor=0.02`, com `ANALYZE` na implantação. Isso antecipa a manutenção e a atualização das estatísticas em relação aos valores padrão; não força redução do arquivo físico nem executa `VACUUM FULL`. [Configuração do autovacuum](https://www.postgresql.org/docs/current/runtime-config-vacuum.html).
+
+### Medições e validação
+
+Em uma comparação realizada em produção com período fixo de 30 dias, o resumo SQL apresentou os mesmos totais, verificações bem-sucedidas, soma de tempos de resposta e contagens diárias da leitura detalhada:
+
+| Medida | Resultado |
+| --- | --- |
+| Monitores ativos na validação | 17 |
+| Verificações detalhadas de um monitor | 8.655 |
+| JSON com os detalhes | 1.896.072 bytes |
+| JSON com o resumo | 2.267 bytes; redução de 99,88% |
+| Tempo de leitura dos detalhes paginados | 1.089 ms |
+| Tempo do RPC de resumo | 124 ms |
+| Cache inicial em produção | 147.025 amostras numéricas e 1.700 registros completos |
+| Payload do bootstrap dos 17 monitores | Aproximadamente 3,03 MB |
+| 100 conjuntos de cálculo de uptime, três janelas, um monitor | 882 ms no algoritmo anterior; 0,233 ms no cache compacto |
+
+Os tempos são medições pontuais, com efeitos de rede e cache; não são percentis ou um teste de carga. O benchmark de uptime foi executado localmente com as amostras reais, para comparar os algoritmos. O total de memória do container foi observado em 138,4 MiB antes e 49,95 MiB após a inicialização corrigida; essas fotografias incluem outros dados e o efeito do coletor de lixo, portanto não representam uma garantia de consumo contínuo.
+
+`npm run check` passou com lint, tipos, 15 testes e build. O backend preparado para commit também foi exportado e teve seus tipos verificados separadamente, preservando alterações de PDF e frontend em andamento. Os testes SQL de desempenho, segurança e retenção passaram com rollback integral. A API de produção validou estatísticas públicas, gráfico de uptime, relatório autenticado com totais conferidos no banco e geração de PDF. Nenhum email de teste foi enviado.
+
+O Security Advisor continuou com zero erros e zero avisos. O Performance Advisor mostrou zero erros, zero avisos e seis sugestões informativas de índices não utilizados. Essas sugestões não comprovam redundância e não justificam remover índices de tokens ou relatórios usados em operações menos frequentes.
+
+O backend existente em `backend/src` recebeu as mesmas mudanças de desempenho. A primeira imagem apresentou uma incompatibilidade com um campo exclusivo da versão local e foi revertida imediatamente. A imagem corrigida preserva a implementação de checagens já implantada e passou por uma checagem simulada completa durante o build antes da reimplantação. O container ficou saudável e as verificações reais voltaram a persistir normalmente. O frontend não foi recriado. A imagem de rollback é `uptime-monitor-backend:before-performance-20261013181935`.
+
+```powershell
+node scripts/supabase-sql.mjs database/tests/monitoring_performance.sql --rollback-test
+node scripts/verify-backend-performance.mjs --production
+```
+
+O script de verificação de desempenho depende do build do backend (`npm run build:server`). A rotina de limpeza permanece diária, às 02:17 de São Paulo, com retenção de 180 dias; esta etapa não excluiu verificações históricas.
