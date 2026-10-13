@@ -114,34 +114,29 @@ ALTER TABLE public.monitor_checks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.smtp_config ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 
--- Políticas básicas de RLS (ajuste conforme necessário)
-CREATE POLICY "Enable all operations for authenticated users" ON public.users
-    FOR ALL USING (auth.role() = 'authenticated');
+-- A aplicação autentica no backend; a Data API não permite acesso direto do cliente.
+REVOKE ALL ON public.users, public.groups, public.monitors, public.monitor_checks, public.smtp_config, public.reports FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.users, public.groups, public.monitors, public.monitor_checks, public.smtp_config, public.reports TO service_role;
+CREATE POLICY "Backend service access" ON public.users
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-CREATE POLICY "Enable all operations for authenticated users" ON public.groups
-    FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Backend service access" ON public.groups
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-CREATE POLICY "Enable all operations for authenticated users" ON public.monitors
-    FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Backend service access" ON public.monitors
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-CREATE POLICY "Enable all operations for authenticated users" ON public.monitor_checks
-    FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Backend service access" ON public.monitor_checks
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-CREATE POLICY "Enable all operations for authenticated users" ON public.smtp_config
-    FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Backend service access" ON public.smtp_config
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
 
-CREATE POLICY "Enable all operations for authenticated users" ON public.reports
-    FOR ALL USING (auth.role() = 'authenticated');
+CREATE POLICY "Backend service access" ON public.reports
+    FOR ALL TO service_role USING (true) WITH CHECK (true);
 
--- Inserir usuário administrador padrão (senha: admin123)
-INSERT INTO public.users (email, password, name, role)
-VALUES (
-    'admin@agencia.com',
-    '$2a$10$.YgNGvh7ZQ7FqSHlyv.Ra.kgPwCz1vXWXAPySIhrzcaAKz59askIe',
-    'Administrador',
-    'admin'
-)
-ON CONFLICT (email) DO NOTHING;
+-- O primeiro administrador é criado pelo backend com ADMIN_EMAIL e ADMIN_PASSWORD.
+-- Não inclua credenciais ou hashes de usuários neste schema.
 
 -- Inserir grupo de exemplo
 INSERT INTO public.groups (name, description)
