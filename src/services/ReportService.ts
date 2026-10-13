@@ -14,6 +14,10 @@ export interface MonitorStats {
   total_checks: number
   successful_checks: number
   failed_checks: number
+  warning_checks: number
+  offline_checks: number
+  response_time_samples: number
+  total_response_time: number
   min_response_time: number
   max_response_time: number
   avg_response_time: number
@@ -90,33 +94,18 @@ export class ReportService {
    */
   public async collectMonitorStats(monitorId: string, startDate: Date, endDate: Date): Promise<MonitorStats> {
     try {
-      // Buscar dados do monitor
-      const monitors = await databaseService.getMonitors()
-      const monitor = monitors.find((m: any) => m.id === monitorId)
-      
+      const monitor = await databaseService.getMonitorById(monitorId)
       if (!monitor) {
         throw new Error(`Monitor ${monitorId} não encontrado`)
       }
 
-      // Buscar checks do período
-      const checks = await this.getMonitorChecksForPeriod(monitorId, startDate, endDate)
-      
-      // Calcular estatísticas
-      const totalChecks = checks.length
-      const successfulChecks = checks.filter((check: any) => check.status === 'up').length
-      const failedChecks = totalChecks - successfulChecks
-      const uptimePercentage = totalChecks > 0 ? (successfulChecks / totalChecks) * 100 : 0
-      
-      // Calcular tempo médio, mínimo e máximo de resposta
-      const responseTimes = checks.filter((check: any) => check.response_time > 0).map((check: any) => check.response_time)
-      const avgResponseTime = responseTimes.length > 0 
-        ? responseTimes.reduce((sum: any, time: any) => sum + time, 0) / responseTimes.length 
-        : 0
-      const minResponseTime = responseTimes.length > 0 ? Math.min(...responseTimes) : 0
-      const maxResponseTime = responseTimes.length > 0 ? Math.max(...responseTimes) : 0
-
-      // Identificar incidentes (períodos de downtime)
-      const incidents = this.identifyIncidents(checks)
+      const metrics = await databaseService.getMonitorReportMetrics(monitorId, startDate, endDate)
+      const totalChecks = Number(metrics.total_checks) || 0
+      const successfulChecks = Number(metrics.successful_checks) || 0
+      const warningChecks = Number(metrics.warning_checks) || 0
+      const offlineChecks = Number(metrics.offline_checks) || 0
+      const responseTimeSamples = Number(metrics.response_time_samples) || 0
+      const incidents = Array.isArray(metrics.incidents) ? metrics.incidents : []
 
       // Obter status em tempo real do MonitoringService
       const realTimeMonitor = this.monitoringService?.getMonitor(monitor.id)
@@ -127,112 +116,25 @@ export class ReportService {
         name: monitor.name,
         url: monitor.url,
         status: currentStatus,
-        uptime_24h: realTimeMonitor?.uptime_24h || monitor.uptime_24h || 0,
-        uptime_7d: realTimeMonitor?.uptime_7d || monitor.uptime_7d || 0,
-        uptime_30d: uptimePercentage,
+        uptime_24h: realTimeMonitor?.uptime_24h ?? monitor.uptime_24h ?? 0,
+        uptime_7d: realTimeMonitor?.uptime_7d ?? monitor.uptime_7d ?? 0,
+        uptime_30d: totalChecks > 0 ? Number(metrics.uptime) : 0,
         total_checks: totalChecks,
         successful_checks: successfulChecks,
-        failed_checks: failedChecks,
-        min_response_time: minResponseTime,
-        max_response_time: maxResponseTime,
-        avg_response_time: Math.round(avgResponseTime),
+        failed_checks: Number(metrics.failed_checks) || 0,
+        warning_checks: warningChecks,
+        offline_checks: offlineChecks,
+        response_time_samples: responseTimeSamples,
+        total_response_time: Number(metrics.total_response_time) || 0,
+        min_response_time: Number(metrics.min_response_time) || 0,
+        max_response_time: Number(metrics.max_response_time) || 0,
+        avg_response_time: Math.round(Number(metrics.avg_response_time) || 0),
         incidents
       }
     } catch (error) {
       console.error('Erro ao coletar estatísticas do monitor:', error)
       throw error
     }
-  }
-
-  /**
-   * Busca checks de um monitor para um período específico
-   */
-  private async getMonitorChecksForPeriod(monitorId: string, startDate: Date, endDate: Date) {
-    try {
-      console.log(`📊 Buscando checks reais do período ${startDate.toISOString()} até ${endDate.toISOString()} para monitor ${monitorId}`)
-      
-      // Usar a nova função do DatabaseService para buscar dados reais
-      const checks = await databaseService.getMonitorChecksForPeriod(monitorId, startDate, endDate)
-      
-      console.log(`📈 Encontrados ${checks.length} checks reais no período`)
-      
-      // Converter status para formato esperado (online/offline -> up/down)
-      return checks.map((check: any) => ({
-        ...check,
-        status: check.status === 'online' ? 'up' : 'down'
-      }))
-    } catch (error) {
-      console.error('❌ Erro ao buscar checks do período, usando dados simulados como fallback:', error)
-      
-      // Fallback para dados simulados em caso de erro
-      const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24))
-      const checksPerDay = 24 * 4 // 4 checks por hora
-      const totalChecks = totalDays * checksPerDay
-      
-      const checks = []
-      for (let i = 0; i < totalChecks; i++) {
-        const checkTime = new Date(startDate.getTime() + (i * 15 * 60 * 1000)) // A cada 15 minutos
-        const isUp = Math.random() > 0.05 // 95% de uptime simulado
-        
-        checks.push({
-          id: `check_${i}`,
-          monitor_id: monitorId,
-          status: isUp ? 'up' : 'down',
-          response_time: isUp ? Math.floor(Math.random() * 500) + 100 : 0,
-          checked_at: checkTime.toISOString(),
-          error_message: isUp ? null : 'Connection timeout'
-        })
-      }
-      
-      return checks
-    }
-  }
-
-  /**
-   * Identifica incidentes (períodos de downtime) a partir dos checks
-   */
-  private identifyIncidents(checks: any[]) {
-    const incidents = []
-    let currentIncident = null
-    
-    for (const check of checks) {
-      if (check.status === 'down') {
-        if (!currentIncident) {
-          currentIncident = {
-            start: new Date(check.checked_at),
-            end: new Date(check.checked_at),
-            message: check.error_message
-          }
-        } else {
-          currentIncident.end = new Date(check.checked_at)
-        }
-      } else if (currentIncident) {
-        // Fim do incidente
-        const duration = Math.round((currentIncident.end.getTime() - currentIncident.start.getTime()) / (1000 * 60)) // em minutos
-        
-        incidents.push({
-          date: currentIncident.start.toISOString().split('T')[0],
-          status: 'down',
-          duration,
-          message: currentIncident.message
-        })
-        
-        currentIncident = null
-      }
-    }
-    
-    // Se ainda há um incidente em andamento
-    if (currentIncident) {
-      const duration = Math.round((currentIncident.end.getTime() - currentIncident.start.getTime()) / (1000 * 60))
-      incidents.push({
-        date: currentIncident.start.toISOString().split('T')[0],
-        status: 'down',
-        duration,
-        message: currentIncident.message
-      })
-    }
-    
-    return incidents
   }
 
   /**

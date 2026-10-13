@@ -256,20 +256,50 @@ export class DatabaseService {
     return data || []
   }
 
-  async getMonitorChecksForPeriod(monitorId: string, startDate: Date, endDate: Date) {
-    // Remover limitação padrão de 1000 linhas do Supabase
-    // Definir um limite maior para obter todos os registros do período
-    const { data, error } = await (supabase as any)
-      .from('monitor_checks')
-      .select('*')
-      .eq('monitor_id', monitorId)
-      .gte('checked_at', startDate.toISOString())
-      .lte('checked_at', endDate.toISOString())
-      .order('checked_at', { ascending: true })
-      .limit(100000) // Limite alto para garantir que todos os registros sejam retornados
-    
+  async getMonitoringBootstrap(ids: string[], asOf: Date) {
+    const { data, error } = await (supabase as any).rpc('get_monitoring_bootstrap', {
+      p_monitor_ids: ids, p_as_of: asOf.toISOString()
+    })
     if (error) throw error
     return data || []
+  }
+
+  async getMonitorReportMetrics(monitorId: string, startDate: Date, endDate: Date) {
+    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime()) || startDate > endDate) {
+      throw new Error('Período de relatório inválido')
+    }
+    const { data, error } = await (supabase as any).rpc('get_monitor_report_metrics', {
+      p_monitor_id: monitorId, p_start: startDate.toISOString(), p_end: endDate.toISOString()
+    })
+    if (error) throw error
+    if (!data) throw new Error('Resumo do relatório não retornado pelo banco')
+    return data
+  }
+
+  async getMonitorChecksForPeriod(monitorId: string, startDate: Date, endDate: Date) {
+    if (!Number.isFinite(startDate.getTime()) || !Number.isFinite(endDate.getTime()) || startDate > endDate) {
+      throw new Error('Período de histórico inválido')
+    }
+    const checks: any[] = []
+    let cursor: { checked_at: string; id: string } | undefined
+    for (;;) {
+      let query = (supabase as any).from('monitor_checks')
+        .select('id,monitor_id,status,response_time,status_code,error_message,checked_at')
+        .eq('monitor_id', monitorId)
+        .gte('checked_at', startDate.toISOString()).lte('checked_at', endDate.toISOString())
+        .order('checked_at', { ascending: true }).order('id', { ascending: true }).limit(1000)
+      if (cursor) {
+        query = query.or(`checked_at.gt.${cursor.checked_at},and(checked_at.eq.${cursor.checked_at},id.gt.${cursor.id})`)
+      }
+      const { data, error } = await query
+      if (error) throw error
+      if (!data?.length) break
+      const last = data[data.length - 1]
+      if (cursor?.id === last.id) throw new Error('Paginação do histórico não avançou')
+      for (const check of data) checks.push(check)
+      cursor = { checked_at: last.checked_at, id: last.id }
+    }
+    return checks
   }
 
   async createMonitorCheck(checkData: {

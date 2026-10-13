@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS monthly_report_history (
 -- Índices para melhor performance
 CREATE INDEX IF NOT EXISTS idx_monthly_report_configs_monitor_id ON monthly_report_configs(monitor_id);
 CREATE INDEX IF NOT EXISTS idx_monthly_report_configs_send_day ON monthly_report_configs(send_day);
-CREATE INDEX IF NOT EXISTS idx_monthly_report_configs_is_active ON monthly_report_configs(is_active);
+CREATE INDEX IF NOT EXISTS idx_monthly_report_configs_active ON monthly_report_configs(is_active);
 
 CREATE INDEX IF NOT EXISTS idx_monthly_report_history_config_id ON monthly_report_history(config_id);
 CREATE INDEX IF NOT EXISTS idx_monthly_report_history_monitor_id ON monthly_report_history(monitor_id);

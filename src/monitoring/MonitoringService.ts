@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { CheckHistory } from './CheckHistory.js'
 import * as ping from 'ping'
 import * as cron from 'node-cron'
 import { EventEmitter } from 'events'
@@ -70,7 +71,7 @@ interface ContentValidationConfig {
 
 class MonitoringService extends EventEmitter {
   private monitors: Map<string, Monitor> = new Map()
-  private checks: MonitorCheck[] = []
+  private history = new CheckHistory()
   private intervals: Map<string, NodeJS.Timeout> = new Map()
   // Contador de falhas consecutivas por monitor — evita falsos positivos por oscilação
   private consecutiveFailures: Map<string, number> = new Map()
@@ -147,7 +148,7 @@ class MonitoringService extends EventEmitter {
     this.consecutiveFailures.delete(monitorId)
 
     // Remover checks antigos
-    this.checks = this.checks.filter(check => check.monitor_id !== monitorId)
+    this.history.remove(monitorId)
   }
 
   // Atualizar um monitor
@@ -181,10 +182,7 @@ class MonitoringService extends EventEmitter {
 
   // Obter checks de um monitor
   getMonitorChecks(monitorId: string, limit = 100): MonitorCheck[] {
-    return this.checks
-      .filter(check => check.monitor_id === monitorId)
-      .sort((a, b) => new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime())
-      .slice(0, limit)
+    return this.history.recent(monitorId, limit)
   }
 
   // Executar verificação manual de um monitor e retornar o último check
@@ -200,77 +198,30 @@ class MonitoringService extends EventEmitter {
 
   // Carregar verificações recentes do banco de dados
   async loadRecentChecks(databaseService: any) {
-    try {
-      const monitors = Array.from(this.monitors.keys())
-      
-      for (const monitorId of monitors) {
-        // Carregar verificações das últimas 24 horas para cada monitor
-        const checks = await databaseService.getMonitorChecks(monitorId, 500000)
-        
-        // Converter para o formato interno e adicionar ao array
-        const recentChecks: MonitorCheck[] = (checks.map((check: any) => ({
-          id: check.id,
-          monitor_id: check.monitor_id,
-          status: check.status,
-          response_time: check.response_time,
-          error_message: check.error_message,
-          status_code: check.status_code ?? null,
-          checked_at: check.checked_at
-        })) as MonitorCheck[])
-        
-        this.checks.push(...recentChecks)
-        
-        // Ajuste: usar a última verificação dentro de 24h; fallback para 'unknown'
-        if (recentChecks.length > 0) {
-          const cutoff24h = new Date(Date.now() - 24 * 60 * 60 * 1000)
-          const latestIn24h = recentChecks
-            .filter((c: MonitorCheck) => new Date(c.checked_at) >= cutoff24h)
-            .sort((a: MonitorCheck, b: MonitorCheck) => 
-              new Date(b.checked_at).getTime() - new Date(a.checked_at).getTime()
-            )[0];
-
-          const monitor = this.monitors.get(monitorId);
-          if (monitor) {
-            if (latestIn24h) {
-              monitor.status = latestIn24h.status;
-              monitor.last_check = latestIn24h.checked_at;
-              monitor.response_time = latestIn24h.response_time;
-            } else {
-              monitor.status = 'unknown';
-              monitor.last_check = null;
-              monitor.response_time = null;
-            }
-            this.monitors.set(monitorId, monitor);
-          }
-        }
+    const asOf = new Date()
+    const ids = Array.from(this.monitors.keys())
+    for (let offset = 0; offset < ids.length; offset += 32) {
+      const rows = await databaseService.getMonitoringBootstrap(ids.slice(offset, offset + 32), asOf)
+      for (const row of rows) {
+        this.history.seed(row.monitor_id, row.samples, row.latest_checks, asOf.getTime())
+        const monitor = this.monitors.get(row.monitor_id)
+        if (!monitor) continue
+        const latest = this.history.recent(row.monitor_id, 1)[0]
+        const fresh = latest && Date.parse(latest.checked_at) >= asOf.getTime() - 86400000
+        monitor.status = fresh ? latest.status : 'unknown'
+        monitor.last_check = fresh ? latest.checked_at : null
+        monitor.response_time = fresh ? latest.response_time : null
+        monitor.uptime_24h = this.history.uptime(row.monitor_id, 24, asOf.getTime())
+        monitor.uptime_7d = this.history.uptime(row.monitor_id, 168, asOf.getTime())
+        monitor.uptime_30d = this.history.uptime(row.monitor_id, 720, asOf.getTime())
       }
-      
-      // Recalcular uptime para todos os monitores
-      this.monitors.forEach((monitor, id) => {
-        monitor.uptime_24h = this.calculateUptime(id, 24)
-        monitor.uptime_7d = this.calculateUptime(id, 24 * 7)
-        monitor.uptime_30d = this.calculateUptime(id, 24 * 30)
-        this.monitors.set(id, monitor)
-      })
-      
-      console.log(`📊 Carregadas ${this.checks.length} verificações do banco de dados`)
-    } catch (error) {
-      console.error('❌ Erro ao carregar verificações do banco de dados:', error)
     }
+    console.log(`📊 Histórico compacto: ${this.history.sampleCount} amostras, ${this.history.fullRecordCount} registros completos`)
   }
 
   // Calcular estatísticas de uptime
   calculateUptime(monitorId: string, hours: number): number {
-    const cutoffTime = new Date(Date.now() - hours * 60 * 60 * 1000)
-    const recentChecks = this.checks.filter(check => 
-      check.monitor_id === monitorId && 
-      new Date(check.checked_at) >= cutoffTime
-    )
-    
-    if (recentChecks.length === 0) return 0
-    
-    const successfulChecks = recentChecks.filter(check => check.status === 'online').length
-    return (successfulChecks / recentChecks.length) * 100
+    return this.history.uptime(monitorId, hours)
   }
 
   // Obter estatísticas do monitoramento
@@ -375,7 +326,7 @@ class MonitoringService extends EventEmitter {
       checked_at: new Date().toISOString()
     }
 
-    this.checks.push(check)
+    this.history.record(check)
 
     // Salvar verificação no banco de dados
     if (this.databaseService) {
@@ -886,18 +837,9 @@ class MonitoringService extends EventEmitter {
 
   // Limpar checks antigos (manter apenas 30 dias)
   private cleanupOldChecks() {
-    const cutoffTime = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) // 30 dias
-    const initialCount = this.checks.length
-    
-    this.checks = this.checks.filter(check => 
-      new Date(check.checked_at) >= cutoffTime
-    )
-    
-    const removedCount = initialCount - this.checks.length
-    if (removedCount > 0) {
-      console.log(`🧹 Limpeza concluída: ${removedCount} checks antigos removidos`)
-    }
+    this.history.pruneAll()
   }
+
 }
 
 export default MonitoringService

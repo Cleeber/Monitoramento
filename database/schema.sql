@@ -78,7 +78,7 @@ CREATE TABLE IF NOT EXISTS public.reports (
 );
 
 -- Índices para melhor performance
-CREATE INDEX IF NOT EXISTS idx_users_email ON public.users(email);
+-- users.email already has a UNIQUE constraint and its backing index.
 CREATE INDEX IF NOT EXISTS idx_monitors_group_id ON public.monitors(group_id);
 CREATE INDEX IF NOT EXISTS idx_monitors_status ON public.monitors(status);
 CREATE INDEX IF NOT EXISTS idx_monitor_checks_monitor_id ON public.monitor_checks(monitor_id);

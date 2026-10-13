@@ -14,7 +14,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_groups_slug
 ON public.groups(slug) 
 WHERE slug IS NOT NULL;
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_monitors_slug 
+CREATE UNIQUE INDEX IF NOT EXISTS idx_monitors_slug_unique
 ON public.monitors(slug) 
 WHERE slug IS NOT NULL;
 
