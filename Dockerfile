@@ -1,7 +1,7 @@
 # ============================================================
 # Stage 1: Build do frontend com Vite
 # ============================================================
-FROM node:18-alpine AS client-builder
+FROM node:22-alpine AS client-builder
 
 WORKDIR /build
 
@@ -17,6 +17,13 @@ COPY postcss.config.js ./
 COPY index.html ./
 COPY public ./public
 COPY client ./client
+COPY src/lib/database.types.ts ./src/lib/database.types.ts
+
+# These values are public browser configuration (Supabase URL + anon key).
+ARG VITE_SUPABASE_URL
+ARG VITE_SUPABASE_ANON_KEY
+ENV VITE_SUPABASE_URL=${VITE_SUPABASE_URL}
+ENV VITE_SUPABASE_ANON_KEY=${VITE_SUPABASE_ANON_KEY}
 
 RUN npm install
 
@@ -26,7 +33,7 @@ RUN npm run build:client
 # ============================================================
 # Stage 2: Build do backend com tsc
 # ============================================================
-FROM node:18-alpine AS server-builder
+FROM node:22-alpine AS server-builder
 
 WORKDIR /build
 
@@ -46,7 +53,7 @@ RUN npm run build:server
 # ============================================================
 # Stage 3: Imagem final de produção
 # ============================================================
-FROM node:18-alpine AS production
+FROM node:22-alpine AS production
 
 RUN apk update && apk add --no-cache \
     curl \

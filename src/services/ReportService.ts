@@ -1,6 +1,7 @@
 import { databaseService } from './DatabaseService.js'
 import { emailService } from './EmailService.js'
-import { pdfService } from './PDFService.js'
+import { publicStatusService } from './PublicStatusService.js'
+import { publicStatusPdfService } from './PublicStatusPDFService.js'
 import MonitoringService from '../monitoring/MonitoringService.js'
 
 export interface MonitorStats {
@@ -154,17 +155,17 @@ Tipo: ${monitor.type}
 Status Atual: ${this.getStatusText(stats.status)}
 
 --- ESTATÍSTICAS DO PERÍODO ---
-Uptime: ${stats.uptime_30d.toFixed(2)}%
+Uptime: ${stats.total_checks > 0 ? `${stats.uptime_30d.toFixed(2)}%` : 'Sem verificações no período'}
 Total de Verificações: ${stats.total_checks.toLocaleString('pt-BR')}
 Verificações Bem-sucedidas: ${stats.successful_checks.toLocaleString('pt-BR')}
 Verificações com Falha: ${stats.failed_checks.toLocaleString('pt-BR')}
-Tempo Médio de Resposta: ${stats.avg_response_time}ms
+Tempo Médio de Resposta: ${stats.response_time_samples > 0 ? `${stats.avg_response_time}ms` : 'Sem medições de resposta'}
 
 --- RESUMO DE DISPONIBILIDADE ---
-${this.generateUptimeSummary(stats.uptime_30d)}
+${stats.total_checks > 0 ? this.generateUptimeSummary(stats.uptime_30d) : 'Não há verificações suficientes para calcular a disponibilidade.'}
 
 --- INCIDENTES REGISTRADOS ---
-${this.generateIncidentsSummary(stats.incidents)}
+${stats.total_checks > 0 ? this.generateIncidentsSummary(stats.incidents) : 'Sem verificações no período; não é possível confirmar incidentes.'}
 
 --- ANÁLISE ---
 ${this.generateAnalysis(stats)}
@@ -209,6 +210,7 @@ ${this.generateAnalysis(stats)}
   }
 
   private generateAnalysis(stats: MonitorStats): string {
+    if (stats.total_checks === 0) return 'Sem verificações registradas no período; não é possível avaliar a estabilidade ou o tempo de resposta.'
     let analysis = ''
     
     // Análise de uptime
@@ -273,8 +275,7 @@ ${this.generateAnalysis(stats)}
       
       // Calcular período dos últimos 30 dias
       const endDate = new Date()
-      const startDate = new Date()
-      startDate.setDate(startDate.getDate() - 30)
+      const startDate = new Date(endDate.getTime() - 30 * 86_400_000)
       
       // Coletar estatísticas dos últimos 30 dias
       const stats = await this.collectMonitorStats(monitorId, startDate, endDate)
@@ -283,42 +284,8 @@ ${this.generateAnalysis(stats)}
         throw new Error('Não foi possível coletar estatísticas do monitor')
       }
       
-      // Gerar PDF usando o novo serviço modular
-      let pdfBuffer: Buffer | undefined
-      
-      try {
-        const now = new Date()
-        const monthName = now.toLocaleDateString('pt-BR', { month: 'long' })
-        const yearNum = now.getFullYear()
-        const periodTitle = `${monthName} de ${yearNum}`
-
-        console.log(`📄 Gerando PDF modular para monitor: ${monitor.name}`)
-        
-        pdfBuffer = await pdfService.generateReportPDF({
-          monitor: {
-            name: monitor.name,
-            url: monitor.url,
-            type: monitor.type,
-            status: stats.status,
-            slug: monitor.slug
-          },
-          stats: {
-            uptime: stats.uptime_30d,
-            total_checks: stats.total_checks,
-            successful_checks: stats.successful_checks,
-            failed_checks: stats.failed_checks,
-            avg_response_time: stats.avg_response_time,
-            incidents: stats.incidents
-          },
-          period: periodTitle,
-          title: `${monitor.name} - Relatório Mensal`
-        })
-        
-        console.log(`✅ PDF gerado com sucesso (${pdfBuffer.length} bytes)`)
-      } catch (pdfError) {
-        console.warn('⚠️ Erro ao gerar PDF, enviando sem anexo:', pdfError)
-        pdfBuffer = undefined
-      }
+      console.log(`📄 Gerando cópia PDF da página pública de status: ${monitor.name}`)
+      const pdfBuffer = await this.generatePublicStatusPDF(monitor)
       
       // Montar link da página de status (se disponível)
       const baseUrl = process.env.FRONTEND_BASE_URL || 'https://monitor.pagina1digital.com.br'
@@ -326,18 +293,14 @@ ${this.generateAnalysis(stats)}
         ? `${baseUrl}/status/${monitor.slug}`
         : undefined
       
-      // Nome amigável do arquivo
-      const now = new Date()
-      const monthName = now.toLocaleDateString('pt-BR', { month: 'long' })
-      const yearNum = now.getFullYear()
-      const friendlyFileName = `Relatório Mensal - ${monitor.name} - ${monthName} de ${yearNum}.pdf`
+      const friendlyFileName = this.getPublicStatusFileName(monitor)
       
       // Enviar email
       const result = await emailService.sendMonthlyReport(
         email,
         monitor.name,
         pdfBuffer,
-        pdfBuffer ? friendlyFileName : undefined,
+        friendlyFileName,
         statusLink
       )
       
@@ -400,35 +363,10 @@ ${this.generateAnalysis(stats)}
       let fileName: string | undefined
       
       if (includePdf) {
-        try {
-          console.log(`📄 Gerando PDF do relatório mensal...`)
-          const monthName = this.getMonthName(month)
-          
-          pdfBuffer = await pdfService.generateReportPDF({
-            monitor: {
-              name: monitor.name,
-              url: monitor.url,
-              type: monitor.type,
-              status: stats.status,
-              slug: monitor.slug
-            },
-            stats: {
-              uptime: stats.uptime_30d,
-              total_checks: stats.total_checks,
-              successful_checks: stats.successful_checks,
-              failed_checks: stats.failed_checks,
-              avg_response_time: stats.avg_response_time,
-              incidents: stats.incidents
-            },
-            period: `${monthName} de ${year}`,
-            title: `${monitor.name} - Relatório Mensal`
-          })
-          
-          fileName = `relatorio-mensal-${monitor.name.replace(/[^a-zA-Z0-9]/g, '-')}-${month}-${year}.pdf`
-          console.log(`✅ PDF gerado (${pdfBuffer.length} bytes)`) 
-        } catch (pdfError) {
-          console.warn('⚠️ Erro ao gerar PDF, enviando apenas texto:', pdfError)
-        }
+        console.log(`📄 Gerando PDF da página pública de status...`)
+        pdfBuffer = await this.generatePublicStatusPDF(monitor)
+        fileName = this.getPublicStatusFileName(monitor)
+        console.log(`✅ PDF de status gerado (${pdfBuffer.length} bytes)`)
       }
       
       const baseUrl2 = process.env.FRONTEND_BASE_URL || 'https://monitor.pagina1digital.com.br'
@@ -487,50 +425,12 @@ ${this.generateAnalysis(stats)}
       const stats = await this.collectMonitorStats(monitorId, new Date(year, month - 1, 1), new Date(year, month, 0, 23, 59, 59))
       const reportContent = this.generateTextContent(monitor, stats, `${this.getMonthName(month)} ${year}`)
       
-      const attachments: any[] = []
-      
-      try {
-        // 1. PDF do Monitor
-        const monthlyPdfBuffer = await pdfService.generateReportPDF({
-          monitor: {
-            name: monitor.name,
-            url: monitor.url,
-            type: monitor.type,
-            status: stats.status,
-            slug: monitor.slug
-          },
-          stats: {
-            uptime: stats.uptime_30d,
-            total_checks: stats.total_checks,
-            successful_checks: stats.successful_checks,
-            failed_checks: stats.failed_checks,
-            avg_response_time: stats.avg_response_time,
-            incidents: stats.incidents
-          },
-          period: `${this.getMonthName(month)} de ${year}`,
-          title: `${monitor.name} - Relatório Mensal`
-        })
-
-        const monthlyFileName = `relatorio-mensal-${monitor.name.replace(/[^a-zA-Z0-9]/g, '-')}-${month}-${year}.pdf`
-        attachments.push({
-          filename: monthlyFileName,
-          content: monthlyPdfBuffer,
-          contentType: 'application/pdf'
-        })
-        
-        // 2. PDF Geral (Visão Global)
-        const statusPdfBuffer = await pdfService.generateOverviewPDF(monitors)
-        const statusFileName = `status-geral-${new Date().toISOString().split('T')[0]}.pdf`
-        
-        attachments.push({
-          filename: statusFileName,
-          content: statusPdfBuffer,
-          contentType: 'application/pdf'
-        })
-        
-      } catch (pdfError) {
-        console.warn('⚠️ Erro ao gerar PDFs:', pdfError)
-      }
+      const statusPdfBuffer = await this.generatePublicStatusPDF(monitor)
+      const attachments = [{
+        filename: this.getPublicStatusFileName(monitor),
+        content: statusPdfBuffer,
+        contentType: 'application/pdf'
+      }]
       
       const baseUrl = process.env.FRONTEND_BASE_URL || 'https://monitor.pagina1digital.com.br'
       const statusLink = `${baseUrl}/status/${monitor.slug}`
@@ -547,7 +447,7 @@ ${this.generateAnalysis(stats)}
             ${reportContent.replace(/\n/g, '<br>')}
           </div>
           
-          ${attachments.length > 0 ? '<p><strong>📎 Anexos:</strong> Relatório mensal e status geral em PDF</p>' : ''}
+          <p><strong>📎 Anexo:</strong> Cópia da página pública de status em PDF</p>
           ${statusLink ? `
           <div style="background-color: #ecfeff; padding: 15px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #06b6d4;">
             <p style="margin: 0; color: #0e7490;"><strong>🔗 Acompanhe o status em tempo real:</strong><br>
@@ -582,6 +482,22 @@ ${this.generateAnalysis(stats)}
         message: `Erro ao enviar relatório: ${error instanceof Error ? error.message : 'Erro desconhecido'}`
       }
     }
+  }
+
+  private async generatePublicStatusPDF(monitor: { id: string; slug?: string | null }): Promise<Buffer> {
+    const report = await publicStatusService.getReport(monitor.slug || monitor.id)
+    if (!report) throw new Error('Página pública de status não encontrada ou inativa')
+    return publicStatusPdfService.generate(report)
+  }
+
+  private getPublicStatusFileName(monitor: { id: string; slug?: string | null; name?: string }): string {
+    const safeName = (monitor.slug || monitor.name || monitor.id)
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9-]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .toLowerCase() || monitor.id
+    return `status-${safeName}-${new Date().toISOString().slice(0, 10)}.pdf`
   }
 }
 

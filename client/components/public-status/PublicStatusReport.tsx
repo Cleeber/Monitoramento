@@ -36,10 +36,13 @@ export function PublicStatusReport({ report, loading, error }: Props) {
   const monitors = report?.monitors ?? []
   const single = monitors.length === 1 ? monitors[0] : null
   const occurrences = report?.incidents
-  const observed = monitors.filter(monitor => monitor.last_check && Number.isFinite(monitor.uptime_30d))
-  const uptime = observed.length ? observed.reduce((sum, monitor) => sum + monitor.uptime_30d, 0) / observed.length : null
+  const observed = monitors.filter(monitor => monitor.total_checks > 0)
+  const observedChecks = observed.reduce((sum, monitor) => sum + monitor.total_checks, 0)
+  const observedSuccesses = observed.reduce((sum, monitor) => sum + monitor.successful_checks, 0)
+  const hasChecks = observedChecks > 0
+  const uptime = !report || report.partial || observedChecks === 0 ? null : (observedSuccesses / observedChecks) * 100
   const durations = occurrences?.map(incident => incidentDuration(incident, report!.lastUpdated))
-  const downtime = durations && durations.every(duration => duration !== null)
+  const downtime = hasChecks && !report?.partial && durations && durations.every(duration => duration !== null)
     ? durations.reduce<number>((sum, duration) => sum + (duration ?? 0), 0) : null
   const current = monitors.some(monitor => monitor.status === 'offline') ? statuses.offline
     : monitors.some(monitor => monitor.status === 'warning') ? statuses.warning
@@ -52,7 +55,7 @@ export function PublicStatusReport({ report, loading, error }: Props) {
   const metrics = [
     { label: 'Disponibilidade', value: uptime === null ? '—' : percentage(uptime), icon: CheckCircle2, tone: uptime === null ? 'muted' : uptime >= 99 ? 'green' : uptime >= 95 ? 'amber' : 'red', note: 'Últimos 30 dias', info: 'Percentual de verificações bem-sucedidas nos últimos 30 dias.' },
     { label: 'Tempo indisponível', value: downtime === null ? '—' : reportDuration(downtime), icon: Clock3, tone: 'blue', note: 'Nas ocorrências listadas', info: 'Soma das durações informadas no histórico recente. Um traço indica duração indisponível.' },
-    { label: 'Incidentes', value: occurrences == null ? '—' : String(occurrences.length), icon: AlertTriangle, tone: occurrences?.length ? 'red' : 'green', note: 'No histórico recente', info: 'Ocorrências disponíveis no histórico recente, dentro dos últimos 30 dias.' },
+    { label: 'Incidentes', value: occurrences == null || !hasChecks ? '—' : String(occurrences.length), icon: AlertTriangle, tone: occurrences?.length ? 'red' : hasChecks ? 'green' : 'muted', note: 'No histórico recente', info: 'Ocorrências disponíveis no histórico recente, dentro dos últimos 30 dias.' },
     { label: 'Resposta média', value: report?.averageResponse == null ? '—' : `${report.averageResponse.toLocaleString('pt-BR')} ms`, icon: BarChart3, tone: 'blue', note: 'Últimos 30 dias', info: 'Tempo médio de resposta das verificações bem-sucedidas no período.' },
   ]
   const accessibility = single ? statuses[single.status] : current
@@ -111,7 +114,7 @@ export function PublicStatusReport({ report, loading, error }: Props) {
         <section className="report-occurrences" aria-labelledby="occurrences-title">
           <div className="report-section-header"><h2 id="occurrences-title">Ocorrências do período</h2><span className="report-section-note">Histórico recente</span></div>
           <div className="report-table-scroll"><table className={occurrences?.length ? 'report-has-occurrences' : undefined}><caption className="sr-only">Histórico de ocorrências do período</caption><thead><tr><th scope="col">Data</th><th scope="col">Descrição</th><th scope="col">Duração</th><th scope="col">Status</th></tr></thead><tbody>
-            {occurrences == null ? <tr><td colSpan={4} className="report-table-empty">Histórico de ocorrências indisponível.</td></tr> : !occurrences.length ? <tr><td colSpan={4} className="report-table-empty"><CheckCircle2 size={19} />Nenhuma ocorrência registrada no histórico disponível.</td></tr> : occurrences.map(incident => {
+            {occurrences == null ? <tr><td colSpan={4} className="report-table-empty">Histórico de ocorrências indisponível.</td></tr> : !hasChecks ? <tr><td colSpan={4} className="report-table-empty">Sem verificações no período; não é possível confirmar incidentes.</td></tr> : !occurrences.length ? <tr><td colSpan={4} className="report-table-empty"><CheckCircle2 size={19} />Nenhuma ocorrência registrada no histórico disponível.</td></tr> : occurrences.map(incident => {
               const duration = incidentDuration(incident, report.lastUpdated)
               const unconfirmed = incident.status === 'resolved' && (!incident.resolved_at || duration === null)
               const resolved = incident.status === 'resolved' && !unconfirmed

@@ -261,9 +261,9 @@ export class EmailService {
               </div>` : ''}
 
               ${pdfBuffer ? `
-              <p style="margin-top: 16px; color: #374151;">Caso não consiga abrir o link acima, enviamos uma versão em PDF em anexo.</p>` : ''}
+              <p style="margin-top: 16px; color: #374151;">A cópia da página pública de status também está disponível em PDF no anexo.</p>` : ''}
 
-              ${pdfBuffer ? '<p style="margin-top: 8px;"><strong>📎 Anexo:</strong> Relatório detalhado em PDF</p>' : ''}
+              ${pdfBuffer ? '<p style="margin-top: 8px;"><strong>📎 Anexo:</strong> Página pública de status em PDF</p>' : ''}
 
               <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
               <p style="font-size: 12px; color: #9ca3af; text-align: center;">

@@ -9,11 +9,12 @@ export interface PDFReportMonitorData {
 }
 
 export interface PDFReportStatsData {
-  uptime: number
+  uptime: number | null
   total_checks: number
   successful_checks: number
   failed_checks: number
-  avg_response_time: number
+  avg_response_time: number | null
+  response_time_samples: number
   incidents: Array<{
     date: string
     duration: number | string
@@ -62,7 +63,7 @@ export class PDFService {
         this.addUptimeVisual(doc, options.stats.uptime)
 
         // 5. Lista de Incidentes
-        this.addIncidents(doc, options.stats.incidents)
+        this.addIncidents(doc, options.stats.incidents, options.stats.total_checks)
 
         // 6. Rodapé
         this.addFooter(doc)
@@ -135,10 +136,10 @@ export class PDFService {
     const boxTop = startY + 30
     
     // Desenhar caixas de estatísticas
-    this.drawStatBox(doc, 50, boxTop, 'Uptime', `${stats.uptime.toFixed(2)}%`, stats.uptime >= 99 ? '#059669' : '#dc2626')
+    this.drawStatBox(doc, 50, boxTop, 'Uptime', stats.uptime === null ? '—' : `${stats.uptime.toFixed(2)}%`, stats.uptime === null ? '#6b7280' : stats.uptime >= 99 ? '#059669' : '#dc2626')
     this.drawStatBox(doc, 180, boxTop, 'Checks Totais', stats.total_checks.toString())
     this.drawStatBox(doc, 310, boxTop, 'Falhas', stats.failed_checks.toString(), stats.failed_checks > 0 ? '#dc2626' : '#059669')
-    this.drawStatBox(doc, 440, boxTop, 'Resp. Média', `${Math.round(stats.avg_response_time)}ms`)
+    this.drawStatBox(doc, 440, boxTop, 'Resp. Média', stats.response_time_samples > 0 && stats.avg_response_time !== null ? `${Math.round(stats.avg_response_time)}ms` : '—')
   }
 
   private drawStatBox(doc: PDFKit.PDFDocument, x: number, y: number, label: string, value: string, color: string = '#1f2937') {
@@ -156,13 +157,19 @@ export class PDFService {
        .text(value, x + 10, y + 30, { width: 90, align: 'center' })
   }
 
-  private addUptimeVisual(doc: PDFKit.PDFDocument, uptime: number) {
+  private addUptimeVisual(doc: PDFKit.PDFDocument, uptime: number | null) {
     const startY = doc.y + 80 // Espaço após as caixas
     
     doc.fontSize(14)
        .font('Helvetica-Bold')
        .fillColor('#1f2937')
        .text('Disponibilidade', 50, startY)
+
+    if (uptime === null) {
+      doc.fontSize(11).font('Helvetica').fillColor('#6b7280')
+        .text('Sem verificações registradas no período.', 50, startY + 34, { width: 495, align: 'center' })
+      return
+    }
 
     // Barra de progresso visual
     const barWidth = 495
@@ -185,13 +192,19 @@ export class PDFService {
        .text('100%', 50 + barWidth - 25, startY + 55)
   }
 
-  private addIncidents(doc: PDFKit.PDFDocument, incidents: any[]) {
+  private addIncidents(doc: PDFKit.PDFDocument, incidents: any[], totalChecks: number) {
     const startY = doc.y + 80
     
     doc.fontSize(14)
        .font('Helvetica-Bold')
        .fillColor('#1f2937')
        .text('Histórico de Incidentes', 50, startY)
+
+    if (totalChecks === 0) {
+      doc.fontSize(11).font('Helvetica').fillColor('#6b7280')
+        .text('Sem verificações no período; não é possível confirmar incidentes.', 50, startY + 30)
+      return
+    }
 
     if (!incidents || incidents.length === 0) {
       doc.fontSize(11)

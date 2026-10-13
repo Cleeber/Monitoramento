@@ -71,31 +71,25 @@ export function calculatePeriodRange(timeRange: string): PeriodRange {
     }
     
     case '7d': {
-      // Últimos 7 dias - incluindo hoje
-      const sevenDaysAgo = new Date(today)
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 6)
-      
-      const endOfToday = new Date(today)
-      endOfToday.setHours(23, 59, 59, 999)
+      // Período móvel, igual ao cálculo de uptime do monitoramento.
+      const endDate = new Date()
+      const sevenDaysAgo = new Date(endDate.getTime() - 7 * 24 * 60 * 60 * 1000)
       
       return {
         startDate: sevenDaysAgo,
-        endDate: endOfToday,
+        endDate,
         label: 'Últimos 7 dias'
       }
     }
     
     case '30d': {
-      // Últimos 30 dias - incluindo hoje
-      const thirtyDaysAgo = new Date(today)
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 29)
-      
-      const endOfToday = new Date(today)
-      endOfToday.setHours(23, 59, 59, 999)
+      // O status público usa a mesma janela móvel de 30 × 24 horas.
+      const endDate = new Date()
+      const thirtyDaysAgo = new Date(endDate.getTime() - 30 * 24 * 60 * 60 * 1000)
       
       return {
         startDate: thirtyDaysAgo,
-        endDate: endOfToday,
+        endDate,
         label: 'Últimos 30 dias'
       }
     }

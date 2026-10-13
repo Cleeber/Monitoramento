@@ -28,6 +28,8 @@ import { supabase } from './lib/supabase.js'
 import { publicMonitor, findActivePublicMonitor } from './lib/publicMonitor.js'
 import { storageService } from './services/StorageService.js'
 import { pdfService } from './services/PDFService.js'
+import { publicStatusService } from './services/PublicStatusService.js'
+import { publicStatusPdfService } from './services/PublicStatusPDFService.js'
 import { reportService } from './services/ReportService.js'
 import { schedulerService } from './services/SchedulerService.js'
 import {
@@ -161,6 +163,7 @@ async function initializeServices() {
 
     // Configurar MonitoringService no ReportService
     reportService.setMonitoringService(monitoringService)
+    publicStatusService.setMonitoringService(monitoringService)
 
     // Inicializar agendamento de relatórios
     await schedulerService.initialize()
@@ -475,9 +478,9 @@ app.get('/api/dashboard/monitors', authenticateToken, async (_req, res) => {
         status: realTimeStatus?.status || monitor.status || 'unknown',
         last_check: realTimeStatus?.last_check || monitor.last_check,
         response_time: realTimeStatus?.response_time || monitor.response_time,
-        uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
-        uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
-        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0
+        uptime_24h: realTimeStatus?.uptime_24h ?? monitor.uptime_24h ?? 0,
+        uptime_7d: realTimeStatus?.uptime_7d ?? monitor.uptime_7d ?? 0,
+        uptime_30d: realTimeStatus?.uptime_30d ?? monitor.uptime_30d ?? 0
       }
     })
     
@@ -512,11 +515,11 @@ app.get('/api/monitors', authenticateToken, async (_req, res) => {
       return {
         ...monitor,
         status: realTimeStatus?.status || monitor.status || 'unknown',
-        last_check: realTimeStatus?.last_check || monitor.last_check,
-        response_time: realTimeStatus?.response_time || monitor.response_time,
-        uptime_24h: realTimeStatus?.uptime_24h || monitor.uptime_24h || 0,
-        uptime_7d: realTimeStatus?.uptime_7d || monitor.uptime_7d || 0,
-        uptime_30d: realTimeStatus?.uptime_30d || monitor.uptime_30d || 0
+        last_check: realTimeStatus?.last_check ?? monitor.last_check,
+        response_time: realTimeStatus?.response_time ?? monitor.response_time,
+        uptime_24h: realTimeStatus?.uptime_24h ?? monitor.uptime_24h ?? 0,
+        uptime_7d: realTimeStatus?.uptime_7d ?? monitor.uptime_7d ?? 0,
+        uptime_30d: realTimeStatus?.uptime_30d ?? monitor.uptime_30d ?? 0
       }
     })
     
@@ -539,19 +542,21 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
     const start = new Date(start_date as string)
     const end = new Date(end_date as string)
     
-    let monitors = []
+    let monitors: any[] = []
     if (monitor_id && monitor_id !== 'all') {
       const monitor = await databaseService.getMonitorById(monitor_id as string)
       if (monitor) monitors.push(monitor)
     } else {
-      monitors = await databaseService.getMonitors()
+      // O relatório agregado usa o mesmo escopo da página pública: monitores ativos.
+      monitors = (await databaseService.getMonitors()).filter((monitor: any) => monitor.is_active === true)
     }
     
     const reports = []
     let totalChecks = 0
     let totalIncidents = 0
-    let totalUptime = 0
+    let totalSuccessfulChecks = 0
     let totalResponseTime = 0
+    let totalResponseTimeSamples = 0
     
     for (const monitor of monitors) {
       const stats = await reportService.collectMonitorStats(monitor.id, start, end)
@@ -559,28 +564,37 @@ app.get('/api/reports', authenticateToken, async (req, res) => {
       reports.push({
         monitor_id: monitor.id,
         monitor_name: monitor.name,
-        uptime_percentage: stats.uptime_30d, 
+        uptime_percentage: stats.total_checks > 0 ? stats.uptime_30d : null,
         total_checks: stats.total_checks,
         successful_checks: stats.successful_checks,
         failed_checks: stats.failed_checks,
-        avg_response_time: stats.avg_response_time,
-        min_response_time: stats.min_response_time, 
-        max_response_time: stats.max_response_time,
+        warning_checks: stats.warning_checks,
+        offline_checks: stats.offline_checks,
+        response_time_samples: stats.response_time_samples,
+        avg_response_time: stats.response_time_samples > 0 ? stats.avg_response_time : null,
+        min_response_time: stats.response_time_samples > 0 ? stats.min_response_time : null,
+        max_response_time: stats.response_time_samples > 0 ? stats.max_response_time : null,
         incidents: stats.incidents.length,
         last_incident: stats.incidents.length > 0 ? stats.incidents[stats.incidents.length - 1].date : null
       })
       
       totalChecks += stats.total_checks
       totalIncidents += stats.incidents.length
-      totalUptime += stats.uptime_30d
-      totalResponseTime += stats.avg_response_time
+      totalSuccessfulChecks += stats.successful_checks
+      totalResponseTime += stats.total_response_time
+      totalResponseTimeSamples += stats.response_time_samples
     }
+    const partial = reports.some((report: any) => report.total_checks === 0)
     
     const overall_stats = {
       total_checks: totalChecks,
       total_incidents: totalIncidents,
-      avg_uptime: monitors.length > 0 ? totalUptime / monitors.length : 0,
-      avg_response_time: monitors.length > 0 ? totalResponseTime / monitors.length : 0
+      successful_checks: totalSuccessfulChecks,
+      failed_checks: totalChecks - totalSuccessfulChecks,
+      avg_uptime: totalChecks > 0 && !partial ? (totalSuccessfulChecks / totalChecks) * 100 : 0,
+      response_time_samples: totalResponseTimeSamples,
+      avg_response_time: totalResponseTimeSamples > 0 ? Math.round(totalResponseTime / totalResponseTimeSamples) : 0,
+      partial,
     }
     
     res.json({
@@ -1095,8 +1109,9 @@ app.get('/api/monthly-reports/history', authenticateToken, async (req, res) => {
 // Rotas de PDF
 app.get('/api/pdf/status', authenticateToken, async (_req, res) => {
   try {
-    const monitors = await databaseService.getMonitors()
-    const pdfBuffer = await pdfService.generateOverviewPDF(monitors)
+    const report = await publicStatusService.getReport('all')
+    if (!report) return res.status(404).json({ error: 'Página pública de status não encontrada' })
+    const pdfBuffer = await publicStatusPdfService.generate(report)
     
     res.setHeader('Content-Type', 'application/pdf')
     res.setHeader('Content-Disposition', 'attachment; filename="status-report.pdf"')
@@ -1110,17 +1125,58 @@ app.get('/api/pdf/status', authenticateToken, async (_req, res) => {
 app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res) => {
   try {
     const { monitorId } = req.params
-    const { year, month, style } = req.query as { [key: string]: string }
-
-    if (!year || !month) {
-      return res.status(400).json({ error: 'Ano e mês são obrigatórios' })
-    }
+    const { year, month, style, start_date, end_date } = req.query as { [key: string]: string }
 
     const monitors = await databaseService.getMonitors()
     const monitor = monitors.find((m: any) => m.id === monitorId)
 
     if (!monitor) {
       return res.status(404).json({ error: 'Monitor não encontrado' })
+    }
+
+    if (style === 'status') {
+      const report = await publicStatusService.getReport(monitor.slug || monitor.id)
+      if (!report) return res.status(404).json({ error: 'Página pública de status não encontrada ou inativa' })
+      const pdfBuffer = await publicStatusPdfService.generate(report)
+      const safeName = String(monitor.slug || monitor.id).replace(/[^a-zA-Z0-9-]/g, '-')
+      const filename = `status-${safeName}-${new Date().toISOString().slice(0, 10)}.pdf`
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`)
+      return res.send(pdfBuffer)
+    }
+
+    if (start_date || end_date) {
+      if (!start_date || !end_date) return res.status(400).json({ error: 'Data inicial e final são obrigatórias' })
+      const periodStart = new Date(start_date)
+      const periodEnd = new Date(end_date)
+      if (!Number.isFinite(periodStart.getTime()) || !Number.isFinite(periodEnd.getTime()) || periodStart > periodEnd) {
+        return res.status(400).json({ error: 'Período de relatório inválido' })
+      }
+
+      const stats = await reportService.collectMonitorStats(monitorId, periodStart, periodEnd)
+      const periodTitle = `${periodStart.toLocaleString('pt-BR')} a ${periodEnd.toLocaleString('pt-BR')}`
+      const pdfBuffer = await pdfService.generateReportPDF({
+        monitor: { name: monitor.name, url: monitor.url, type: monitor.type, status: stats.status, slug: monitor.slug },
+        stats: {
+          uptime: stats.total_checks > 0 ? stats.uptime_30d : null,
+          total_checks: stats.total_checks,
+          successful_checks: stats.successful_checks,
+          failed_checks: stats.failed_checks,
+          avg_response_time: stats.response_time_samples > 0 ? stats.avg_response_time : null,
+          response_time_samples: stats.response_time_samples,
+          incidents: stats.incidents,
+        },
+        period: periodTitle,
+        title: `${monitor.name} - Relatório do Período`,
+      })
+      const safeName = String(monitor.slug || monitor.name || monitorId).replace(/[^a-zA-Z0-9-]/g, '-')
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader('Content-Disposition', `attachment; filename="relatorio-${safeName}-${new Date().toISOString().slice(0, 10)}.pdf"`)
+      return res.send(pdfBuffer)
+    }
+
+    if (!year || !month) {
+      return res.status(400).json({ error: 'Ano e mês são obrigatórios' })
     }
 
     // Coletar estatísticas
@@ -1140,11 +1196,12 @@ app.get('/api/pdf/monthly-report/:monitorId', authenticateToken, async (req, res
         slug: monitor.slug
       },
       stats: {
-        uptime: stats.uptime_30d,
+        uptime: stats.total_checks > 0 ? stats.uptime_30d : null,
         total_checks: stats.total_checks,
         successful_checks: stats.successful_checks,
         failed_checks: stats.failed_checks,
-        avg_response_time: stats.avg_response_time,
+        avg_response_time: stats.response_time_samples > 0 ? stats.avg_response_time : null,
+        response_time_samples: stats.response_time_samples,
         incidents: stats.incidents
       },
       period: periodTitle,
@@ -1170,13 +1227,13 @@ app.post('/api/reports/send-monthly', authenticateToken, async (req, res) => {
 
     apiLogger('info', 'Solicitação de envio de relatório mensal', {
       monitorId: monitor_id,
-      period: `${month}/${year}`,
+      period: forceDynamic ? 'últimos 30 dias' : `${month}/${year}`,
       forceDynamic,
       requestId: req.requestId
     })
 
-    if (!monitor_id || !email || !year || !month) {
-      const error = 'Todos os campos são obrigatórios'
+    if (!monitor_id || !email || (!forceDynamic && (!year || !month))) {
+      const error = 'Monitor e e-mail são obrigatórios; ano e mês são necessários para relatório mensal fechado'
       apiLogger('warn', 'Parâmetros inválidos', { error, requestId: req.requestId })
       return res.status(400).json({ error })
     }
@@ -1418,6 +1475,18 @@ app.get('/api/status-page/:slug', async (req, res) => {
   }
 })
 
+// Dados já agregados da página pública, compartilhados com a versão PDF.
+app.get('/api/public/status-report/:slug', async (req, res) => {
+  try {
+    const report = await publicStatusService.getReport(req.params.slug)
+    if (!report) return res.status(404).json({ error: 'Página de status não encontrada ou inativa' })
+    res.json(report)
+  } catch (error) {
+    console.error('Erro ao gerar dados públicos de status:', error)
+    res.status(500).json({ error: 'Não foi possível carregar os dados de status' })
+  }
+})
+
 // Rota pública para obter checks de um monitor
 app.get('/api/public/monitors/:id/checks', async (req, res) => {
   try {
@@ -1623,45 +1692,10 @@ app.get('/api/public/incidents', async (req, res) => {
       return res.json([])
     }
 
-    if (!await findActivePublicMonitor(databaseService, monitor_id)) {
-      return res.status(404).json({ error: 'Monitor não encontrado' })
-    }
-
-    // Buscar histórico de checks para identificar incidentes
-    const checks = await databaseService.getMonitorChecks(monitor_id as string, Number(limit) * 20)
-    
-    const incidents = []
-    let currentIncident = null
-    
-    // Identificar incidentes (lógica similar ao frontend)
-    for (const check of checks) {
-      if (check.status !== 'online') {
-        if (!currentIncident) {
-          currentIncident = {
-            id: `inc-${check.id}`,
-            monitor_name: '', // Será preenchido no frontend se necessário
-            status: 'resolved',
-            title: check.status === 'offline' ? 'Serviço indisponível' : 'Latência alta',
-            description: check.error_message || 'Falha na verificação',
-            started_at: check.checked_at,
-            resolved_at: check.checked_at
-          }
-        }
-      } else {
-        if (currentIncident) {
-          currentIncident.resolved_at = check.checked_at
-          incidents.push(currentIncident)
-          currentIncident = null
-        }
-      }
-    }
-    
-    // Se ainda há um incidente em aberto (o mais recente)
-    if (currentIncident) {
-      incidents.push(currentIncident)
-    }
-
-    res.json(incidents.slice(0, Number(limit)))
+    const report = await publicStatusService.getReport(String(monitor_id))
+    if (!report) return res.status(404).json({ error: 'Monitor não encontrado' })
+    if (report.incidents === null) return res.status(503).json({ error: 'Histórico de incidentes indisponível' })
+    res.json(report.incidents.slice(0, Math.max(0, Number(limit))))
   } catch (error) {
     console.error('Erro ao buscar incidentes:', error)
     res.status(500).json({ error: 'Erro interno do servidor' })
@@ -1708,8 +1742,7 @@ app.get('/api/public/monitor-stats/:id', async (req, res) => {
     
     // Calcular estatísticas reais dos últimos 30 dias
     const endDate = new Date()
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - 30)
+    const startDate = new Date(endDate.getTime() - 30 * 86_400_000)
     
     const stats = await reportService.collectMonitorStats(id, startDate, endDate)
     

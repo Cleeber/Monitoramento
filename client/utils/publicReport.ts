@@ -6,9 +6,11 @@ export interface PublicMonitor {
   status: 'online' | 'offline' | 'warning' | 'unknown'
   last_check: string | null
   response_time: number | null
-  uptime_24h: number
-  uptime_7d: number
-  uptime_30d: number
+  uptime_24h: number | null
+  uptime_7d: number | null
+  uptime_30d: number | null
+  total_checks: number
+  successful_checks: number
 }
 
 export interface PublicIncident {
@@ -19,13 +21,6 @@ export interface PublicIncident {
   description: string
   started_at: string
   resolved_at: string | null
-}
-
-interface MonitorStats {
-  totalChecks: number
-  successfulChecks: number
-  failedChecks: number
-  avgResponseTime: number
 }
 
 export interface UptimePoint { date: string; uptime: number }
@@ -50,70 +45,8 @@ async function getPublicData<T>(path: string, signal: AbortSignal): Promise<T> {
 }
 
 export async function loadPublicReport(slug: string | undefined, signal: AbortSignal): Promise<PublicReport> {
-  const path = !slug || slug === 'all' ? 'all' : `monitor/${encodeURIComponent(slug)}`
-  const status = await getPublicData<{ monitors: PublicMonitor[]; last_updated: string }>(
-    `/api/public/status/${path}`, signal,
-  )
-  const historyByDate = new Map<string, number[]>()
-  const incidents: PublicIncident[] = []
-  let incidentFailure = false
-  let partial = false
-  let responseTotal = 0
-  let responseChecks = 0
-
-  // Limit concurrent requests for the overview, which may include many monitors.
-  for (let offset = 0; offset < status.monitors.length; offset += 4) {
-    if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-    const details = await Promise.all(status.monitors.slice(offset, offset + 4).map(async monitor => {
-      const id = encodeURIComponent(monitor.id)
-      const [history, occurrences, stats] = await Promise.allSettled([
-        getPublicData<UptimePoint[]>(`/api/public/uptime-history?monitor_id=${id}&days=30`, signal),
-        getPublicData<PublicIncident[]>(`/api/public/incidents?monitor_id=${id}&limit=50`, signal),
-        getPublicData<MonitorStats>(`/api/public/monitor-stats/${id}`, signal),
-      ])
-      return { monitor, history, occurrences, stats }
-    }))
-
-    for (const { monitor, history, occurrences, stats } of details) {
-      if (history.status === 'fulfilled') {
-        for (const point of history.value) {
-          if (!Number.isFinite(point.uptime)) continue
-          const values = historyByDate.get(point.date) ?? []
-          values.push(point.uptime)
-          historyByDate.set(point.date, values)
-        }
-      } else partial = true
-
-      if (occurrences.status === 'fulfilled') {
-        incidents.push(...occurrences.value.map(incident => ({
-          ...incident, id: `${monitor.id}-${incident.id}`, monitor_name: monitor.name,
-        })))
-      } else {
-        incidentFailure = true
-        partial = true
-      }
-
-      if (stats.status === 'fulfilled' && stats.value.successfulChecks > 0 && Number.isFinite(stats.value.avgResponseTime)) {
-        responseTotal += stats.value.avgResponseTime * stats.value.successfulChecks
-        responseChecks += stats.value.successfulChecks
-      } else if (stats.status === 'rejected') partial = true
-    }
-  }
-
-  if (signal.aborted) throw new DOMException('Aborted', 'AbortError')
-  const periodStart = new Date(status.last_updated).getTime() - 30 * 86_400_000
-  return {
-    monitors: status.monitors,
-    lastUpdated: status.last_updated,
-    history: [...historyByDate].sort(([a], [b]) => a.localeCompare(b)).map(([date, values]) => ({
-      date, uptime: values.reduce((sum, value) => sum + value, 0) / values.length,
-    })),
-    incidents: incidentFailure ? null : incidents.filter(incident =>
-      new Date(incident.resolved_at ?? status.last_updated).getTime() >= periodStart,
-    ).sort((a, b) => b.started_at.localeCompare(a.started_at)),
-    averageResponse: responseChecks > 0 ? Math.round(responseTotal / responseChecks) : null,
-    partial,
-  }
+  const reportSlug = !slug ? 'all' : slug
+  return getPublicData<PublicReport>(`/api/public/status-report/${encodeURIComponent(reportSlug)}`, signal)
 }
 
 export function incidentDuration(incident: PublicIncident, now: string): number | null {

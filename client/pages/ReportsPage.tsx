@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -39,26 +39,29 @@ ChartJS.register(
   Filler
 )
 
-import { StatusPageTemplate } from '@/components/templates/StatusPageTemplate'
 
 interface Monitor {
   id: string
   name: string
   url: string
   status: string
+  is_active: boolean
   slug?: string
 }
 
 interface Report {
   monitor_id: string
   monitor_name: string
-  uptime_percentage: number
+  uptime_percentage: number | null
   total_checks: number
   successful_checks: number
   failed_checks: number
-  avg_response_time: number
-  min_response_time: number
-  max_response_time: number
+  warning_checks: number
+  offline_checks: number
+  response_time_samples: number
+  avg_response_time: number | null
+  min_response_time: number | null
+  max_response_time: number | null
   incidents: number
   last_incident?: string
 }
@@ -67,7 +70,7 @@ interface MonitorCheck {
   id: string
   monitor_id: string
   status: string
-  response_time: number
+  response_time: number | null
   checked_at: string
   error_message?: string
 }
@@ -75,8 +78,12 @@ interface MonitorCheck {
 interface OverallStats {
   total_checks: number
   total_incidents: number
+  successful_checks: number
+  failed_checks: number
   avg_uptime: number
+  response_time_samples: number
   avg_response_time: number
+  partial: boolean
 }
 
 interface ChartData {
@@ -94,13 +101,15 @@ function ReportsPage() {
   const [monitorChecks, setMonitorChecks] = useState<MonitorCheck[]>([])
   const [overallStats, setOverallStats] = useState<OverallStats | null>(null)
   const [loading, setLoading] = useState(true)
+  const [checksLoading, setChecksLoading] = useState(false)
+  const [checksError, setChecksError] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [sendingEmail, setSendingEmail] = useState(false)
-  const reportRef = useRef<HTMLDivElement>(null)
-  const [pdfData] = useState<any>(null)
-  const pdfTemplateRef = useRef<HTMLDivElement>(null)
+  const reportsRequestRef = useRef(0)
+  const checksRequestRef = useRef(0)
 
   const fetchReports = useCallback(async () => {
+    const requestId = ++reportsRequestRef.current
     try {
       setLoading(true)
       const periodRange = calculatePeriodRange(selectedTimeRange)
@@ -118,14 +127,18 @@ function ReportsPage() {
       if (!result.success) {
         throw new Error(result.error || 'Erro ao carregar relatórios')
       }
+      if (requestId !== reportsRequestRef.current) return
       
       setReports(result.data.reports || [])
       setOverallStats(result.data.overall_stats || null)
     } catch (error) {
+      if (requestId !== reportsRequestRef.current) return
       console.error('Erro ao carregar relatórios:', error)
+      setReports([])
+      setOverallStats(null)
       toast.error('Erro ao carregar relatórios')
     } finally {
-      setLoading(false)
+      if (requestId === reportsRequestRef.current) setLoading(false)
     }
   }, [selectedMonitor, selectedTimeRange])
 
@@ -138,9 +151,10 @@ function ReportsPage() {
       
       setMonitors(result.data)
       
-      // Se houver monitores, selecionar o primeiro por padrão
+      // Começar por um monitor que também tenha página pública de status.
       if (result.data.length > 0) {
-        setSelectedMonitor(current => current === 'all' ? result.data[0].id : current)
+        const defaultMonitor = result.data.find((monitor: Monitor) => monitor.is_active) || result.data[0]
+        setSelectedMonitor(current => current === 'all' ? defaultMonitor.id : current)
       }
     } catch (error) {
       console.error('Erro ao carregar monitores:', error)
@@ -149,31 +163,41 @@ function ReportsPage() {
   }, [])
 
   const fetchMonitorChecks = useCallback(async () => {
+    const requestId = ++checksRequestRef.current
     if (selectedMonitor === 'all') {
       setMonitorChecks([])
+      setChecksLoading(false)
+      setChecksError(false)
       return
     }
     
     try {
+      setChecksLoading(true)
+      setChecksError(false)
       const periodRange = calculatePeriodRange(selectedTimeRange)
       
       const params = new URLSearchParams({
         monitor_id: selectedMonitor,
         start_date: periodRange.startDate.toISOString(),
-        end_date: periodRange.endDate.toISOString(),
-        limit: '1000'
+        end_date: periodRange.endDate.toISOString()
       })
       
       const result = await apiGet(`/monitor-checks?${params}`)
       if (!result.success) {
         throw new Error(result.error || 'Erro ao carregar verificações do monitor')
       }
+      if (requestId !== checksRequestRef.current) return
       
       const normalized = normalizeChecksArray(result.data)
       setMonitorChecks(normalized)
     } catch (error) {
+      if (requestId !== checksRequestRef.current) return
       console.error('Erro ao carregar verificações do monitor:', error)
+      setMonitorChecks([])
+      setChecksError(true)
       toast.error('Erro ao carregar verificações do monitor')
+    } finally {
+      setChecksLoading(false)
     }
   }, [selectedMonitor, selectedTimeRange])
 
@@ -198,17 +222,13 @@ function ReportsPage() {
       const monitor = monitors.find(m => m.id === selectedMonitor)
       if (!monitor) throw new Error('Monitor não encontrado')
 
-      // Calcular período
       const periodRange = calculatePeriodRange(selectedTimeRange)
-      const year = periodRange.endDate.getFullYear()
-      const month = periodRange.endDate.getMonth() + 1
-
-      // Chamar endpoint do backend para gerar PDF
-      const token = localStorage.getItem('auth_token')
-      const response = await fetch(`/api/pdf/monthly-report/${monitor.id}?year=${year}&month=${month}&style=status`, {
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
+      const params = new URLSearchParams({
+        start_date: periodRange.startDate.toISOString(),
+        end_date: periodRange.endDate.toISOString(),
+      })
+      const response = await fetch(`/api/pdf/monthly-report/${encodeURIComponent(monitor.id)}?${params}`, {
+        credentials: 'same-origin',
       })
 
       if (!response.ok) {
@@ -221,11 +241,12 @@ function ReportsPage() {
       const url = window.URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `relatorio-${monitor.slug || monitor.name}-${month}-${year}.pdf`
+      const fileMonitor = (monitor.slug || monitor.name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9-]+/g, '-')
+      a.download = `relatorio-${fileMonitor}-${selectedTimeRange}-${new Date().toISOString().slice(0, 10)}.pdf`
       document.body.appendChild(a)
       a.click()
-      window.URL.revokeObjectURL(url)
       document.body.removeChild(a)
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 1000)
       
       toast.success('Relatório exportado com sucesso!')
     } catch (error) {
@@ -253,17 +274,9 @@ function ReportsPage() {
       
       const email = configResult.data.email as string
       
-      // Definir ano e mês com base no período selecionado
-      const { endDate } = calculatePeriodRange(selectedTimeRange)
-      const targetDate = endDate
-      const year = targetDate.getFullYear()
-      const month = targetDate.getMonth() + 1
-      
       const result = await apiPost('/reports/send-monthly', {
         monitor_id: selectedMonitor,
         email,
-        year,
-        month,
         includePdf: true,
         forceDynamic: true
       })
@@ -272,7 +285,7 @@ function ReportsPage() {
         throw new Error(result.error || 'Erro ao enviar e-mail')
       }
       
-      toast.success('Relatório enviado por e-mail com sucesso!')
+      toast.success('Status público dos últimos 30 dias enviado por e-mail!')
     } catch (error) {
       console.error('Erro ao enviar e-mail:', error)
       toast.error(error instanceof Error ? error.message : 'Erro ao enviar relatório por e-mail')
@@ -281,7 +294,8 @@ function ReportsPage() {
     }
   }
 
-  const getUptimeColor = (uptime: number) => {
+  const getUptimeColor = (uptime: number | null) => {
+    if (uptime === null || !Number.isFinite(uptime)) return 'text-muted-foreground'
     if (uptime >= 99) return 'text-green-600'
     if (uptime >= 95) return 'text-yellow-600'
     return 'text-red-600'
@@ -292,10 +306,12 @@ function ReportsPage() {
 
     return {
       totalChecks: overallStats.total_checks,
-      totalSuccessful: overallStats.total_checks - overallStats.total_incidents,
+      totalSuccessful: overallStats.successful_checks,
       totalIncidents: overallStats.total_incidents,
       avgUptime: overallStats.avg_uptime,
       avgResponseTime: overallStats.avg_response_time,
+      responseTimeSamples: overallStats.response_time_samples,
+      partial: overallStats.partial,
       monitorsCount: selectedMonitor !== 'all' ? 1 : reports.length
     }
   }
@@ -310,11 +326,11 @@ function ReportsPage() {
             label: 'Uptime (%)',
             data: reports.map(report => report.uptime_percentage),
             backgroundColor: reports.map(report => 
-              report.uptime_percentage >= 99 ? '#10b981' :
+              report.uptime_percentage == null ? '#6b7280' : report.uptime_percentage >= 99 ? '#10b981' :
               report.uptime_percentage >= 95 ? '#f59e0b' : '#ef4444'
             ),
             borderColor: reports.map(report => 
-              report.uptime_percentage >= 99 ? '#059669' :
+              report.uptime_percentage == null ? '#4b5563' : report.uptime_percentage >= 99 ? '#059669' :
               report.uptime_percentage >= 95 ? '#d97706' : '#dc2626'
             ),
             borderWidth: 1,
@@ -412,6 +428,7 @@ function ReportsPage() {
       const groupedData: { [key: string]: number[] } = {}
       
       monitorChecks.forEach(check => {
+        if (check.status !== 'online' || check.response_time == null || Number(check.response_time) <= 0) return
         let groupKey: string
         const checkDate = new Date(check.checked_at)
         
@@ -424,7 +441,7 @@ function ReportsPage() {
         if (!groupedData[groupKey]) {
           groupedData[groupKey] = []
         }
-        groupedData[groupKey].push(check.response_time)
+        groupedData[groupKey].push(Number(check.response_time))
       })
       
       const sortedKeys = Object.keys(groupedData).sort()
@@ -464,9 +481,9 @@ function ReportsPage() {
 
   const generateStatusDistributionData = (): ChartData => {
     if (selectedMonitor === 'all') {
-      const onlineCount = reports.filter(r => r.uptime_percentage >= 99).length
-      const warningCount = reports.filter(r => r.uptime_percentage >= 95 && r.uptime_percentage < 99).length
-      const offlineCount = reports.filter(r => r.uptime_percentage < 95).length
+      const onlineCount = reports.reduce((sum, report) => sum + report.successful_checks, 0)
+      const warningCount = reports.reduce((sum, report) => sum + report.warning_checks, 0)
+      const offlineCount = reports.reduce((sum, report) => sum + report.offline_checks, 0)
       
       return {
         labels: ['Online', 'Aviso', 'Offline'],
@@ -522,11 +539,11 @@ function ReportsPage() {
             ) : (
               <Mail className="h-4 w-4 mr-2" />
             )}
-            {sendingEmail ? 'Enviando...' : 'Enviar por E-mail'}
+            {sendingEmail ? 'Enviando...' : 'Enviar status público (30 dias)'}
           </Button>
           <Button 
             onClick={handleExport} 
-            disabled={exporting || reports.length === 0}
+            disabled={exporting || selectedMonitor === 'all'}
           >
             {exporting ? (
               <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
@@ -550,7 +567,7 @@ function ReportsPage() {
             <SelectValue placeholder="Monitor" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="all">Todos os monitores</SelectItem>
+            <SelectItem value="all">Todos os monitores ativos</SelectItem>
             {monitors.map((monitor) => (
               <SelectItem key={monitor.id} value={monitor.id}>
                 {monitor.name}
@@ -559,8 +576,19 @@ function ReportsPage() {
           </SelectContent>
         </Select>
       </div>
+
+      {selectedMonitor === 'all' && overallStats?.partial && (
+        <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200" role="status">
+          Há monitores ativos sem verificações neste período. Disponibilidade, incidentes e resposta média agregados ficam indisponíveis até haver dados para todos.
+        </p>
+      )}
+      {selectedMonitor !== 'all' && checksError && (
+        <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200" role="status">
+          O histórico detalhado não está disponível. Os indicadores do período foram carregados separadamente.
+        </p>
+      )}
       
-      <div ref={reportRef} className="space-y-5 rounded-lg" style={{ backgroundColor: exporting ? '#0d1117' : 'transparent' }}>
+      <div className="space-y-5 rounded-lg" style={{ backgroundColor: exporting ? '#0d1117' : 'transparent' }}>
       {overallStatsCalculated && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }}>
@@ -569,11 +597,11 @@ function ReportsPage() {
               <TrendingUp className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
-              <div className={`text-2xl font-bold ${getUptimeColor(overallStatsCalculated.avgUptime)}`}>
-                {overallStatsCalculated.avgUptime?.toFixed(2) || '0.00'}%
+              <div className={`text-2xl font-bold ${overallStatsCalculated.totalChecks > 0 && !overallStatsCalculated.partial ? getUptimeColor(overallStatsCalculated.avgUptime) : 'text-muted-foreground'}`}>
+                {overallStatsCalculated.totalChecks > 0 && !overallStatsCalculated.partial ? `${overallStatsCalculated.avgUptime.toFixed(2)}%` : '—'}
               </div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
-                {selectedMonitor !== 'all' ? 'Monitor selecionado' : getPeriodLabel(selectedTimeRange).toLowerCase()}
+                {overallStatsCalculated.partial ? selectedMonitor === 'all' ? 'Há monitores sem verificações neste período' : 'Sem verificações suficientes neste período' : selectedMonitor !== 'all' ? 'Monitor selecionado' : getPeriodLabel(selectedTimeRange).toLowerCase()}
               </p>
             </CardContent>
           </Card>
@@ -597,7 +625,7 @@ function ReportsPage() {
               <AlertTriangle className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-red-600">{overallStatsCalculated.totalIncidents}</div>
+              <div className={`text-2xl font-bold ${overallStatsCalculated.totalChecks > 0 && !overallStatsCalculated.partial ? 'text-red-600' : 'text-muted-foreground'}`}>{overallStatsCalculated.totalChecks > 0 && !overallStatsCalculated.partial ? overallStatsCalculated.totalIncidents : '—'}</div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
                 {selectedMonitor !== 'all' ? 'Incidentes do monitor' : `${overallStatsCalculated.monitorsCount} monitores`}
               </p>
@@ -610,7 +638,7 @@ function ReportsPage() {
               <Clock className="h-4 w-4" style={{ color: '#9ca3af' }} />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{Math.round(overallStatsCalculated.avgResponseTime)}ms</div>
+              <div className="text-2xl font-bold" style={{ color: '#ffffff' }}>{overallStatsCalculated.responseTimeSamples > 0 && !overallStatsCalculated.partial ? `${Math.round(overallStatsCalculated.avgResponseTime)}ms` : '—'}</div>
               <p className="text-xs" style={{ color: '#9ca3af' }}>
                 {selectedMonitor !== 'all' ? 'Tempo médio do monitor' : 'Média geral'}
               </p>
@@ -619,7 +647,7 @@ function ReportsPage() {
         </div>
       )}
 
-      {(reports.length > 0 || monitorChecks.length > 0) && (
+      {!checksLoading && !checksError && (reports.some(report => report.total_checks > 0) || monitorChecks.length > 0) && (
         <div className="space-y-5">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
             <Card style={{ backgroundColor: '#181b20', borderColor: '#2c313a' }} id="uptime-chart">
@@ -822,7 +850,8 @@ function ReportsPage() {
                       )
                     }
                     
-                    const getUptimeColor = (uptime: number) => {
+                    const getUptimeColor = (uptime: number | null) => {
+                      if (uptime === null || !Number.isFinite(uptime)) return 'text-muted-foreground'
                       if (uptime >= 99) return 'text-green-400'
                       if (uptime >= 95) return 'text-yellow-400'
                       return 'text-red-400'
@@ -842,7 +871,7 @@ function ReportsPage() {
                         <section>
                           <h3 className="mb-1 font-semibold">Estatísticas de Performance</h3>
                           <dl>
-                            <div><dt>Uptime Geral</dt><dd className={getUptimeColor(report.uptime_percentage)}>{report.uptime_percentage.toFixed(2)}%</dd></div>
+                            <div><dt>Uptime Geral</dt><dd className={getUptimeColor(report.uptime_percentage)}>{report.uptime_percentage == null ? '—' : `${report.uptime_percentage.toFixed(2)}%`}</dd></div>
                             <div><dt>Total de Verificações</dt><dd>{report.total_checks.toLocaleString()}</dd></div>
                             <div><dt>Bem-sucedidas</dt><dd className="text-green-400">{report.successful_checks.toLocaleString()}</dd></div>
                             <div><dt>Falhadas</dt><dd className="text-red-400">{report.failed_checks.toLocaleString()}</dd></div>
@@ -851,17 +880,17 @@ function ReportsPage() {
                         <section>
                           <h3 className="mb-1 font-semibold">Tempos de Resposta</h3>
                           <dl>
-                            <div><dt>Tempo Médio</dt><dd className="font-semibold">{report.avg_response_time.toFixed(0)}ms</dd></div>
-                            <div><dt>Tempo Mínimo</dt><dd className="text-green-400">{report.min_response_time.toFixed(0)}ms</dd></div>
-                            <div><dt>Tempo Máximo</dt><dd className="text-red-400">{report.max_response_time.toFixed(0)}ms</dd></div>
+                            <div><dt>Tempo Médio</dt><dd className="font-semibold">{report.avg_response_time == null ? '—' : `${report.avg_response_time.toFixed(0)}ms`}</dd></div>
+                            <div><dt>Tempo Mínimo</dt><dd className="text-green-400">{report.min_response_time == null ? '—' : `${report.min_response_time.toFixed(0)}ms`}</dd></div>
+                            <div><dt>Tempo Máximo</dt><dd className="text-red-400">{report.max_response_time == null ? '—' : `${report.max_response_time.toFixed(0)}ms`}</dd></div>
                           </dl>
                         </section>
                         <section>
                           <h3 className="mb-1 font-semibold">Incidentes e Problemas</h3>
                           <dl>
-                            <div><dt>Total de Incidentes</dt><dd className={report.incidents > 0 ? 'text-red-400' : 'text-green-400'}>{report.incidents}</dd></div>
-                            <div><dt>Último Incidente</dt><dd>{report.last_incident ? new Date(report.last_incident).toLocaleString('pt-BR') : 'Nenhum incidente registrado'}</dd></div>
-                            <div><dt>Taxa de Sucesso</dt><dd className={getUptimeColor(report.total_checks ? (report.successful_checks / report.total_checks) * 100 : 0)}>{report.total_checks ? ((report.successful_checks / report.total_checks) * 100).toFixed(2) : '0.00'}%<span className="block text-xs text-muted-foreground">{report.successful_checks}/{report.total_checks} verificações</span></dd></div>
+                            <div><dt>Total de Incidentes</dt><dd className={report.total_checks === 0 ? 'text-muted-foreground' : report.incidents > 0 ? 'text-red-400' : 'text-green-400'}>{report.total_checks === 0 ? '—' : report.incidents}</dd></div>
+                            <div><dt>Último Incidente</dt><dd>{report.total_checks === 0 ? 'Sem verificações no período' : report.last_incident ? new Date(report.last_incident).toLocaleString('pt-BR') : 'Nenhum incidente registrado'}</dd></div>
+                            <div><dt>Taxa de Sucesso</dt><dd className={getUptimeColor(report.total_checks ? (report.successful_checks / report.total_checks) * 100 : null)}>{report.total_checks ? `${((report.successful_checks / report.total_checks) * 100).toFixed(2)}%` : '—'}<span className="block text-xs text-muted-foreground">{report.successful_checks}/{report.total_checks} verificações</span></dd></div>
                           </dl>
                         </section>
                       </div>
@@ -873,7 +902,7 @@ function ReportsPage() {
           )}
         </div>
       )}
-      {reports.length === 0 && monitorChecks.length === 0 && (
+      {(reports.length === 0 || reports.every(report => report.total_checks === 0)) && monitorChecks.length === 0 && (
         <Card className="p-8 text-center">
           <Activity className="mx-auto mb-3 h-8 w-8 text-muted-foreground" />
           <h2 className="font-medium">Nenhum dado neste período</h2>
@@ -882,16 +911,6 @@ function ReportsPage() {
       )}
       </div>
       
-      {/* Hidden template for PDF generation */}
-      <div style={{ position: 'absolute', left: '-9999px', top: 0, width: '1024px' }}>
-        <div ref={pdfTemplateRef}>
-          {pdfData && (
-            <StatusPageTemplate
-              {...pdfData}
-            />
-          )}
-        </div>
-      </div>
     </div>
   )
 }
